@@ -97,3 +97,13 @@
   - 静默跳过只记日志——失败对 PR 作者不可见；
   - 更短超时——大部分审查会失败。
 - **后果**：失败可观测；超时不写 review 标记，同 SHA 重投 webhook 可重试。延迟波动属模型层问题，若频繁超时在 Day 6 多模型对比时处理。
+
+## D012 — thinking 模型延迟治理：`LLM_EXTRA_BODY` 端点扩展点，关 thinking 而非异步化
+
+- **状态**：已接受（2026-10-29，Day 3 首次全链路实测触发）
+- **背景**：当前模型（glm-4.6）为 thinking 模型，单次审查 2～5 分钟起步，Day 3 首次真跑 270s 必然超时（journal 会话 10）。webhook 层已是先 200 再异步，「等待」只受 Vercel 函数 300s 硬上限约束——继续加大超时无出路。
+- **决策**：加通用请求扩展点 `LLM_EXTRA_BODY`（JSON，合并进 chat/completions 请求体，显式配置优先），GLM 用 `{"thinking":{"type":"disabled"}}` 请求级关闭 thinking；超时 + 重投兜底保留。「必须长 thinking」时的真正异步化（QStash 外部队列 / Vercel Workflows，突破 300s）列为 v2 候选。
+- **备选**：
+  - 外部队列异步化（QStash + worker）——解决重试语义但不突破单次调用 300s 上限，且引入外部服务，与 D010 零基建取向相悖；
+  - 直接换非 thinking 小模型——等价于改 `LLM_MODEL`，与本法不互斥，但质量对比交给 Day 6 eval 拿数据。
+- **后果**：单次审查延迟回落到 300s 内；thinking 开关成为配置项，eval 可量化其对质量的影响（正是 eval 集的用途）。`LLM_EXTRA_BODY` 同时是任何端点私有参数的通用入口，不绑定厂商。
