@@ -42,6 +42,15 @@ function summaryBody(result: ReviewResult, headSha: string): string {
   ].join("\n");
 }
 
+// severity → 标签：blocker/major 是需要人介入的信号，minor/nit 常见、打满成噪音。
+// 标签随 PR 历史累积，Day 6 eval 可当按时间的审查质量分布数据。
+export function severityLabels(result: ReviewResult): string[] {
+  const severities = new Set(result.comments.map((c) => c.severity));
+  return [severities.has("blocker") && "has-blocker", severities.has("major") && "has-major"].filter(
+    (l): l is string => typeof l === "string",
+  );
+}
+
 export async function postReview(
   client: Octokit,
   { owner, repo, pullNumber, commitId }: PrRef & { commitId: string },
@@ -81,6 +90,15 @@ export async function postReview(
       event: "COMMENT",
       body: fallback,
     });
+  }
+  const labels = severityLabels(result);
+  if (labels.length > 0) {
+    try {
+      await client.rest.issues.addLabels({ owner, repo, issue_number: pullNumber, labels });
+    } catch (err) {
+      // 评论已发成功，标签失败只告警不连坐
+      console.warn(`[github] PR#${pullNumber} 打标签失败（${labels.join(",")}）`, err);
+    }
   }
 }
 

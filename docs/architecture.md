@@ -24,7 +24,7 @@ GitHub API 回帖（逐条 PR review comment）◄──────────
 | `api/webhook.ts` | Vercel function 薄壳 | 读 raw body（不能碰 `req.body`，惰性解析会消费流破坏验签）+ 响应；`maxDuration: 300`（Hobby 上限） |
 | `src/webhook.ts` | 验签、事件分发、后台审查编排 | HMAC-SHA256 + `timingSafeEqual`，失败 401；只处理 `opened` / `synchronize`（其余含 `ping` 200 忽略）；立即 200 + `waitUntil`（`@vercel/functions`）执行 `runReview`；后台任务失败只记日志不抛出 |
 | `src/review.ts` | 拉 diff → 构造 prompt → LLM 审查 → 结构化输出 | prompt 从 `prompts/review.md` 读取；`generateText` + `Output.object` 强约束 schema；`llm.chat()` 显式走 chat/completions（兼容端点无 Responses API）；`AbortSignal.timeout(LLM_TIMEOUT_MS)` 默认 270s（D011）；`LLM_EXTRA_BODY` 合并进请求体控制 thinking 等端点参数（D012） |
-| `src/github.ts` | GitHub API 封装：拉 PR diff、发 review comment、超时通知 | 只依赖 octokit；便于 eval 时 mock；review summary 内嵌 sha 标记（D010） |
+| `src/github.ts` | GitHub API 封装：拉 PR diff、发 review comment、超时通知、打 severity 标签 | 只依赖 octokit；便于 eval 时 mock；review summary 内嵌 sha 标记（D010）；`postReview` 后自动打 `has-blocker`/`has-major` 标签（minor/nit 不打，Day 6 eval 可当按时间的质量数据） |
 | `src/dedupe.ts` | 同一 commit SHA 只审一次 | 查 PR 已有 review 的 `<!-- pr-review-agent sha:<SHA> -->` 标记（D010） |
 | `prompts/review.md` | 审查提示词（迭代对象） | prompt 与代码分离，方便 diff 和 eval 对比；`vercel.json` `includeFiles` 保证随函数打包 |
 | `evals/` | 用例集 + 跑分脚本 + 报告 | `cases/` 20 个 (diff, 期望发现) 用例；`run.ts` 打分；`report.md` 前后对比 |
