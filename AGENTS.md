@@ -25,7 +25,7 @@ Harness 的核心纪律：**每一步都可回放**。文档只追加、少改�
 - TypeScript strict；运行时 Node 22；部署目标 Vercel
 - 提示词只放 `prompts/*.md`，代码引用文件，不在代码里内联 prompt
 - eval 相关改动必须保持 `npm run eval` 可回归（`evals/` 目录自包含）
-- 遵循 lazy senior dev 原则（本仓库装有 ponytail skill，见 `.zcode/skills/`）：最小完整改动，不加没人要的抽象
+- 遵循 lazy senior dev 原则（本仓库装有 ponytail skill，见 `.agents/skills/`）：最小完整改动，不加没人要的抽象
 - 密钥只走环境变量，任何 key 不入库
 
 ## 提交规范
