@@ -8,6 +8,7 @@ export const config = { maxDuration: 300 };
 export default async function handler(req: IncomingMessage, res: ServerResponse): Promise<void> {
   try {
     if (req.method !== "POST") {
+      res.setHeader("Allow", "POST");
       res.statusCode = 405;
       res.end("method not allowed");
       return;
@@ -16,6 +17,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     if (rawBody === null) {
       res.statusCode = 413;
       res.end("payload too large");
+      req.destroy(); // 超限即断：drain 纯耗带宽，客户端收到 413 或连接重置都是明确信号
       return;
     }
     const outcome = handleWebhook(req.headers, rawBody);

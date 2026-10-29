@@ -17,8 +17,11 @@ if (!secret) {
   secret = randomBytes(32).toString("hex");
   const envPath = new URL("../.env", import.meta.url);
   if (existsSync(envPath) && /^WEBHOOK_SECRET=/m.test(readFileSync(envPath, "utf8"))) {
-    // .env 已有该键（含照抄 .env.example 的空值行）：就地覆盖，避免重复键
-    writeFileSync(envPath, readFileSync(envPath, "utf8").replace(/^WEBHOOK_SECRET=.*$/m, `WEBHOOK_SECRET=${secret}`));
+    // 清掉所有同名键再写一行（历史版本 append 可能留下多行，dotenv 取值依实现而定）
+    const envText = readFileSync(envPath, "utf8");
+    const stripped = envText.replace(/^WEBHOOK_SECRET=.*(?:\n|$)/gm, "");
+    const needsNewline = stripped.length > 0 && !stripped.endsWith("\n");
+    writeFileSync(envPath, `${stripped}${needsNewline ? "\n" : ""}WEBHOOK_SECRET=${secret}\n`);
     console.log("WEBHOOK_SECRET 已重新生成并覆盖 .env 原值");
   } else {
     appendFileSync(envPath, `\nWEBHOOK_SECRET=${secret}\n`);
