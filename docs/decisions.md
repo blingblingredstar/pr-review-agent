@@ -79,3 +79,10 @@
 - **背景**：PLAN.md 原在仓库根，后续还会有阶段性计划与规格文档，根目录需要保持干净。
 - **决策**：`PLAN.md` 迁移为 `docs/plans/PLAN.md`（git mv 保留历史）；之后的计划/ specs 一律放 `docs/plans/`。
 - **后果**：根目录只留 `README.md` 与 `AGENTS.md`；AGENTS.md、README 中的路径引用已同步更新。
+
+## D011 — LLM 接入按 OpenAI 兼容端点抽象，不绑定厂商
+
+- **状态**：已接受（2026-10-29）
+- **背景**：GLM 提供标准 OpenAI 兼容 API，AI SDK 的 OpenAI provider 通过自定义 `baseURL` 可接任何兼容端点。文档与代码写死 GLM 会缩小适用面，也与多模型对比路线（PLAN §七）冲突。
+- **决策**：代码与文档统一用「OpenAI 兼容端点」表述，配置抽象为 `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`；GLM 仅作为当前注入的实例出现在决策记录与配置备注里。
+- **后果**：换模型 / 接第二家模型只改环境变量，同一 eval 集可直接做对比；D002 中的「GLM 端点」自本条起理解为「OpenAI 兼容端点，当前实例为 GLM」。

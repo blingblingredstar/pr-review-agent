@@ -27,6 +27,7 @@ Harness 的核心纪律：**每一步都可回放**。文档只追加、少改�
 - eval 相关改动必须保持 `npm run eval` 可回归（`evals/` 目录自包含）
 - 遵循 lazy senior dev 原则（本仓库装有 ponytail skill，见 `.agents/skills/`）：最小完整改动，不加没人要的抽象
 - 密钥只走环境变量，任何 key 不入库
+- LLM 接入按 OpenAI 兼容端点抽象（`LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`），代码与文档不绑定具体厂商
 - 阶段性计划与规格（specs）统一归档 `docs/plans/`，后续新计划也放这个目录
 - 对外表述按真实项目定位，不出现个人背景相关措辞
 
@@ -38,7 +39,7 @@ Conventional Commits：`feat:` / `fix:` / `docs:` / `chore:` / `refactor:` / `te
 
 参考 Harness 的分层思路，出问题先定位层，再动手修：
 
-1. **模型层**：GLM 端点连通性（先 curl 单测，再查编排）
+1. **模型层**：LLM 端点连通性（先 curl 单测，再查编排）
 2. **编排层**：AI SDK 调用、`generateObject` schema 校验失败
 3. **集成层**：GitHub API（diff 拉取、回帖）、webhook 签名校验
 4. **平台层**：Vercel（waitUntil 生命周期、函数超时、环境变量）

@@ -12,7 +12,7 @@ Vercel API route ──立即返回 200，waitUntil 异步处理──┐
       ▼                                            │
 拉取 PR diff (GitHub API)                          │
       ▼                                            │
-GLM 审查：generateObject → { comments: [...] }      │
+LLM 审查（OpenAI 兼容端点）：generateObject → { comments: [...] }      │
       ▼                                            │
 GitHub API 回帖（逐条 PR review comment）◄──────────┘
 ```
@@ -22,7 +22,7 @@ GitHub API 回帖（逐条 PR review comment）◄──────────
 | 模块 | 职责 | 关键点 |
 |---|---|---|
 | `src/webhook.ts` | 接收事件、验签、事件分发、立即 200 + `waitUntil` | 只处理 `opened` / `synchronize`；其余事件直接 200 忽略 |
-| `src/review.ts` | 拉 diff → 构造 prompt → GLM 审查 → 结构化输出 | prompt 从 `prompts/review.md` 读取；`generateObject` 强约束 schema |
+| `src/review.ts` | 拉 diff → 构造 prompt → LLM 审查 → 结构化输出 | prompt 从 `prompts/review.md` 读取；`generateObject` 强约束 schema |
 | `src/github.ts` | GitHub API 封装：拉 PR diff、发 review comment | 只依赖 octokit；便于 eval 时 mock |
 | `src/dedupe.ts` | 同一 commit SHA 只审一次 | 防止 webhook 重试 → 重复评论 |
 | `prompts/review.md` | 审查提示词（迭代对象） | prompt 与代码分离，方便 diff 和 eval 对比 |
@@ -47,7 +47,7 @@ schema 变更属于破坏性改动：必须同步改 `evals/run.ts` 的打分逻
 
 ## 关键工程机制
 
-- **先 200 再异步**：GLM 审查可能几十秒，超过 GitHub webhook 超时会触发重试导致重复评论。用 `waitUntil` 后台执行，HTTP 层立刻返回 200。
+- **先 200 再异步**：LLM 审查可能几十秒，超过 GitHub webhook 超时会触发重试导致重复评论。用 `waitUntil` 后台执行，HTTP 层立刻返回 200。
 - **幂等去重**：以 `(repo, commit SHA)` 为键去重，同一 commit 只审一次；重试到达时直接跳过。
 - **diff 截断**：超大 PR 按文件分批调用，或只取变更行附近上下文，避免超出模型上下文窗口。
 
@@ -55,8 +55,9 @@ schema 变更属于破坏性改动：必须同步改 `evals/run.ts` 的打分逻
 
 | 变量 | 用途 | 备注 |
 |---|---|---|
-| `GLM_API_KEY` | 调用 GLM OpenAI 兼容端点 | 唯一实际成本 |
-| `GLM_BASE_URL` | GLM 端点地址 | AI SDK 的 OpenAI provider 可自定义 base URL |
+| `LLM_API_KEY` | 调用 OpenAI 兼容端点 | 当前用 GLM 的 key；唯一实际成本 |
+| `LLM_BASE_URL` | OpenAI 兼容端点地址 | AI SDK 的 OpenAI provider 自定义 `baseURL` |
+| `LLM_MODEL` | 模型名 | 换模型 / 多模型对比只改配置 |
 | `GITHUB_TOKEN` | 拉 diff、发评论 | GitHub App 还是 PAT 待定（见 decisions.md D008） |
 | `WEBHOOK_SECRET` | webhook 签名校验 | HMAC-SHA256 |
 

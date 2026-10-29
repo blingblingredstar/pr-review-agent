@@ -1,6 +1,6 @@
 # PR Review Agent
 
-基于 GLM 的 GitHub PR 审查 Agent：webhook 接收 PR 事件 → 拉取 diff → LLM 分层审查（结构化输出）→ 调 GitHub API 回帖；附 20 用例 eval 集与 prompt 迭代对比报告。
+基于大模型的 GitHub PR 审查 Agent（LLM 走 OpenAI 兼容端点，可插拔）：webhook 接收 PR 事件 → 拉取 diff → LLM 分层审查（结构化输出）→ 调 GitHub API 回帖；附 20 用例 eval 集与 prompt 迭代对比报告。
 
 > **README 最后写**——当前是占位。完整架构图与 eval 报告摘要将在项目收尾（PLAN Day 7）补全。
 
