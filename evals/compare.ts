@@ -58,7 +58,10 @@ export function aggregateRuns(files: { name: string; data: RunJson }[]): Version
   }
   return [...byGroup.entries()].map(([key, list]) => {
     const [model, promptHash] = key.split("\u0000");
-    const ordered = [...list].sort((a, b) => a.data.startedAt.localeCompare(b.data.startedAt));
+    // startedAt 相同（精度截断）时以文件名稳定排序，保证「轮N」与命令行顺序可对上
+    const ordered = [...list].sort(
+      (a, b) => a.data.startedAt.localeCompare(b.data.startedAt) || a.name.localeCompare(b.name),
+    );
     // 能力评估口径：dogfood 排除（与 run.ts 一致）
     const capScores = ordered
       .flatMap((f) => f.data.runs.filter((r) => !r.error && r.score && r.source !== "dogfood"))
@@ -104,8 +107,9 @@ export function aggregateRuns(files: { name: string; data: RunJson }[]): Version
             const r = lookup(f);
             if (!r || r.error || !r.score) return [];
             return r.score.verdicts.filter((v) => !v.hit).map((v) => {
-              const file = Array.isArray(v.expect.file) ? v.expect.file[0] : v.expect.file;
-              return [`${file}:${v.expect.line ?? "*"}`, true] as const;
+              // 数组期望列出全部候选（实际漏在哪侧未知，只取第一个会误导短板分析）
+              const files = Array.isArray(v.expect.file) ? v.expect.file : [v.expect.file];
+              return [`${files.join("|")}:${v.expect.line ?? "*"}`, true] as const;
             });
           }),
         ).keys(),
