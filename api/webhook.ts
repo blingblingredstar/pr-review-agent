@@ -16,8 +16,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     const rawBody = await readRawBody(req);
     if (rawBody === null) {
       res.statusCode = 413;
-      res.end("payload too large");
-      req.destroy(); // 超限即断：drain 纯耗带宽，客户端收到 413 或连接重置都是明确信号
+      res.end("payload too large", () => req.destroy()); // 先确保 413 送达再断开
       return;
     }
     const outcome = handleWebhook(req.headers, rawBody);
