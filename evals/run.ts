@@ -35,7 +35,8 @@ async function reviewWithRetry(diff: string): Promise<ReviewResult> {
 }
 
 function percent(n: number): string {
-  return `${(n * 100).toFixed(0)}%`;
+  // 一位小数：多轮对比时 toFixed(0) 会把 66.7% 与 67% 混淆
+  return `${(n * 100).toFixed(1)}%`;
 }
 
 async function main() {
@@ -116,4 +117,7 @@ async function main() {
   if (failed > 0) process.exitCode = 1;
 }
 
-main();
+main().catch((e) => {
+  console.error(e);
+  process.exitCode = 1;
+});
