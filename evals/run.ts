@@ -18,12 +18,18 @@ type CaseRun = {
 };
 
 async function reviewWithRetry(diff: string): Promise<ReviewResult> {
+  let firstError: unknown = null;
   try {
     return await reviewDiff(diff);
   } catch (e) {
+    firstError = e;
     console.warn(`\n  首次失败（${String(e).slice(0, 160)}），10s 后重试一次`);
     await sleep(10_000);
-    return reviewDiff(diff);
+  }
+  try {
+    return await reviewDiff(diff);
+  } catch (e) {
+    throw new Error(`首次：${String(firstError).slice(0, 160)}；重试：${String(e).slice(0, 160)}`);
   }
 }
 
@@ -56,14 +62,17 @@ async function main() {
     if (i < cases.length - 1) await sleep(CASE_GAP_MS);
   }
 
-  const totalExpect = runs.reduce((s, r) => s + r.score.verdicts.length, 0);
-  const totalHits = runs.reduce((s, r) => s + r.score.hits, 0);
-  const totalComments = runs.reduce((s, r) => s + r.score.agentComments, 0);
-  const totalTp = runs.reduce((s, r) => s + r.score.truePositives, 0);
+  // 失败用例的空意见是 API 抖动的伪影，不进指标（失败数单独展示）
+  const okRuns = runs.filter((r) => !r.error);
+  const totalExpect = okRuns.reduce((s, r) => s + r.score.verdicts.length, 0);
+  const totalHits = okRuns.reduce((s, r) => s + r.score.hits, 0);
+  const totalComments = okRuns.reduce((s, r) => s + r.score.agentComments, 0);
+  const totalTp = okRuns.reduce((s, r) => s + r.score.truePositives, 0);
   const totalMs = runs.reduce((s, r) => s + r.durationMs, 0);
-  const recall = totalHits / totalExpect;
-  const precision = totalComments ? totalTp / totalComments : 0;
-  const failed = runs.filter((r) => r.error).length;
+  const recall = totalExpect ? totalHits / totalExpect : 0;
+  // 全部失败 / 零意见时 precision 无意义，置 null 报告显示 —（与单用例语义一致）
+  const precision = totalComments ? totalTp / totalComments : null;
+  const failed = runs.length - okRuns.length;
 
   const tableLines = [
     `| case | kind | 期望命中 | recall | 意见数 | TP | precision | 耗时s |`,
@@ -74,7 +83,7 @@ async function main() {
       const status = r.error ? ` ✗ ${r.error.slice(0, 60)}` : "";
       return `| ${r.caseId}${status} | ${r.kind} | ${rec} | ${percent(r.score.recall)} | ${r.score.agentComments} | ${r.score.truePositives} | ${prec} | ${(r.durationMs / 1000).toFixed(1)} |`;
     }),
-    `| **汇总** | | **${totalHits}/${totalExpect}** | **${percent(recall)}** | ${totalComments} | ${totalTp} | **${percent(precision)}** | ${(totalMs / 1000).toFixed(0)} |`,
+    `| **汇总**（${failed > 0 ? `排除 ${failed} 个失败用例；` : ""}失败用例不计入指标） | | **${totalHits}/${totalExpect}** | **${percent(recall)}** | ${totalComments} | ${totalTp} | **${precision === null ? "—" : percent(precision)}** | ${(totalMs / 1000).toFixed(0)} |`,
   ];
 
   const report = [
@@ -82,7 +91,7 @@ async function main() {
     ``,
     `- 模型：\`${model}\``
     + (process.env.LLM_BASE_URL ? `（${process.env.LLM_BASE_URL}）` : ""),
-    `- 汇总：recall ${percent(recall)}（${totalHits}/${totalExpect}），precision ${percent(precision)}（${totalTp}/${totalComments}），失败用例 ${failed}，总耗时 ${(totalMs / 1000 / 60).toFixed(1)} 分钟`,
+    `- 汇总：recall ${percent(recall)}（${totalHits}/${totalExpect}），precision ${precision === null ? "—" : percent(precision)}（${totalTp}/${totalComments}），失败用例 ${failed}（不计入指标），总耗时 ${(totalMs / 1000 / 60).toFixed(1)} 分钟`,
     ``,
     ...tableLines,
     ``,
@@ -94,7 +103,7 @@ async function main() {
   const base = `${stamp}-${safeModel}`;
   writeFileSync(
     new URL(`./runs/${base}.json`, import.meta.url),
-    JSON.stringify({ startedAt, model, llmBaseUrl: process.env.LLM_BASE_URL ?? null, runs, summary: { recall, precision, totalExpect, totalHits, totalComments, totalTp, failed } }, null, 2),
+    JSON.stringify({ startedAt, model, llmBaseUrl: process.env.LLM_BASE_URL ?? null, runs, summary: { recall, precision, totalExpect, totalHits, totalComments, totalTp, failed } }, null, 2) + "\n",
   );
   writeFileSync(new URL(`./runs/${base}.md`, import.meta.url), report);
 

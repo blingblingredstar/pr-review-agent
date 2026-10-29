@@ -34,7 +34,7 @@ index 2b3c4d5..6c7d8e9 100644
     {
       file: "src/ingest.ts",
       line: 26,
-      mustMention: ["max_retries", "3", "硬编码", "常量", "不一致", "同步", "config", "magic"],
+      mustMention: ["max_retries", "硬编码", "常量", "不一致", "同步", "config", "magic", "<= 3"],
     },
   ],
 } satisfies EvalCase;
