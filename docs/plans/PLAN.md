@@ -19,7 +19,7 @@
 |---|---|---|
 | 运行时 | TypeScript + Node 22 | 前端背景零摩擦 |
 | LLM 接入 | Vercel AI SDK + OpenAI 兼容端点 | TS 生态最主流的 LLM 接入框架；端点可插拔，当前接 GLM（key 现成） |
-| 结构化输出 | AI SDK 的 `generateObject` / `streamObject` | 审查意见需要稳定 schema |
+| 结构化输出 | AI SDK 的 `generateText` + `Output` / `streamObject` | 审查意见需要稳定 schema（`generateObject` 已废弃，见 decisions.md D009） |
 | 部署 | Vercel Hobby（免费，100 万次调用/月，非商用） | 无状态 webhook 服务的标准形态，无需云服务器 |
 | 模型计费 | OpenAI 兼容端点按 token（唯一实际成本） | 不用 Cursor SDK（绑订阅）/ Claude Agent SDK（无 key） |
 | 项目组织 | 参考 Cursor Agent SDK 范式 | Markdown 放提示词、TS 函数定义工具、独立 evals 目录（"agent-as-code"） |
@@ -34,7 +34,7 @@ Vercel API route ──立即返回 200，waitUntil 异步处理──┐
       ▼                                            │
 拉取 PR diff (GitHub API)                          │
       ▼                                            │
-LLM 审查：generateObject → { comments: [{file, line, severity, body}] }
+LLM 审查：generateText + Output → { comments: [{file, line, severity, body}] }
       ▼
 GitHub API 回帖（逐条 PR review comment）
 ```
@@ -66,7 +66,7 @@ pr-review-agent/
 
 ## 五、执行步骤（约一周）
 
-- [ ] **Day 1**：`npm init` + Vercel AI SDK 接 OpenAI 兼容端点，跑通"输入 diff 文本 → 输出结构化审查意见"（核心链路，先本地 hardcode 一个 diff）
+- [x] **Day 1**：`npm init` + Vercel AI SDK 接 OpenAI 兼容端点，跑通"输入 diff 文本 → 输出结构化审查意见"（核心链路，先本地 hardcode 一个 diff）
 - [ ] **Day 2**：`github.ts`（octokit 拉真 PR diff + 回帖），本地对任意公开仓库 PR 试跑
 - [ ] **Day 3**：webhook 路由 + 签名校验 + dedupe，部署 Vercel，在自己建的真实仓库上开 PR 全链路验证
 - [ ] **Day 4-5**：攒 eval 集（20 个用例：一半有明确 bug 的 diff，一半是"应该主动发现的关联问题"——参考 Surge AI DAYJOB 的 rubric 思路：计算/证据/关联问题/交付物）

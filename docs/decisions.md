@@ -69,3 +69,10 @@
 - **背景**：回帖身份与权限粒度取决于用 GitHub App 还是 PAT。
 - **候选**：PAT（简单、快）；GitHub App（身份独立、权限收敛、更像产品）。
 - **决策**：待 Day 2 实测后补记。
+
+## D009 — 结构化输出用 `generateText` + `Output.object`，兼容端点显式走 chat/completions
+
+- **状态**：已接受（2026-10-29）
+- **背景**：`ai` v7 将 `generateObject` 标记废弃，官方方向是 `generateText` + output specification。实测中另发现 `@ai-sdk/openai` v4 默认调用 OpenAI 新 Responses API（`/responses`），OpenAI 兼容端点（如 GLM）只实现 `/chat/completions`，默认形态直接 404。
+- **决策**：`reviewDiff` 用 `generateText` + `Output.object({ schema })` 取 `result.output`；provider 调用一律 `llm.chat(model)` 显式指定 Chat Completions 形态。取代 D003 的实现机制——D003「结构化输出 + schema 契约」的决策本身不变。
+- **后果**：消除每次运行的废弃警告，跟进 SDK 演进方向；接任何 OpenAI 兼容端点的代码约定固化为 `.chat()`。

@@ -29,6 +29,14 @@
 
 ### Added（Day 1）
 
-- 核心链路「diff 文本 → 结构化审查意见」：`src/review.ts`（`generateObject` + zod schema，prompt 从 `prompts/review.md` 读取）、`prompts/review.md` 审查提示词
+- 核心链路「diff 文本 → 结构化审查意见」：`src/review.ts`（`generateText` + `Output.object` + zod schema，prompt 从 `prompts/review.md` 读取）、`prompts/review.md` 审查提示词
 - `npm run review:local`：hardcode 样例 diff 的冒烟脚本（`scripts/local.ts`），需 `.env` 配好 `LLM_*` 三变量
 - schema 单元测试（`npm test`）、`.env.example`；依赖：`ai` v7 / `@ai-sdk/openai` / `zod`，dev：`typescript` / `tsx` / `@types/node`
+
+### Fixed（Day 1）
+
+- OpenAI 兼容端点 404：`@ai-sdk/openai` v4 默认走 Responses API，兼容端点不支持 → `llm.chat()` 显式 chat/completions（D009）
+
+### Changed（Day 1）
+
+- 结构化输出从已废弃的 `generateObject` 迁移到 `generateText` + `Output.object`（D009），schema 契约不变

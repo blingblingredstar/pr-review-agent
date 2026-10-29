@@ -83,3 +83,14 @@
   - 机器 node 走 nvm（v24 本地开发，engines 声明 >=22）；ZCode shell 不加载 zshrc，命令里需手动 export PATH
   - 本机 keychain 无 bigmodel/GLM 凭证，key 需用户手动填 `.env`（已备 `.env.example`）
 - **下一步**：用户在 `.env` 填 `LLM_API_KEY` 后跑 `npm run review:local` 验证真链路；随后 PLAN Day 2——`src/github.ts`（octokit 拉真 PR diff + 回帖），顺带定 D008（App vs PAT）
+
+## 2026-10-29 · 会话 8：Day 1 验收通过——修 404 + 迁移废弃 API
+
+- **目标**：用户配好 `.env` 后真跑 `review:local`，验收 Day 1 核心链路。
+- **完成**：
+  - 修模型层 404：`@ai-sdk/openai` v4 默认调 Responses API（`path: /v4/responses` 404），GLM 兼容端点只有 `/chat/completions` → `llm.chat(LLM_MODEL)` 显式指定（D009）
+  - 迁移 ai v7 已废弃的 `generateObject` → `generateText` + `Output.object`（D009），schema 契约不变
+  - **验收通过**：样例 diff 真跑返回结构化评论——准确定位 `i <= items.length` 越界、定级 blocker、给出修法；`tsc --noEmit` / `npm test` 通过，SDK 零警告
+  - PLAN Day 1 复选框勾掉；architecture.md / PLAN 结构化输出表述同步为 generateText 机制
+- **发现 / 坑**：OpenAI 官方 provider 的默认 API 形态（responses）与第三方兼容端点能力不齐——接兼容端点必须 `.chat()` 显式走 chat/completions，否则 404
+- **下一步**：PLAN Day 2——`src/github.ts`（octokit 拉真 PR diff + 回帖），定 D008（App vs PAT）

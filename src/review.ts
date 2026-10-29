@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { generateObject } from "ai";
+import { generateText, Output } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
 
@@ -28,12 +28,13 @@ export async function reviewDiff(diff: string): Promise<ReviewResult> {
     throw new Error("缺少环境变量 LLM_BASE_URL / LLM_API_KEY / LLM_MODEL（参照 .env.example 配置 .env）");
   }
   const llm = createOpenAI({ apiKey: LLM_API_KEY, baseURL: LLM_BASE_URL });
-  const { object } = await generateObject({
-    model: llm(LLM_MODEL),
-    schema: reviewResultSchema,
-    schemaName: "ReviewResult",
+  // .chat() 强制走 /chat/completions：OpenAI 兼容端点（如 GLM）不实现 Responses API；
+  // ai v7 起 generateObject 已废弃，结构化输出走 generateText + Output
+  const { output } = await generateText({
+    model: llm.chat(LLM_MODEL),
+    output: Output.object({ schema: reviewResultSchema, name: "ReviewResult" }),
     system: loadPrompt(),
     prompt: diff,
   });
-  return object;
+  return output;
 }

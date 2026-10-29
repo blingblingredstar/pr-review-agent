@@ -12,7 +12,7 @@ Vercel API route ──立即返回 200，waitUntil 异步处理──┐
       ▼                                            │
 拉取 PR diff (GitHub API)                          │
       ▼                                            │
-LLM 审查（OpenAI 兼容端点）：generateObject → { comments: [...] }      │
+LLM 审查（OpenAI 兼容端点）：generateText + Output → { comments: [...] }     │
       ▼                                            │
 GitHub API 回帖（逐条 PR review comment）◄──────────┘
 ```
@@ -22,7 +22,7 @@ GitHub API 回帖（逐条 PR review comment）◄──────────
 | 模块 | 职责 | 关键点 |
 |---|---|---|
 | `src/webhook.ts` | 接收事件、验签、事件分发、立即 200 + `waitUntil` | 只处理 `opened` / `synchronize`；其余事件直接 200 忽略 |
-| `src/review.ts` | 拉 diff → 构造 prompt → LLM 审查 → 结构化输出 | prompt 从 `prompts/review.md` 读取；`generateObject` 强约束 schema |
+| `src/review.ts` | 拉 diff → 构造 prompt → LLM 审查 → 结构化输出 | prompt 从 `prompts/review.md` 读取；`generateText` + `Output.object` 强约束 schema；`llm.chat()` 显式走 chat/completions（兼容端点无 Responses API） |
 | `src/github.ts` | GitHub API 封装：拉 PR diff、发 review comment | 只依赖 octokit；便于 eval 时 mock |
 | `src/dedupe.ts` | 同一 commit SHA 只审一次 | 防止 webhook 重试 → 重复评论 |
 | `prompts/review.md` | 审查提示词（迭代对象） | prompt 与代码分离，方便 diff 和 eval 对比 |
