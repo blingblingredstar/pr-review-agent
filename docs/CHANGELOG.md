@@ -81,3 +81,7 @@
 ### Added（Day 3 · PR 标签体系）
 
 - bot 回帖后自动打 `has-blocker` / `has-major` 标签（minor/nit 不打）；开 PR 按标题前缀打类型标签，历史 PR 已补
+
+### Fixed（Day 3 · 邮件治理）
+
+- review-threads 红灯从 workflow 失败改写 commit status——设计内的「有未决意见」不再触发 GitHub 失败邮件（PR #4 曾炸出 27 封）；workflow 只在 status 写入失败（异常）时失败

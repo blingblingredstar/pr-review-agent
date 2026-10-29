@@ -165,3 +165,14 @@
   - 本机 fake-IP 代理（198.18.0.18）对连续 API 请求间歇性 000：单发易过、循环连发全挂，重试 + 拉开间隔可解；此前 push 卡死同源
   - git checkout -b 在 tsc 失败时被 && 短路是好事——错误在推送前被拦
 - **下一步**：PLAN Day 4-5——攒 eval 集（20 用例：一半明确 bug、一半关联问题）；has-* 标签届时即免费的按时间质量数据
+
+## 2026-10-29 · 会话 14：失败邮件治理——review-threads 红灯改走 commit status
+
+- **目标**：用户反馈收件箱被 27 封「Run failed: review-threads」轰炸——check 红灯是设计内状态，却每次触发 GitHub 的 Actions 失败邮件。
+- **完成**：
+  - workflow 永远正常退出，红/绿信号写 commit status（context: `review-threads`，`statuses: write` 权限）；PR checks 区视觉不变，转 public 后可作为 required status check 升级硬闸门
+  - status 写失败 setFailed 兜底（异常路径才有失败邮件，设计内红灯不再有）；PR #6 两轮收敛合并（39bdc13），机制自验证：红灯落在 status 上、零失败邮件
+- **发现 / 坑**：
+  - 创建 PR 的 API 不收 labels 参数之外，本次确认：设计内「失败」绝不能用 workflow 失败表达，否则通知系统会把工作状态当异常
+  - 旧失败邮件无法撤回，收件箱手动标记已读即可
+- **下一步**：PLAN Day 4-5——攒 eval 集（20 用例：一半明确 bug、一半关联问题，参考 Surge AI DAYJOB rubric）
