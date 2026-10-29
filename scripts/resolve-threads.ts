@@ -70,9 +70,10 @@ async function main(): Promise<void> {
     owner,
     repo,
     workflow_id: "review-threads.yml",
-    per_page: 20,
+    head_sha: pr.data.head.sha,
+    per_page: 1,
   });
-  const run = runs.data.workflow_runs.find((r) => r.head_sha === pr.data.head.sha);
+  const run = runs.data.workflow_runs[0];
   if (run) {
     try {
       await client.rest.actions.reRunWorkflow({ owner, repo, run_id: run.id });

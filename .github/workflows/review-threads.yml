@@ -21,6 +21,10 @@ jobs:
           script: |
             const num = context.payload.pull_request?.number;
             if (!num) { core.setFailed('无法确定 PR 编号'); return; }
+            if (context.payload.pull_request.state !== 'open') {
+              core.info('PR 已关闭，跳过检查');
+              return;
+            }
             const q = `query($owner:String!,$name:String!,$number:Int!){
               repository(owner:$owner,name:$name){
                 pullRequest(number:$number){
