@@ -231,4 +231,5 @@
   - 「测试的 diff 都不带尾换行」让幻影行号逃过单测——手写测试夹具与真实输入（GitHub diff 恒以 \n 结尾）形态差异本身就是盲区
   - `-` 行错误消耗新侧行数计数是被新加的 b/ 前缀测试抓出来的——测试间互相兜底的价值
   - resolve:threads 全量收尾时序竞态：check 绿 ≠ 复审已落地，现在有机械提示但仍需人工等——REQUEST_CHANGES 从源头收窄了这个窗口（有意见必 block）
-- **下一步**：本 PR 走新闸门 dogfood（看 REQUEST_CHANGES 解除流程是否顺）；Day 6——改 prompt + 多轮均值对比；上下文增强方案待拍板
+- **PR #10 六轮闭环实录（新闸门 dogfood）**：21 条意见全部修复/回应（第五轮 major：自家 PR 不能 REQUEST_CHANGES——dogfood 场景恒走回退 COMMENT，多仓产品化时原生生效；422 无条件回退替代文案正则），第七轮 0 条收敛合并。生产部署缺口确认：Vercel 非 git 集成（deployments 空），D016/D017 均未上线——需手动 Redeploy 或 npx vercel --prod
+- **下一步**：部署生产使 D016/D017 生效；Day 6——改 prompt + 多轮均值对比；上下文增强方案待拍板
