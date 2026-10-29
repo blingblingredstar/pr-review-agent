@@ -58,10 +58,9 @@ schema 变更属于破坏性改动：必须同步改 `evals/run.ts` 的打分逻
 | `LLM_API_KEY` | 调用 OpenAI 兼容端点 | 当前用 GLM 的 key；唯一实际成本 |
 | `LLM_BASE_URL` | OpenAI 兼容端点地址 | AI SDK 的 OpenAI provider 自定义 `baseURL` |
 | `LLM_MODEL` | 模型名 | 换模型 / 多模型对比只改配置 |
-| `GITHUB_TOKEN` | 拉 diff、发评论 | GitHub App 还是 PAT 待定（见 decisions.md D008） |
+| `GITHUB_TOKEN` | 拉 diff、发评论 | GitHub PAT（D008 已定稿；App 留产品化） |
 | `WEBHOOK_SECRET` | webhook 签名校验 | HMAC-SHA256 |
 
 ## 待定问题
 
-- GitHub App vs PAT：影响回帖身份与权限粒度（Day 2 决策）
 - `synchronize` 事件是全量重审还是增量审查（增量在 PLAN §7 列为后续路线）

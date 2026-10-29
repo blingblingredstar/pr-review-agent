@@ -9,11 +9,13 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test test/*.test.ts",
-    "review:local": "node --env-file=.env --import tsx scripts/local.ts"
+    "review:local": "node --env-file=.env --import tsx scripts/local.ts",
+    "review:pr": "node --env-file=.env --import tsx scripts/review-pr.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.104",
     "ai": "^7.0.156",
+    "octokit": "^5.0.5",
     "zod": "^4.6.7"
   },
   "devDependencies": {

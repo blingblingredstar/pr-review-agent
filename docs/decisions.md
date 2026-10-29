@@ -63,12 +63,13 @@
 - **决策**：建 `AGENTS.md`（工作规则）+ `docs/architecture.md`（架构）+ `docs/decisions.md`（决策，append-only）+ `docs/journal.md`（会话日志，append-only）+ `docs/CHANGELOG.md`（变更）；文档随代码同 commit 提交。阶段性计划与 specs 统一归档 `docs/plans/`（原 D010 并入）。
 - **后果**：任何新会话读四个文件即可恢复上下文；代价是每次改动多写几行文档，换来完整可追溯的过程记录。
 
-## D008 — GitHub 身份：App vs PAT（待定）
+## D008 — GitHub 身份：PAT
 
-- **状态**：讨论中（2026-10-29 提出，Day 2 截止）
+- **状态**：已接受（2026-10-29，Day 2 实测定稿）
 - **背景**：回帖身份与权限粒度取决于用 GitHub App 还是 PAT。
-- **候选**：PAT（简单、快）；GitHub App（身份独立、权限收敛、更像产品）。
-- **决策**：待 Day 2 实测后补记。
+- **决策**：用 PAT（环境变量 `GITHUB_TOKEN`）。零新建配置（开发机 keychain 已有 repo scope PAT），私有仓库拉 diff / 回帖直连可用；评论以个人账号名义发出。GitHub App（身份独立、权限收敛）留到多仓产品化阶段，届时新增决策取代本条。
+- **备选**：GitHub App——更像产品，但需注册 App、私钥 JWT 签名、安装授权，一周交付期内成本不成比例。
+- **后果**：回帖显示为个人账号；token 权限为 PAT 全量 scope，不做细粒度收敛。
 
 ## D009 — 结构化输出用 `generateText` + `Output.object`，兼容端点显式走 chat/completions
 

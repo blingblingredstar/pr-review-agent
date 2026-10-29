@@ -40,3 +40,13 @@
 ### Changed（Day 1）
 
 - 结构化输出从已废弃的 `generateObject` 迁移到 `generateText` + `Output.object`（D009），schema 契约不变
+
+### Added（Day 2）
+
+- `src/github.ts`：octokit 封装——`fetchPr` 拉真 PR diff（`application/vnd.github.v3.diff`）+ `postReview` 一次 `createReview` 回帖（body 汇总 + 逐条行内评论）；行号不在 diff 内的 422 降级为全部写入 body
+- `npm run review:pr -- owner/repo#<N> [--post]`：真实 PR 全链路冒烟脚本，默认只打印，`--post` 才回帖
+- 依赖：`octokit`；`.env.example` 增加 `GITHUB_TOKEN`
+
+### Decided（Day 2）
+
+- D008 定稿：回帖身份用 PAT（`GITHUB_TOKEN`），GitHub App 留产品化阶段
