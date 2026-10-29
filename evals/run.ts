@@ -84,7 +84,12 @@ async function main() {
   };
   const overall = metrics(capability);
   const groupMetrics = Object.fromEntries(
-    (["synthetic", "real", "dogfood"] as const).map((src) => [src, metrics(okRuns.filter((r) => r.source === src))]),
+    (["synthetic", "real", "dogfood"] as const).map((src) => {
+      const rs = okRuns.filter((r) => r.source === src);
+      const groupFailed = runs.filter((r) => r.source === src && r.error).length;
+      // runs/failed 附带：某组全部失败时指标为 0，读报告的人需要能区分「0 命中」和「没跑」
+      return [src, { ...metrics(rs), runs: rs.length, failed: groupFailed }];
+    }),
   );
   const totalExpect = overall.expectN;
   const totalHits = overall.hits;

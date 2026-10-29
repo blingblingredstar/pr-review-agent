@@ -66,6 +66,7 @@ export function splitByLocatable(
   const degraded: ReviewComment[] = [];
   for (const c of result.comments) {
     const hit = pathVariants(c.file).find((v) => covered.get(v)?.has(c.line));
+    // 已知接受：仓库同时存在 x.ts 与 a/x.ts 时，幻觉前缀剥离可能命中另一真实文件——语义歧义无解，碰撞概率远低于全量降级的代价
     if (hit) inline.push({ comment: c, path: hit });
     else degraded.push(c);
   }

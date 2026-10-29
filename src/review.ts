@@ -77,15 +77,12 @@ export function diffCoveredLines(diff: string): Map<string, Set<number>> {
         continue;
       }
       if (raw.startsWith("\\")) continue; // "\ No newline at end of file"
-      if (raw.startsWith("+")) {
-        mark();
-        line++;
-      } else if (raw.startsWith("-")) {
-        // 旧侧删除行不占新行号，不推进
-      } else {
-        mark();
-        line++;
+      if (raw.startsWith("-")) {
+        // 旧侧删除行不占新行号，不 mark 不推进
+        continue;
       }
+      mark();
+      line++;
       continue;
     }
     if (raw.startsWith("+++ ") && raw.includes("/dev/null")) {
