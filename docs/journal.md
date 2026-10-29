@@ -94,3 +94,18 @@
   - PLAN Day 1 复选框勾掉；architecture.md / PLAN 结构化输出表述同步为 generateText 机制
 - **发现 / 坑**：OpenAI 官方 provider 的默认 API 形态（responses）与第三方兼容端点能力不齐——接兼容端点必须 `.chat()` 显式走 chat/completions，否则 404
 - **下一步**：PLAN Day 2——`src/github.ts`（octokit 拉真 PR diff + 回帖），定 D008（App vs PAT）
+
+## 2026-10-29 · 会话 9：PLAN Day 2——GitHub 集成 + 自审 dogfood 验收
+
+- **目标**：`src/github.ts`（octokit 拉真 PR diff + 回帖），本地对公开仓库 PR 试跑；定 D008。
+- **完成**：
+  - `src/github.ts`：`fetchPr`（`application/vnd.github.v3.diff` media type）+ `postReview`（一次 `createReview`：body 汇总 + 逐条行内评论；行号不在 diff 内的 422 降级为全部写 body）
+  - `scripts/review-pr.ts`：`npm run review:pr -- owner/repo#N [--post]`，默认只打印不回帖
+  - D008 定稿 **PAT**（评论以个人账号发出，App 留产品化）；`.env.example` 加 `GITHUB_TOKEN`
+  - 验证链：typecheck / test 通过 → 公开仓库 `unjs/ufo#407` 只读试跑（空意见优雅收尾）→ **自审 dogfood**：Day 2 改动开 [PR #1](https://github.com/blingblingredstar/pr-review-agent/pull/1)，agent 对本 PR 自审并成功回帖 2 条（minor：422 降级粒度太粗应按 diff hunk 预校验；nit：severity 计数过滤写法可读性差），行内定位全部成功——「调用自身 code review」首次跑通
+- **发现 / 坑**：
+  - **LLM 延迟极不稳定**：端点小请求 5 秒，350 字节 diff 的审查跑 2 分 10 秒，2KB diff（unjs/ufo#409）5 分钟未归手动终止。Day 3 部署 Vercel 前必须设计超时/降级（`waitUntil` 有上限）；Day 6 eval 单用例耗时也会被此放大
+  - keychain 里 `gh:github.com` 两条凭证均 401；有效 PAT 在 `srvr=github.com` 的 internet password 条目（`gho_` OAuth token，scope 含 repo）
+  - 同仓开 PR 的 REST API 必须显式传 `base`；多行 body 用 JSON 文件传参，shell 内联转义易错
+  - PR #1 diff 37KB，其中大半是 package-lock 噪声——PLAN §三 diff 截断策略的必要性提前得到印证
+- **下一步**：PR #1 人工确认后合并；PLAN Day 3——webhook 路由 + 签名校验 + dedupe，部署 Vercel 全链路验证
