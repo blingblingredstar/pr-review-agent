@@ -46,18 +46,20 @@ function micro(hits: number[], expects: number[], tps: number[], comments: numbe
 export type Micro = { recall: number | null; precision: number | null };
 
 export function aggregateRuns(files: { name: string; data: RunJson }[]): VersionAggregate[] {
-  // model + prompt 指纹一起分组：同 prompt 换模型不属于同一次对比
+  // model + prompt 指纹一起分组：同 prompt 换模型不属于同一次对比。
+  // 无指纹记空串（真实指纹是 12 位 hex，不可能为空），与 legacy 的展示文案解耦、零碰撞
   const byGroup = new Map<string, { name: string; data: RunJson }[]>();
   for (const f of files) {
     const model = f.data.model ?? "(unknown)";
-    const promptHash = f.data.promptHash ?? "legacy(无指纹)";
+    const promptHash = f.data.promptHash ?? "";
     const key = `${model}\u0000${promptHash}`;
     const list = byGroup.get(key) ?? [];
     list.push(f);
     byGroup.set(key, list);
   }
   return [...byGroup.entries()].map(([key, list]) => {
-    const [model, promptHash] = key.split("\u0000");
+    const [model, rawHash] = key.split("\u0000");
+    const promptHash = rawHash || "legacy(无指纹)";
     // startedAt 相同（精度截断）时以文件名稳定排序，保证「轮N」与命令行顺序可对上
     const ordered = [...list].sort(
       (a, b) => a.data.startedAt.localeCompare(b.data.startedAt) || a.name.localeCompare(b.name),
@@ -94,25 +96,27 @@ export function aggregateRuns(files: { name: string; data: RunJson }[]): Version
         const r = lookup(f);
         if (!r) return "缺";
         if (r.error || !r.score) return "err";
-        return r.score.hits === r.score.verdicts.length ? "✓" : `${r.score.hits}/${r.score.verdicts.length}`;
+        return r.score.verdicts.length > 0 && r.score.hits === r.score.verdicts.length
+          ? "✓"
+          : `${r.score.hits}/${r.score.verdicts.length}`;
       });
       const allFull = ordered.every((f) => {
         const r = lookup(f);
-        return r && !r.error && r.score && r.score.hits === r.score.verdicts.length;
+        return r && !r.error && r.score && r.score.verdicts.length > 0 && r.score.hits === r.score.verdicts.length;
       });
       if (allFull) return [];
       const missAt = [
-        ...new Map(
+        ...new Set(
           ordered.flatMap((f) => {
             const r = lookup(f);
-            if (!r || r.error || !r.score) return [];
+            if (!r || r.error || !r.score) return [] as string[];
             return r.score.verdicts.filter((v) => !v.hit).map((v) => {
               // 数组期望列出全部候选（实际漏在哪侧未知，只取第一个会误导短板分析）
               const files = Array.isArray(v.expect.file) ? v.expect.file : [v.expect.file];
-              return [`${files.join("|")}:${v.expect.line ?? "*"}`, true] as const;
+              return `${files.join("|")}:${v.expect.line ?? "*"}`;
             });
           }),
-        ).keys(),
+        ),
       ];
       const source = ordered.map((f) => lookup(f)).find((r) => r)?.source ?? "?";
       return [{ caseId, source, perRun, missAt }];

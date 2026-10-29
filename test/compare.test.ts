@@ -80,7 +80,7 @@ test("aggregateRuns：旧 run 无指纹归 legacy 组；未全命中用例进短
   const aggs = aggregateRuns([{ name: "old.json", data: legacy }, { name: "new1.json", data: newer }, { name: "new2.json", data: newer }]);
   assert.deepEqual(aggs.map((a) => a.promptHash), ["legacy(无指纹)", "bbb"]);
   const bbb = aggs[1]!;
-  // r-01 两轮都未全命中：定位取首候选文件、跨轮去重；s-01 第二轮全命中（第一份 run 基准里它存在但 new 里两轮全命中——矩阵只列未全命中）
+  // r-01 两轮都未全命中：数组期望列出全部候选、跨轮去重；s-01 两轮全命中不进矩阵
   const r01 = bbb.unstable.find((u) => u.caseId === "r-01")!;
   // 数组期望列出全部候选（fileA|fileB:行）
   assert.deepEqual(r01.missAt, ["src/x.ts|src/y.ts:42", "src/z.ts:*"]);
