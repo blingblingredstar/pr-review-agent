@@ -96,3 +96,8 @@
 
 - eval 用例 20 → 29：新增 7 个 `real` 用例（fastify/axios/koa 的真实 fix diff 反转 + vscode 真实配对，ground truth 来自人类修复、独立于用例构造）+ 2 个 `dogfood` 回归用例（本仓库历史真实意见）；跑分按 source 分组，能力评估 = synthetic + real，dogfood 单列（D015）
 - `resolve:threads` 支持选择性闭环：`--only <id>` 指定线程、`--reply <id>=文本` resolve 前先回复留痕；流程约定改为「处理一条闭环一条」（AGENTS.md）
+
+### Fixed（降级意见逃出闭环，D016）
+
+- PR #8 合并后发现 review body 里两条 minor 漏处理：422 降级是「全有全无」，body 意见无线程、闭环机制对它不可见。改为逐条预定位——行号在 diff 内的照常行内发（进线程可闭环），只有真定位不了的列 body 并注明
+- 顺带修复同批自审意见：`resolve:threads` 参数解析消费式隔离（回复文本含 "--yes" 不再被误当开关）、eval summary JSON 落盘三级 source 分组指标（`groups`），AGENTS.md 补「拉意见须同时看 review body 降级列表」

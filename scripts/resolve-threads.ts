@@ -3,42 +3,72 @@
 // 回复并 resolve（回应留痕在 PR 线程里，bot 复审翻旧账时结论可见）；全部处理完用 --yes 全量收尾。
 // 不带参数：只列出线程摘要（含序号与 databaseId）。
 // 用法：npm run resolve:threads -- owner/repo#N [--only id1,id2] [--reply id=文本 ...] [--yes]
+import { pathToFileURL } from "node:url";
 import { getOctokit } from "../src/github.ts";
 
-async function main(): Promise<void> {
-  // 仓库名含 . - _ 之外字符极罕见，[\w.-]+ 已覆盖常规场景；不匹配时按用法错误退出
-  const ref = process.argv[2] ?? "";
-  const args = process.argv.slice(3);
-  const yes = args.includes("--yes");
-  const onlyIdx = args.indexOf("--only");
-  let onlyArg: string | null = null;
-  if (onlyIdx >= 0) {
-    onlyArg = args[onlyIdx + 1] ?? "";
-    if (!onlyArg.trim()) {
+export type ParsedArgs = {
+  ref: string;
+  yes: boolean;
+  only: Set<number>;
+  replies: Map<number, string>;
+};
+
+// 参数解析（纯函数，便于单测）：带值 flag（--only/--reply）消费掉自己的值位，
+// 开关判断只看未被消费的位置——否则回复文本/值里恰好出现 "--yes"（shell 引号漏掉时的合法 argv）会被误当开关
+export function parseArgs(argv: string[]): ParsedArgs {
+  const [ref = "", ...args] = argv;
+  const consumed = new Set<number>();
+  const only = new Set<number>();
+  // 循环处理所有 --only 出现位置（与 --reply 一致）：第二个 --only 的值位不被消费的话，
+  // 值恰为 "--yes" 时仍会被误判成开关
+  for (let i = 0; i < args.length; i++) {
+    if (consumed.has(i) || args[i] !== "--only") continue;
+    consumed.add(i);
+    consumed.add(i + 1);
+    const v = args[i + 1] ?? "";
+    if (!v.trim()) {
       // 传了 --only 没传值会静默退回列表模式，用户以为执行了闭环实际什么都没做
-      console.error("--only 需要逗号分隔的线程 databaseId，如 --only 4414932445,4414932456");
-      process.exit(1);
+      throw new Error("--only 需要逗号分隔的线程 databaseId，如 --only 4414932445,4414932456");
     }
+    const ids = v.split(",").filter(Boolean).map((s) => {
+      const n = Number(s);
+      // NaN/非正整数静默进集合会让 --only X --yes 表现为「解析成功但什么都没 resolve」——必须在这里报错
+      if (!Number.isSafeInteger(n) || n <= 0) {
+        throw new Error(`--only 的值 "${s}" 不是合法的线程 databaseId`);
+      }
+      return n;
+    });
+    if (ids.length === 0) {
+      // "--only ," 这类只含分隔符的值会得到空集合，被当成未指定后可能反向触发全量 resolve
+      throw new Error(`--only 的值 "${v}" 没有解析出任何线程 id`);
+    }
+    for (const id of ids) only.add(id);
   }
-  const only = new Set<number>(onlyArg ? onlyArg.split(",").filter(Boolean).map(Number) : []);
-  if (onlyArg && only.size === 0) {
-    // "--only ," 这类只含分隔符的值会得到空集合，被当成未指定后可能反向触发全量 resolve
-    console.error(`--only 的值 "${onlyArg}" 没有解析出任何线程 id`);
-    process.exit(1);
-  }
-  // --reply <id=文本>，可多次（与 --only 一致的分离式参数）；resolve 前先发回复，回应必须留痕后才关线程
+  // --reply <id=文本>，可多次；resolve 前先发回复，回应必须留痕后才关线程
   const replies = new Map<number, string>();
   for (let i = 0; i < args.length; i++) {
-    if (args[i] !== "--reply") continue;
+    if (consumed.has(i) || args[i] !== "--reply") continue;
+    consumed.add(i);
+    consumed.add(i + 1);
     const spec = args[i + 1] ?? "";
     const eq = spec.indexOf("=");
     if (eq <= 0 || !spec.slice(eq + 1).trim()) {
       // 空文本会被回复分支当 falsy 静默跳过，产生无留痕闭环
-      console.error(`--reply 格式应为 非空id=非空文本，收到："${spec || "(缺参数)"}"`);
-      process.exit(1);
+      throw new Error(`--reply 格式应为 非空id=非空文本，收到："${spec || "(缺参数)"}"`);
     }
-    replies.set(Number(spec.slice(0, eq)), spec.slice(eq + 1));
+    const id = Number(spec.slice(0, eq));
+    // 与 --only 同一段校验：非法 id 静默生成 key 会让回复悄悄不发、流程照走
+    if (!Number.isSafeInteger(id) || id <= 0) {
+      throw new Error(`--reply 的 id "${spec.slice(0, eq)}" 不是合法的线程 databaseId`);
+    }
+    replies.set(id, spec.slice(eq + 1));
   }
+  const yes = args.some((a, i) => a === "--yes" && !consumed.has(i));
+  return { ref, yes, only, replies };
+}
+
+async function main(): Promise<void> {
+  const { ref, yes, only, replies } = parseArgs(process.argv.slice(2));
   const m = ref.match(/^([\w.-]+)\/([\w.-]+)#(\d+)$/);
   if (!m) {
     console.error("用法：npm run resolve:threads -- owner/repo#N [--only id1,id2] [--reply id=文本 ...] [--yes]");
@@ -192,7 +222,10 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err) => {
-  console.error("resolve 失败", err);
-  process.exit(1);
-});
+// 只在作为脚本直接执行时跑 main；被测试 import 时不执行
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+  main().catch((err) => {
+    console.error("resolve 失败", err);
+    process.exit(1);
+  });
+}

@@ -33,5 +33,5 @@ if (!post) {
   console.log("\n（仅打印；加 --post 提交 review 到 GitHub）");
   process.exit(0);
 }
-await postReview(client, { ...pr, commitId: headSha }, result);
+await postReview(client, { ...pr, commitId: headSha }, result, diff);
 console.log(`\n已把 ${result.comments.length} 条意见提交为 review → ${owner}/${repo}#${pr.pullNumber}`);

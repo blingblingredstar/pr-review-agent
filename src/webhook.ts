@@ -79,7 +79,7 @@ async function runReview(ref: PrRef & { headSha: string }): Promise<void> {
     }
     const { diff } = await fetchPr(client, ref);
     const result = await reviewDiff(diff);
-    await postReview(client, { owner: ref.owner, repo: ref.repo, pullNumber: ref.pullNumber, commitId: ref.headSha }, result);
+    await postReview(client, { owner: ref.owner, repo: ref.repo, pullNumber: ref.pullNumber, commitId: ref.headSha }, result, diff);
     console.log(`[review] ${key} 完成：${result.comments.length} 条意见`);
   } catch (err) {
     if (isTimeoutError(err)) {

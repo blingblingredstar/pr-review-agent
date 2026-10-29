@@ -206,3 +206,16 @@
   - dogfood 首跑 0/2 是行号期望问题（模型报在调度处而非 ref 构造处，发现本身完全正确）——问题点分散的用例应该文件级
 - **PR #8 自审闭环实录（新流程首跑）**：第一轮 6 条（5 修 1 回应，--only/--reply 逐条回复+resolve 一次通过）→ 第二轮 5 条全修（dogfood 弱关键词、--reply 空文本校验、旧 run 产物删除重跑、参数解析统一、注释去重）；两轮均无翻旧账
 - **下一步**：Day 6——改 prompt（靶子：getter/闭包类语义理解、linked-08 类重复逻辑漂移、precision 降噪），多轮均值出对比报告
+
+## 2026-10-30 · 会话 17：降级意见逃出闭环（D016）+ 能力边界确认
+
+- **目标**：用户发现 PR #8 两条 minor 漏处理（行号不在 diff 内被降级进 review body，无线程、无 resolve、check 不管）；并确认「agent 只能看 diff、查不了引用」的能力边界。
+- **完成**：
+  - D016：`postReview` 逐条预定位（`diffCoveredLines` 解析 hunk 新侧行号）——可定位的行内发进线程闭环，只有真定位不了的列 body 注明；422 整体降级保留兜底
+  - 补修漏掉的两条：`resolve:threads` 参数解析消费式隔离（回复文本含 "--yes" 不误判开关）；eval summary JSON 加 `groups` 三级分组指标
+  - AGENTS.md 流程补「拉意见须同时看行内线程与 review body 降级列表」；单测 25 例全过
+- **发现 / 坑**：
+  - 闭环盲区的根因是「无线程 = 不可见」：check 红灯、resolve 脚本、人工流程全以线程为准——任何不落线程的意见都会漏，堵法只能是让意见尽量落线程
+  - `review-pr.ts` 本地工具也调 postReview，签名变更会被 typecheck 拦——脚本纳入 tsconfig include 的价值实证
+- **能力边界（用户问题解答）**：当前 reviewDiff 只把 unified diff 文本喂给模型，看不到仓库其他文件——「删除导出后别处还在用」这类 diff 外引用只能靠 hunk 上下文恰好覆盖（eval 的 linked-01/03 正是这么设计的）。上下文增强（拉相关文件/搜索引用喂 prompt）列为候选改进，待与多模型对比（Day 6）一起取舍
+- **下一步**：Day 6——改 prompt（getter 语义、linked-08 类漂移、precision 降噪）+ 多轮均值对比报告；上下文增强是否本期做待定

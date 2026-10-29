@@ -83,6 +83,15 @@ async function main() {
     };
   };
   const overall = metrics(capability);
+  const groupMetrics = Object.fromEntries(
+    // source 集合从用例数据收集：新增枚举值时报告不会静默漏组
+    [...new Set(runs.map((r) => r.source))].map((src) => {
+      const rs = okRuns.filter((r) => r.source === src);
+      const groupFailed = runs.filter((r) => r.source === src && r.error).length;
+      // runs/failed 附带：某组全部失败时指标为 0，读报告的人需要能区分「0 命中」和「没跑」
+      return [src, { ...metrics(rs), runs: rs.length, failed: groupFailed }];
+    }),
+  );
   const totalExpect = overall.expectN;
   const totalHits = overall.hits;
   const totalComments = overall.comments;
@@ -139,7 +148,7 @@ async function main() {
   const base = `${stamp}-${safeModel}`;
   writeFileSync(
     new URL(`./runs/${base}.json`, import.meta.url),
-    JSON.stringify({ startedAt, model, llmBaseUrl: process.env.LLM_BASE_URL ?? null, capabilityScope: "synthetic+real", runs, summary: { recall, precision, totalExpect, totalHits, totalComments, totalTp, failed } }, null, 2) + "\n",
+    JSON.stringify({ startedAt, model, llmBaseUrl: process.env.LLM_BASE_URL ?? null, capabilityScope: "synthetic+real", runs, summary: { recall, precision, totalExpect, totalHits, totalComments, totalTp, failed, groups: groupMetrics } }, null, 2) + "\n",
   );
   writeFileSync(new URL(`./runs/${base}.md`, import.meta.url), report);
 

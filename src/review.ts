@@ -18,6 +18,92 @@ export const reviewResultSchema = z.object({
 export type ReviewComment = z.infer<typeof reviewResultSchema>["comments"][number];
 export type ReviewResult = z.infer<typeof reviewResultSchema>;
 
+// 模型可能带 git 的 a/ b/ 前缀，返回可能的路径变体（原样、剥 a/、剥 b/）供对照
+export function pathVariants(file: string): string[] {
+  return [file, file.replace(/^a\//, ""), file.replace(/^b\//, "")];
+}
+
+// git quotePath 把非 ASCII 编成八进制转义（UTF-8 字节）；输入可能带引号包裹（已剥引号也要能解码），无转义时原样返回
+export function unquoteGitPath(p: string): string {
+  const body = p.startsWith('"') && p.endsWith('"') && p.length >= 2 ? p.slice(1, -1) : p;
+  const bytes: number[] = [];
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (ch === "\\" && /[0-7]/.test(body[i + 1] ?? "")) {
+      let j = i + 1;
+      let oct = "";
+      while (j < body.length && oct.length < 3 && /[0-7]/.test(body[j])) oct += body[j++];
+      bytes.push(parseInt(oct, 8));
+      i = j - 1;
+    } else if (ch === "\\") {
+      const next = body[i + 1] ?? "";
+      bytes.push(...Buffer.from(next === "n" ? "\n" : next === "t" ? "\t" : next, "utf8"));
+      i++;
+    } else {
+      bytes.push(...Buffer.from(ch, "utf8"));
+    }
+  }
+  return Buffer.from(bytes).toString("utf8");
+}
+
+// 解析 unified diff，返回每个文件被 hunk 覆盖的新侧行号集合。
+// 用于行内评论的预定位：只有行号落在 diff 内的意见才能行内发（GitHub 对 hunk 外行号返回 422）。
+export function diffCoveredLines(diff: string): Map<string, Set<number>> {
+  const covered = new Map<string, Set<number>>();
+  let file = "";
+  let inHunk = false;
+  let line = 0;
+  const mark = () => {
+    if (!file) return;
+    let set = covered.get(file);
+    if (!set) covered.set(file, (set = new Set()));
+    set.add(line);
+  };
+  for (const raw of diff.split("\n")) {
+    // hunk 内容行（+/ /-）自带前缀，不会以下面的文件头形态开头；先处理文件头判定
+    if (raw.startsWith("diff --git ")) {
+      // 路径含空格时 git 用引号包裹（core.quotePath，非 ASCII 编成八进制转义）；无引号形式两侧都不含空格。
+      // rename 场景两侧引号需求可能不一致（旧路径含空格新路径不含），四种组合都试。
+      // (?:[^"\\]|\\.)* 不跨引号也不吃转义序列，路径本身含引号字符（git 转义为 \"）时不会切错侧
+      const m =
+        /^diff --git "a\/(?:[^"\\]|\\.)*" "(b\/(?:[^"\\]|\\.)*)"$/.exec(raw) ??
+        /^diff --git "a\/(?:[^"\\]|\\.)*" b\/(\S+)$/.exec(raw) ??
+        /^diff --git a\/\S+ "(b\/(?:[^"\\]|\\.)*)"$/.exec(raw) ??
+        /^diff --git a\/\S+ b\/(\S+)$/.exec(raw);
+      file = m ? unquoteGitPath(m[1]).replace(/^b\//, "") : "";
+      inHunk = false;
+      continue;
+    }
+    if (inHunk) {
+      const nextHunk = /^@@ -\d+(?:,\d+)? \+(\d+)/.exec(raw);
+      if (nextHunk) {
+        line = Number(nextHunk[1]);
+        continue;
+      }
+      if (raw.startsWith("\\")) continue; // "\ No newline at end of file"
+      if (raw.startsWith("-")) {
+        // 旧侧删除行不占新行号，不 mark 不推进
+        continue;
+      }
+      mark();
+      line++;
+      continue;
+    }
+    if (raw.startsWith("+++ ") && raw.includes("/dev/null")) {
+      // 纯删除文件新侧不存在，任何行内评论必然 422——跳过以免坏意见拖累同 review 的好意见
+      file = "";
+      inHunk = false;
+      continue;
+    }
+    const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)/.exec(raw);
+    if (hunk) {
+      inHunk = true;
+      line = Number(hunk[1]);
+    }
+  }
+  return covered;
+}
+
 export function loadPrompt(): string {
   return readFileSync(new URL("../prompts/review.md", import.meta.url), "utf8");
 }
