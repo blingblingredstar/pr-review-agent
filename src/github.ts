@@ -154,7 +154,8 @@ export async function postReview(
       repo,
       pull_number: pullNumber,
       commit_id: commitId,
-      event: "COMMENT",
+      // 降级只改意见落点（全部进 body），block 语义不变：有意见仍 REQUEST_CHANGES
+      event: reviewEvent,
       body: fallback,
     });
     posted = { inline: 0, degraded: result.comments.length };
