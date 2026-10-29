@@ -2,6 +2,7 @@
 // 用法：node --import tsx evals/compare.ts evals/runs/<run>.json [more.json ...]
 // 指标口径与 run.ts 一致：能力评估 = synthetic + real（dogfood 不进）；跨轮微平均 = Σhits/ΣexpectN、Σtp/Σcomments。
 import { readFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 
 export type RunJson = {
   startedAt: string;
@@ -26,8 +27,8 @@ export type RunJson = {
 export type VersionAggregate = {
   promptHash: string;
   files: string[];
-  micro: { recall: number; precision: number | null };
-  groups: Record<string, { recall: number; precision: number | null }>;
+  micro: Micro;
+  groups: Record<string, Micro>;
   // 跨轮未全命中的用例（全命中的不列，矩阵只看短板）
   unstable: { caseId: string; source: string; perRun: string[]; missAt: string[] }[];
 };
@@ -37,8 +38,11 @@ function micro(hits: number[], expects: number[], tps: number[], comments: numbe
   const hitN = hits.reduce((s, n) => s + n, 0);
   const tpN = tps.reduce((s, n) => s + n, 0);
   const cmN = comments.reduce((s, n) => s + n, 0);
-  return { recall: expectN ? hitN / expectN : 0, precision: cmN ? tpN / cmN : null };
+  // 空数据返回 null（显示 —）而非 0——0% 会被误读成「全 miss」
+  return { recall: expectN ? hitN / expectN : null, precision: cmN ? tpN / cmN : null };
 }
+
+export type Micro = { recall: number | null; precision: number | null };
 
 export function aggregateRuns(files: { name: string; data: RunJson }[]): VersionAggregate[] {
   const byPrompt = new Map<string, { name: string; data: RunJson }[]>();
@@ -74,24 +78,26 @@ export function aggregateRuns(files: { name: string; data: RunJson }[]): Version
         )];
       }),
     );
-    // 逐用例矩阵：以第一份 run 的用例清单为基准（用例集在版本间不变）
-    const caseIds = ordered[0].data.runs.map((r) => r.caseId);
+    // 逐用例矩阵：用例清单取各文件并集——不同批次的 run（用例集增删前后）混传时按缺失标注而不是崩溃
+    const caseIds = [...new Set(ordered.flatMap((f) => f.data.runs.map((r) => r.caseId)))];
     const unstable = caseIds.flatMap((caseId) => {
+      const lookup = (f: { data: RunJson }) => f.data.runs.find((x) => x.caseId === caseId);
       const perRun = ordered.map((f) => {
-        const r = f.data.runs.find((x) => x.caseId === caseId)!;
-        if (r.error) return "err";
-        return `${r.score!.hits}/${r.score!.verdicts.length}`;
+        const r = lookup(f);
+        if (!r) return "缺";
+        if (r.error || !r.score) return "err";
+        return `${r.score.hits}/${r.score.verdicts.length}`;
       });
       const allFull = ordered.every((f) => {
-        const r = f.data.runs.find((x) => x.caseId === caseId)!;
-        return !r.error && r.score!.hits === r.score!.verdicts.length;
+        const r = lookup(f);
+        return r && !r.error && r.score && r.score.hits === r.score.verdicts.length;
       });
       if (allFull) return [];
       const missAt = [
         ...new Map(
           ordered.flatMap((f) => {
-            const r = f.data.runs.find((x) => x.caseId === caseId)!;
-            if (r.error || !r.score) return [];
+            const r = lookup(f);
+            if (!r || r.error || !r.score) return [];
             return r.score.verdicts.filter((v) => !v.hit).map((v) => {
               const file = Array.isArray(v.expect.file) ? v.expect.file[0] : v.expect.file;
               return [`${file}:${v.expect.line ?? "*"}`, true] as const;
@@ -99,7 +105,7 @@ export function aggregateRuns(files: { name: string; data: RunJson }[]): Version
           }),
         ).keys(),
       ];
-      const source = ordered[0].data.runs.find((x) => x.caseId === caseId)!.source;
+      const source = ordered.map((f) => lookup(f)).find((r) => r)?.source ?? "?";
       return [{ caseId, source, perRun, missAt }];
     });
     return {
@@ -112,7 +118,7 @@ export function aggregateRuns(files: { name: string; data: RunJson }[]): Version
   });
 }
 
-const percent = (n: number) => `${(n * 100).toFixed(1)}%`;
+const percent = (n: number | null) => (n === null ? "—" : `${(n * 100).toFixed(1)}%`);
 
 async function main() {
   const paths = process.argv.slice(2);
@@ -147,5 +153,6 @@ async function main() {
   }
 }
 
-const isDirectRun = process.argv[1]?.endsWith("compare.ts");
+// 与 import.meta.url 全 URL 比对：文件名后缀判断会被符号链接/编译产物/别的路径误触发
+const isDirectRun = process.argv[1] ? import.meta.url === pathToFileURL(process.argv[1]).href : false;
 if (isDirectRun) main();

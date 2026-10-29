@@ -83,14 +83,34 @@ test("aggregateRuns：旧 run 无指纹归 legacy 组；未全命中用例进短
   assert.ok(!bbb.unstable.some((u) => u.caseId === "s-01"));
 });
 
-test("aggregateRuns：失败用例不进指标，perRun 标 err", () => {
+test("aggregateRuns：失败/缺 score 用例不进指标，perRun 标 err；混传缺用例的 run 标缺", () => {
   const f = runJson({
     runs: [
       { caseId: "s-01", source: "synthetic", error: "boom", score: null },
       { caseId: "r-01", source: "real", error: null, score: score(1, 1, 1, 1) },
     ],
   });
+  const partial = runJson({
+    runs: [{ caseId: "r-01", source: "real", error: null, score: score(0, 1, 1, 0) }],
+  });
+  const [agg] = aggregateRuns([
+    { name: "a.json", data: f },
+    { name: "partial.json", data: partial },
+  ]);
+  // 微平均计入 partial run 的 r-01 0/1（跑过但 miss 的用例算数）：1/2
+  assert.equal(agg.micro.recall, 0.5);
+  const s01 = agg.unstable.find((u) => u.caseId === "s-01")!;
+  assert.equal(s01.perRun[0], "err");
+  // partial run 没跑过 s-01：标注「缺」而不是崩溃
+  assert.equal(s01.perRun[1], "缺");
+});
+
+test("aggregateRuns：空组返回 null 而非 0（与 precision 的 — 语义一致）", () => {
+  const f = runJson({
+    runs: [{ caseId: "d-01", source: "dogfood", error: null, score: score(1, 1, 1, 1) }],
+  });
   const [agg] = aggregateRuns([{ name: "a.json", data: f }]);
-  assert.equal(agg.micro.recall, 1);
-  assert.ok(agg.unstable.some((u) => u.caseId === "s-01" && u.perRun[0] === "err"));
+  // 全部用例是 dogfood：能力评估组为空
+  assert.equal(agg.micro.recall, null);
+  assert.equal(agg.micro.precision, null);
 });
