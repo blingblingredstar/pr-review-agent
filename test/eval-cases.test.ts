@@ -37,12 +37,13 @@ function parseDiff(diff: string): { files: Set<string>; newLineRanges: Map<strin
     if (line.startsWith("diff --git ")) {
       closeHunk();
       inHunk = false;
-      const m = line.match(/^diff --git a\/(.+) b\/(.+)$/);
+      // 路径含空格时 git 用引号包裹（core.quotePath）；无引号形式两侧都不含空格
+      const m = line.match(/^diff --git "a\/.+" "b\/(.+)"$/) ?? line.match(/^diff --git a\/\S+ b\/(\S+)$/);
       if (!m) {
         errors.push(`diff --git 行格式异常: ${line}`);
       } else {
-        currentFile = m[2];
-        files.add(m[2]);
+        currentFile = m[1];
+        files.add(m[1]);
       }
       continue;
     }
@@ -84,6 +85,22 @@ test("用例集：20 个、id 唯一、bug/linked 各 10", async () => {
   assert.equal(new Set(ids).size, 20, "id 有重复");
   assert.equal(cases.filter((c) => c.kind === "bug").length, 10, "bug 类应 10 个");
   assert.equal(cases.filter((c) => c.kind === "linked").length, 10, "linked 类应 10 个");
+});
+
+test("parseDiff：引号形式的含空格路径取 b 侧全路径", () => {
+  const diff = [
+    'diff --git "a/src/foo b/bar.ts" "b/src/foo b/bar.ts"',
+    "index 1a2b3c4..5d6e7f8 100644",
+    "--- a/src/foo b/bar.ts",
+    "+++ b/src/foo b/bar.ts",
+    "@@ -1,1 +1,2 @@",
+    " const x = 1;",
+    "+const y = 2;",
+    "",
+  ].join("\n");
+  const { files, errors } = parseDiff(diff);
+  assert.deepEqual(errors, []);
+  assert.ok(files.has("src/foo b/bar.ts"), `实际解析到 ${[...files].join(", ")}`);
 });
 
 test("每个用例：diff 结构合法，expect 的 file/line 落在 diff 内", async () => {

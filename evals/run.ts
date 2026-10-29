@@ -14,7 +14,8 @@ type CaseRun = {
   error: string | null;
   comments: ReviewResult["comments"];
   durationMs: number;
-  score: CaseScore;
+  // 失败用例为 null：空 comments 的 0% recall 是 API 抖动伪影，不能进 JSON 误导下游报告
+  score: CaseScore | null;
 };
 
 async function reviewWithRetry(diff: string): Promise<ReviewResult> {
@@ -55,15 +56,15 @@ async function main() {
       error = String(e);
     }
     const durationMs = Date.now() - started;
-    const score = scoreCase(c, comments);
+    const score = error ? null : scoreCase(c, comments);
     runs.push({ caseId: c.id, kind: c.kind, error, comments, durationMs, score });
-    const mark = error ? `✗ 出错` : `命中 ${score.hits}/${score.verdicts.length}`;
+    const mark = error ? `✗ 出错` : `命中 ${score!.hits}/${score!.verdicts.length}`;
     console.log(`${mark}，${comments.length} 条意见，${(durationMs / 1000).toFixed(1)}s`);
     if (i < cases.length - 1) await sleep(CASE_GAP_MS);
   }
 
   // 失败用例的空意见是 API 抖动的伪影，不进指标（失败数单独展示）
-  const okRuns = runs.filter((r) => !r.error);
+  const okRuns = runs.filter((r): r is CaseRun & { score: CaseScore } => !r.error && r.score !== null);
   const totalExpect = okRuns.reduce((s, r) => s + r.score.verdicts.length, 0);
   const totalHits = okRuns.reduce((s, r) => s + r.score.hits, 0);
   const totalComments = okRuns.reduce((s, r) => s + r.score.agentComments, 0);
@@ -78,10 +79,13 @@ async function main() {
     `| case | kind | 期望命中 | recall | 意见数 | TP | precision | 耗时s |`,
     `|---|---|---|---|---|---|---|---|`,
     ...runs.map((r) => {
-      const rec = r.score.hits === r.score.verdicts.length ? `${r.score.hits}/${r.score.verdicts.length}` : `**${r.score.hits}/${r.score.verdicts.length}**`;
-      const prec = r.score.precision === null ? "—" : r.score.precision.toFixed(2);
-      const status = r.error ? ` ✗ ${r.error.slice(0, 60)}` : "";
-      return `| ${r.caseId}${status} | ${r.kind} | ${rec} | ${percent(r.score.recall)} | ${r.score.agentComments} | ${r.score.truePositives} | ${prec} | ${(r.durationMs / 1000).toFixed(1)} |`;
+      if (r.error) {
+        return `| ${r.caseId} ✗ ${r.error.slice(0, 60)} | ${r.kind} | — | — | — | — | — | ${(r.durationMs / 1000).toFixed(1)} |`;
+      }
+      const s = r.score!;
+      const rec = s.hits === s.verdicts.length ? `${s.hits}/${s.verdicts.length}` : `**${s.hits}/${s.verdicts.length}**`;
+      const prec = s.precision === null ? "—" : s.precision.toFixed(2);
+      return `| ${r.caseId} | ${r.kind} | ${rec} | ${percent(s.recall)} | ${s.agentComments} | ${s.truePositives} | ${prec} | ${(r.durationMs / 1000).toFixed(1)} |`;
     }),
     `| **汇总**（${failed > 0 ? `排除 ${failed} 个失败用例；` : ""}失败用例不计入指标） | | **${totalHits}/${totalExpect}** | **${percent(recall)}** | ${totalComments} | ${totalTp} | **${precision === null ? "—" : percent(precision)}** | ${(totalMs / 1000).toFixed(0)} |`,
   ];
