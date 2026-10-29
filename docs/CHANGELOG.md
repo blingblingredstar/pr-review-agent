@@ -66,3 +66,9 @@
 - D010：幂等去重用「查 GitHub 已有 review」而非外部存储（Vercel KV / 内存 Map 备选否决）
 - D011：LLM 硬超时 270s + 超时评论降级（Vercel Hobby 函数上限实为 300s，「60s」系 Fluid 之前过时数据）
 - D012：thinking 模型延迟治理走请求级关 thinking（`LLM_EXTRA_BODY`），QStash/Workflows 异步化列为 v2 候选
+
+### Fixed（Day 3 · PR #3 自审闭环）
+
+- webhook 畸形 payload（owner/repo/number/sha 缺失）入口 200 忽略 + 日志，不再以空值调用 GitHub API
+- `LLM_TIMEOUT_MS` 非数字/非正数告警并回退默认；`.env` 已有 `WEBHOOK_SECRET` 键时清理全部同名键再写入
+- `api/webhook.ts`：非 POST 405（带 `Allow: POST`）、body 超 25MB 官方上限 413（先送达再断开）
