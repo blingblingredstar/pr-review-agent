@@ -18,9 +18,32 @@ export const reviewResultSchema = z.object({
 export type ReviewComment = z.infer<typeof reviewResultSchema>["comments"][number];
 export type ReviewResult = z.infer<typeof reviewResultSchema>;
 
-// 模型可能带 git 的 a/ b/ 前缀，规范化后再比（行内定位判定用）
-export function normalizePath(file: string): string {
-  return file.replace(/^a\//, "").replace(/^b\//, "");
+// 模型可能带 git 的 a/ b/ 前缀，返回可能的路径变体（原样、剥 a/、剥 b/）供对照
+export function pathVariants(file: string): string[] {
+  return [file, file.replace(/^a\//, ""), file.replace(/^b\//, "")];
+}
+
+// git quotePath 把非 ASCII 编成八进制转义（UTF-8 字节）；输入可能带引号包裹（已剥引号也要能解码），无转义时原样返回
+export function unquoteGitPath(p: string): string {
+  const body = p.startsWith('"') && p.endsWith('"') && p.length >= 2 ? p.slice(1, -1) : p;
+  const bytes: number[] = [];
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (ch === "\\" && /[0-7]/.test(body[i + 1] ?? "")) {
+      let j = i + 1;
+      let oct = "";
+      while (j < body.length && oct.length < 3 && /[0-7]/.test(body[j])) oct += body[j++];
+      bytes.push(parseInt(oct, 8));
+      i = j - 1;
+    } else if (ch === "\\") {
+      const next = body[i + 1] ?? "";
+      bytes.push(...Buffer.from(next === "n" ? "\n" : next === "t" ? "\t" : next, "utf8"));
+      i++;
+    } else {
+      bytes.push(...Buffer.from(ch, "utf8"));
+    }
+  }
+  return Buffer.from(bytes).toString("utf8");
 }
 
 // 解析 unified diff，返回每个文件被 hunk 覆盖的新侧行号集合。
@@ -37,11 +60,30 @@ export function diffCoveredLines(diff: string): Map<string, Set<number>> {
     set.add(line);
   };
   for (const raw of diff.split("\n")) {
+    // hunk 内容行（+/ /-）自带前缀，不会以下面的文件头形态开头；先处理文件头判定
     if (raw.startsWith("diff --git ")) {
-      // 路径含空格时 git 用引号包裹（core.quotePath）；无引号形式两侧都不含空格
-      const m = /^diff --git "a\/.+" "b\/(.+)"$/.exec(raw) ?? /^diff --git \S+ b\/(.+)$/.exec(raw);
-      file = m?.[1] ?? "";
+      // 路径含空格时 git 用引号包裹（core.quotePath，非 ASCII 编成八进制转义）；无引号形式两侧都不含空格
+      const m = /^diff --git "a\/.+" "(b\/.+)"$/.exec(raw) ?? /^diff --git \S+ b\/(.+)$/.exec(raw);
+      file = m ? unquoteGitPath(m[1]).replace(/^b\//, "") : "";
       inHunk = false;
+      continue;
+    }
+    if (inHunk) {
+      const nextHunk = /^@@ -\d+(?:,\d+)? \+(\d+)/.exec(raw);
+      if (nextHunk) {
+        line = Number(nextHunk[1]);
+        continue;
+      }
+      if (raw.startsWith("\\")) continue; // "\ No newline at end of file"
+      if (raw.startsWith("+")) {
+        mark();
+        line++;
+      } else if (raw.startsWith("-")) {
+        // 旧侧删除行不占新行号，不推进
+      } else {
+        mark();
+        line++;
+      }
       continue;
     }
     if (raw.startsWith("+++ ") && raw.includes("/dev/null")) {
@@ -54,17 +96,6 @@ export function diffCoveredLines(diff: string): Map<string, Set<number>> {
     if (hunk) {
       inHunk = true;
       line = Number(hunk[1]);
-      continue;
-    }
-    if (!inHunk || raw.startsWith("\\")) continue;
-    if (raw.startsWith("+")) {
-      mark();
-      line++;
-    } else if (raw.startsWith("-")) {
-      // 旧侧删除行不计新行号
-    } else {
-      mark();
-      line++;
     }
   }
   return covered;

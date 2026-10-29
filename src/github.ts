@@ -1,7 +1,7 @@
 // GitHub API 封装：拉 PR diff、发 review。只依赖 octokit，便于 eval 时 mock（见 docs/architecture.md）。
 import { Octokit } from "octokit";
 import type { ReviewComment, ReviewResult } from "./review.ts";
-import { diffCoveredLines, normalizePath } from "./review.ts";
+import { diffCoveredLines, pathVariants } from "./review.ts";
 import { reviewMarker } from "./dedupe.ts";
 
 export type PrRef = { owner: string; repo: string; pullNumber: number };
@@ -59,9 +59,12 @@ export async function postReview(
   diff: string,
 ): Promise<void> {
   // 逐条预定位：行号在 diff 内的行内发（可进线程、可 resolve 闭环），
-  // 其余列进 summary body（Day 2 的全量降级会把可定位意见也拖进无线程的 body，逃出意见闭环）
+  // 其余列进 summary body（Day 2 的全量降级会把可定位意见也拖进无线程的 body，逃出意见闭环）。
+  // covered 的 key 是 diff 头解析出的真实路径；模型报的路径做 a/ b/ 变体对照（照抄 diff 头的情况），
+  // 不能预先剥前缀——仓库真有顶层 a/ b/ 目录时会误剥导致错误降级
   const covered = diffCoveredLines(diff);
-  const locatable = (c: ReviewComment) => covered.get(normalizePath(c.file))?.has(c.line) ?? false;
+  const locatable = (c: ReviewComment) =>
+    pathVariants(c.file).some((v) => covered.get(v)?.has(c.line));
   const inline = result.comments.filter(locatable);
   const degraded = result.comments.filter((c) => !locatable(c));
   const comments = inline.map((c) => ({

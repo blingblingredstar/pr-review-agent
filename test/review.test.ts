@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { diffCoveredLines, withExtraBody } from "../src/review.ts";
+import { diffCoveredLines, pathVariants, withExtraBody } from "../src/review.ts";
 
 test("withExtraBody：扩展字段合并进 JSON 请求体，显式配置优先", async () => {
   let captured: string | undefined;
@@ -62,4 +62,41 @@ test("diffCoveredLines：b/ 前缀规范化，空 diff 返回空 Map", () => {
   const covered = diffCoveredLines("diff --git a/x.ts b/x.ts\n@@ -1,1 +1,1 @@\n- old\n+ new\n");
   assert.ok(covered.get("x.ts")!.has(1));
   assert.equal(diffCoveredLines("").size, 0);
+});
+
+test("diffCoveredLines：引号路径的八进制转义解码", () => {
+  // "中文.md" 的 UTF-8 字节被 quotePath 编成八进制
+  const oct = [..."中文.md"].flatMap((ch) => [...Buffer.from(ch, "utf8")].map((b) => `\\${b.toString(8)}`)).join("");
+  const diff = [
+    `diff --git "a/docs/${oct}" "b/docs/${oct}"`,
+    "index 1..2 100644",
+    `--- "a/docs/${oct}"`,
+    `+++ "b/docs/${oct}"`,
+    "@@ -1,1 +1,2 @@",
+    " ctx",
+    "+new",
+  ].join("\n");
+  const covered = diffCoveredLines(diff);
+  assert.ok(covered.get("docs/中文.md")!.has(2), `实际 key: ${[...covered.keys()].join(", ")}`);
+});
+
+test("diffCoveredLines：hunk 内以 ++ /dev/null 开头的新增行不误判为删除文件", () => {
+  const diff = [
+    "diff --git a/x.md b/x.md",
+    "index 1..2 100644",
+    "--- a/x.md",
+    "+++ b/x.md",
+    "@@ -1,2 +1,3 @@",
+    " ctx",
+    "+++ /dev/null",
+    "+after",
+  ].join("\n");
+  const covered = diffCoveredLines(diff);
+  assert.ok(covered.get("x.md")!.has(3), "hunk 内容行不应重置 file");
+});
+
+test("pathVariants：原样 + 剥 a/ + 剥 b/ 三种变体", () => {
+  assert.deepEqual(pathVariants("src/x.ts"), ["src/x.ts", "src/x.ts", "src/x.ts"]);
+  assert.deepEqual(pathVariants("a/src/x.ts"), ["a/src/x.ts", "src/x.ts", "a/src/x.ts"]);
+  assert.deepEqual(pathVariants("b/a/x.ts"), ["b/a/x.ts", "b/a/x.ts", "a/x.ts"]);
 });
