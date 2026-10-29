@@ -72,3 +72,8 @@
 - webhook 畸形 payload（owner/repo/number/sha 缺失）入口 200 忽略 + 日志，不再以空值调用 GitHub API
 - `LLM_TIMEOUT_MS` 非数字/非正数告警并回退默认；`.env` 已有 `WEBHOOK_SECRET` 键时清理全部同名键再写入
 - `api/webhook.ts`：非 POST 405（带 `Allow: POST`）、body 超 25MB 官方上限 413（先送达再断开）
+
+### Added（Day 3 · D013 意见闭环机制）
+
+- `.github/workflows/review-threads.yml`：未 resolve 的 review 线程 → check 红灯（PR 事件 + review 提交触发）
+- `npm run resolve:threads -- owner/repo#N [--yes]`：列摘要、确认后批量 resolve 并主动重跑 check 闭合绿门

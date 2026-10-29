@@ -137,3 +137,18 @@
   - 审查质量超预期：四轮意见全部真实有效、逐轮收敛无循环；每轮 ~20s，迭代成本低，新流程可长期执行
   - PR #2 教训：合并请求发出即生效，取消本地命令无用——动作前先完成检查
 - **下一步**：PLAN Day 4-5——攒 eval 集（20 用例：一半明确 bug、一半关联问题，参考 Surge AI DAYJOB rubric 思路）
+
+## 2026-10-29 · 会话 12：合并前意见闭环机制化（D013）——PR #4 九轮审查验证
+
+- **目标**：把「合并前意见全处理」从约定升级为机制（用户提出）；以 PR #4 自身验证全流程。
+- **完成**：
+  - `.github/workflows/review-threads.yml`：GraphQL 查 reviewThreads，有未 resolve 线程即 fail 的 check（PR 事件 + review 提交触发；closed PR 早退）
+  - `scripts/resolve-threads.ts` + `npm run resolve:threads -- owner/repo#N [--yes]`：默认列线程摘要、`--yes` 才执行；小批量并发防限流；失败逐条可辨；resolve 后按 head_sha 找 run 主动 rerun 闭合「绿了才合并」
+  - D013 定稿：private+free 无 branch protection，check 为软约束；转 public 后升级 Require conversation resolution 硬闸门；AGENTS.md 工程约定同步
+  - **PR #4 九轮审查迭代验证**：意见 5→3→2→4→2→2→1(blocker)→3→0 收敛，22+ 条全部修复或回应；end-to-end 走通「bot 审 → check 红 → 修 → resolve → check 绿 → 合并（f7bee17）」
+- **发现 / 坑**：
+  - **blocker 是审查流程拦下的**：GraphQL 查询串加了类型没加字段，tsc 不查字符串内的 query——bot 第七轮抓到运行时必炸的 bug，机制价值实证
+  - bot 复审会翻旧账（按 original_commit_id 过滤最新轮意见才能看清增量）；每轮修复触发新一轮，意见范围逐轮收窄最后归零
+  - resolve 动作不触发任何 PR 事件——脚本里主动 rerun check 是「绿门」成立的关键，workflow 注释已注明两者成对
+  - git push 偶发 SSH 挂住（进程卡死无输出），kill 重试即恢复
+- **下一步**：PLAN Day 4-5——攒 eval 集（20 用例：一半明确 bug、一半关联问题）；转 public 时记得启用 branch protection 硬闸门
