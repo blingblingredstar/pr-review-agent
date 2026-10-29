@@ -25,6 +25,8 @@ jobs:
         with:
           script: |
             const num = context.payload.pull_request?.number;
+            // 触发集只有两个 PR 附带事件，num 必存在；此守卫只为未来误加触发器兜底。
+            // num 缺失时可能没有可靠的 head sha 可写 status，故静默跳过（有 warning 留痕）。
             if (!num) { core.warning('无法确定 PR 编号，跳过'); return; }
             if (context.payload.pull_request.state !== 'open') {
               core.info('PR 已关闭，跳过检查');
@@ -47,21 +49,27 @@ jobs:
                 }
               }
             }`;
-            const res = await github.graphql(q, {
-              owner: context.repo.owner,
-              name: context.repo.repo,
-              number: num,
-            });
-            const threads = res.repository.pullRequest.reviewThreads;
-            if (threads.pageInfo.hasNextPage) {
-              // 静默漏报会让闭环形同虚设：超限直接红灯交人工
-              await setStatus('failure', 'review 线程超过 100 条，分页未支持——请人工检查后合并');
-              return;
-            }
-            const unresolved = threads.nodes.filter((t) => !t.isResolved).length;
-            core.info(`reviewThreads: 共 ${threads.nodes.length}，未 resolve ${unresolved}`);
-            if (unresolved > 0) {
-              await setStatus('failure', `${unresolved} 条 review 意见未 resolve——先处理（修复/回应）再合并`);
-            } else {
-              await setStatus('success', '全部 review 意见已处理');
+            try {
+              const res = await github.graphql(q, {
+                owner: context.repo.owner,
+                name: context.repo.repo,
+                number: num,
+              });
+              const threads = res.repository.pullRequest.reviewThreads;
+              if (threads.pageInfo.hasNextPage) {
+                // 静默漏报会让闭环形同虚设：超限直接红灯交人工
+                await setStatus('failure', 'review 线程超过 100 条，分页未支持——请人工检查后合并');
+                return;
+              }
+              const unresolved = threads.nodes.filter((t) => !t.isResolved).length;
+              core.info(`reviewThreads: 共 ${threads.nodes.length}，未 resolve ${unresolved}`);
+              if (unresolved > 0) {
+                await setStatus('failure', `${unresolved} 条 review 意见未 resolve——先处理（修复/回应）再合并`);
+              } else {
+                await setStatus('success', '全部 review 意见已处理');
+              }
+            } catch (err) {
+              // status 写失败 = 红灯信号没落地还显示绿，必须 setFailed 兜底；
+              // 这是异常路径（设计内红灯走 status），不会产生常规失败邮件
+              core.setFailed(`写 commit status 失败：${err?.message ?? err}`);
             }
