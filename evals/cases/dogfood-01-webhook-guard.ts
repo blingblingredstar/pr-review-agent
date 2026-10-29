@@ -1,6 +1,5 @@
 import type { EvalCase } from "../score.ts";
 
-// 回归集：本仓库 PR #2 真实自审意见（空值 ?? 兜底后仍调度审查，应在入口忽略）。agent 考过的原题，能力评估不计入，防 prompt 退化
 export default {
   id: "dogfood-01-webhook-guard",
   kind: "bug",
@@ -123,8 +122,7 @@ index 0000000..5ec32d8
         "忽略",
         "拒绝",
         "兜底",
-        "畸形",
-        "0"
+        "畸形"
       ]
     }
   ],

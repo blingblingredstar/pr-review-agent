@@ -21,18 +21,18 @@ async function main(): Promise<void> {
     }
   }
   const only = new Set<number>(onlyArg ? onlyArg.split(",").filter(Boolean).map(Number) : []);
-  // --reply <databaseId>=<文本>，可多次；resolve 前先发回复，回应必须留痕后才关线程
+  // --reply <id=文本>，可多次（与 --only 一致的分离式参数）；resolve 前先发回复，回应必须留痕后才关线程
   const replies = new Map<number, string>();
-  for (const a of args) {
-    if (a.startsWith("--reply ")) {
-      const spec = a.slice("--reply ".length);
-      const eq = spec.indexOf("=");
-      if (eq <= 0) {
-        console.error(`--reply 格式应为 id=文本：${a}`);
-        process.exit(1);
-      }
-      replies.set(Number(spec.slice(0, eq)), spec.slice(eq + 1));
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] !== "--reply") continue;
+    const spec = args[i + 1] ?? "";
+    const eq = spec.indexOf("=");
+    if (eq <= 0 || !spec.slice(eq + 1).trim()) {
+      // 空文本会被回复分支当 falsy 静默跳过，产生无留痕闭环
+      console.error(`--reply 格式应为 非空id=非空文本，收到："${spec || "(缺参数)"}"`);
+      process.exit(1);
     }
+    replies.set(Number(spec.slice(0, eq)), spec.slice(eq + 1));
   }
   const m = ref.match(/^([\w.-]+)\/([\w.-]+)#(\d+)$/);
   if (!m) {
