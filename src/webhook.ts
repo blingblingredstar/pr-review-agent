@@ -51,12 +51,16 @@ export function handleWebhook(
   if (action !== "opened" && action !== "synchronize") {
     return { status: 200, note: `ignored action: ${action}` };
   }
-  const ref: PrRef & { headSha: string } = {
-    owner: payload.repository?.owner?.login ?? "",
-    repo: payload.repository?.name ?? "",
-    pullNumber: payload.pull_request?.number ?? 0,
-    headSha: payload.pull_request?.head?.sha ?? "",
-  };
+  const owner = payload.repository?.owner?.login;
+  const repo = payload.repository?.name;
+  const pullNumber = payload.pull_request?.number;
+  const headSha = payload.pull_request?.head?.sha;
+  if (!owner || !repo || !pullNumber || !headSha) {
+    // 畸形 payload（schema 漂移等）：与未知事件同语义，200 忽略并留日志，不拿空值去打 GitHub API
+    console.error(`[webhook] pull_request payload 字段缺失，忽略（owner=${owner} repo=${repo} number=${pullNumber}）`);
+    return { status: 200, note: "ignored: malformed pull_request payload" };
+  }
+  const ref: PrRef & { headSha: string } = { owner, repo, pullNumber, headSha };
   schedule(() => runReview(ref));
   return {
     status: 200,

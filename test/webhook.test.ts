@@ -59,6 +59,14 @@ test("分发：ping / 其他事件 / opened 以外动作一律 200 忽略且不�
   assert.equal(scheduled.length, 0);
 });
 
+test("分发：payload 字段缺失 200 忽略且不调度", () => {
+  const body = JSON.stringify({ action: "opened", repository: { owner: { login: "acme" } } });
+  const scheduled: Array<() => Promise<void>> = [];
+  const outcome = handleWebhook(signedHeaders("pull_request", body), body, (t) => scheduled.push(t));
+  assert.equal(outcome.status, 200);
+  assert.equal(scheduled.length, 0);
+});
+
 test("分发：签名不符返回 401 且不调度", () => {
   const body = prPayload("opened");
   const headers = signedHeaders("pull_request", body);
