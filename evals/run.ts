@@ -3,7 +3,7 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { loadCases } from "./cases/index.ts";
-import { scoreCase, sourceOf, type CaseScore } from "./score.ts";
+import { isCapabilitySource, scoreCase, sourceOf, type CaseScore } from "./score.ts";
 import { loadPrompt, reviewDiff, type ReviewResult } from "../src/review.ts";
 
 const CASE_GAP_MS = 2_000;
@@ -73,7 +73,7 @@ async function main() {
   // 失败用例的空意见是 API 抖动的伪影，不进指标（失败数单独展示）
   const okRuns = runs.filter((r): r is OkRun => !r.error && r.score !== null);
   // 能力评估 = synthetic + real；dogfood 是回归集（考过的原题），单独统计不进能力结论
-  const capability = okRuns.filter((r) => r.source !== "dogfood");
+  const capability = okRuns.filter((r) => isCapabilitySource(r.source));
   const metrics = (rs: OkRun[]) => {
     const expectN = rs.reduce((s, r) => s + r.score.verdicts.length, 0);
     const hits = rs.reduce((s, r) => s + r.score.hits, 0);

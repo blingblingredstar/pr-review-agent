@@ -3,6 +3,7 @@
 // 指标口径与 run.ts 一致：能力评估 = synthetic + real（dogfood 不进）；跨轮微平均 = Σhits/ΣexpectN、Σtp/Σcomments。
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+import { isCapabilitySource } from "./score.ts";
 
 // 只声明 compare 消费的字段：run.ts 写盘的 summary/groups 等其余结构不在此处复述——
 // 两边各留各的，类型漂移不会有编译期信号，复述反而误导按类型消费 run JSON 的人
@@ -63,7 +64,7 @@ export function aggregateRuns(files: { name: string; data: RunJson }[]): Version
     );
     // 能力评估口径：dogfood 排除（与 run.ts 一致）
     const capScores = ordered
-      .flatMap((f) => f.data.runs.filter((r) => !r.error && r.score && r.source !== "dogfood"))
+      .flatMap((f) => f.data.runs.filter((r) => !r.error && r.score && isCapabilitySource(r.source)))
       .map((r) => r.score!);
     const microM = micro(
       capScores.map((s) => s.hits),
@@ -71,7 +72,7 @@ export function aggregateRuns(files: { name: string; data: RunJson }[]): Version
       capScores.map((s) => s.truePositives),
       capScores.map((s) => s.agentComments),
     );
-    const sources = [...new Set(ordered.flatMap((f) => f.data.runs.map((r) => r.source)))].filter((s) => s !== "dogfood");
+    const sources = [...new Set(ordered.flatMap((f) => f.data.runs.map((r) => r.source)))].filter(isCapabilitySource);
     const groups = Object.fromEntries(
       sources.map((src) => {
         const ss = ordered
