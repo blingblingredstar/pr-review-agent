@@ -49,12 +49,13 @@ function extraBody(): Record<string, unknown> {
 
 export function llmTimeoutMs(): number {
   const raw = process.env.LLM_TIMEOUT_MS;
+  if (!raw) return 270_000;
   const parsed = Number(raw);
-  if (raw && !Number.isFinite(parsed)) {
-    console.warn(`LLM_TIMEOUT_MS="${raw}" 不是数字，回退默认 270000ms`);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    console.warn(`LLM_TIMEOUT_MS="${raw}" 不是正数，回退默认 270000ms`);
     return 270_000;
   }
-  return parsed > 0 ? parsed : 270_000;
+  return parsed;
 }
 
 export async function reviewDiff(diff: string): Promise<ReviewResult> {
