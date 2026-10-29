@@ -1,8 +1,10 @@
 # 检查 PR 是否还有未 resolve 的 review 线程——「合并前意见闭环」的机制保障（D013）。
+# 红灯信号写在 commit status（context: review-threads），workflow 本身永远正常退出——
+# 否则每次「有未决意见」（设计内状态）都会触发一封 Actions 失败邮件，淹没收件箱。
 # 注意：resolve 线程不触发本工作流（GitHub 无对应事件），由 scripts/resolve-threads.ts 在 resolve 后主动 rerun——
-# 两者是一对，勿单删其一，否则 check 会停留在旧结论。
-# private 仓库免费计划没有 branch protection，本 check 是软约束（红灯可见但可越过）；
-# 仓库转 public 后建议启用 branch protection 的 Require conversation resolution 升级为硬约束。
+# 两者是一对，勿单删其一，否则 status 会停留在旧结论。
+# private 仓库免费计划没有 branch protection，本 status 是软约束（红灯可见但可越过）；
+# 仓库转 public 后建议把它设为 branch protection 的 required status check 升级为硬约束。
 name: review-threads
 
 on:
@@ -13,6 +15,7 @@ on:
 
 permissions:
   pull-requests: read
+  statuses: write
 
 jobs:
   unresolved-threads:
@@ -22,11 +25,21 @@ jobs:
         with:
           script: |
             const num = context.payload.pull_request?.number;
-            if (!num) { core.setFailed('无法确定 PR 编号'); return; }
+            if (!num) { core.warning('无法确定 PR 编号，跳过'); return; }
             if (context.payload.pull_request.state !== 'open') {
               core.info('PR 已关闭，跳过检查');
               return;
             }
+            const setStatus = async (state, description) => {
+              await github.rest.repos.createCommitStatus({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                sha: context.payload.pull_request.head.sha,
+                state,
+                context: 'review-threads',
+                description,
+              });
+            };
             const q = `query($owner:String!,$name:String!,$number:Int!){
               repository(owner:$owner,name:$name){
                 pullRequest(number:$number){
@@ -42,11 +55,13 @@ jobs:
             const threads = res.repository.pullRequest.reviewThreads;
             if (threads.pageInfo.hasNextPage) {
               // 静默漏报会让闭环形同虚设：超限直接红灯交人工
-              core.setFailed('review 线程超过 100 条，分页未支持——请人工检查后合并');
+              await setStatus('failure', 'review 线程超过 100 条，分页未支持——请人工检查后合并');
               return;
             }
             const unresolved = threads.nodes.filter((t) => !t.isResolved).length;
             core.info(`reviewThreads: 共 ${threads.nodes.length}，未 resolve ${unresolved}`);
             if (unresolved > 0) {
-              core.setFailed(`${unresolved} 条 review 意见未 resolve——先处理（修复/回应）再合并`);
+              await setStatus('failure', `${unresolved} 条 review 意见未 resolve——先处理（修复/回应）再合并`);
+            } else {
+              await setStatus('success', '全部 review 意见已处理');
             }
