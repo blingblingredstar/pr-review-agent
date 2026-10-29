@@ -107,3 +107,8 @@
 - bot 有意见时以 `REQUEST_CHANGES` 提交 review——GitHub 原生禁用合并按钮（无需 branch protection），修复重审无意见后自动解除；审查进行中写 `pr-review` status（pending/success/failure），补上「review 尚未发布」的合并窗口期
 - `diffCoveredLines` 修幻影行号（hunk 头行数计数，尾部空串伪影不再多记一行——它会让行内发帖 422 回落全量降级）；`/dev/null` 精确匹配；完成日志分列行内/降级条数
 - `resolve:threads --yes` 收尾后检测「最新 head SHA 尚无 review 提交」提示复审在途（PR #9 竞态教训）
+
+### Added（diff 截断，D018）
+
+- `truncateDiff`：超大 diff 按 `DIFF_MAX_CHARS`（默认 300_000 字符）整文件块预算丢弃——小文件优先贪心保留、原顺序字节级重组、被丢弃文件附 `[diff 截断] 省略 path (+a/-b)` 行告知模型；`reviewDiff` 构造 prompt 前单点生效（webhook / eval / 本地脚本共用）
+- PLAN §三 关键工程细节全部落地；规格见 `docs/plans/diff-truncation.md`，单测 45 例

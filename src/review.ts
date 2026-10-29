@@ -46,6 +46,16 @@ export function unquoteGitPath(p: string): string {
   return Buffer.from(bytes).toString("utf8");
 }
 
+// diff --git 头行的 b 侧路径：引号包裹、八进制转义、rename 两侧引号需求不一致的四种组合都试
+export function diffHeaderPath(line: string): string | null {
+  const m =
+    /^diff --git "a\/(?:[^"\\]|\\.)*" "(b\/(?:[^"\\]|\\.)*)"$/.exec(line) ??
+    /^diff --git "a\/(?:[^"\\]|\\.)*" b\/(\S+)$/.exec(line) ??
+    /^diff --git a\/\S+ "(b\/(?:[^"\\]|\\.)*)"$/.exec(line) ??
+    /^diff --git a\/\S+ b\/(\S+)$/.exec(line);
+  return m ? unquoteGitPath(m[1]).replace(/^b\//, "") : null;
+}
+
 // 解析 unified diff，返回每个文件被 hunk 覆盖的新侧行号集合。
 // 用于行内评论的预定位：只有行号落在 diff 内的意见才能行内发（GitHub 对 hunk 外行号返回 422）。
 export function diffCoveredLines(diff: string): Map<string, Set<number>> {
@@ -65,15 +75,7 @@ export function diffCoveredLines(diff: string): Map<string, Set<number>> {
   for (const raw of diff.split("\n")) {
     // hunk 内容行（+/ /-）自带前缀，不会以下面的文件头形态开头；先处理文件头判定
     if (raw.startsWith("diff --git ")) {
-      // 路径含空格时 git 用引号包裹（core.quotePath，非 ASCII 编成八进制转义）；无引号形式两侧都不含空格。
-      // rename 场景两侧引号需求可能不一致（旧路径含空格新路径不含），四种组合都试。
-      // (?:[^"\\]|\\.)* 不跨引号也不吃转义序列，路径本身含引号字符（git 转义为 \"）时不会切错侧
-      const m =
-        /^diff --git "a\/(?:[^"\\]|\\.)*" "(b\/(?:[^"\\]|\\.)*)"$/.exec(raw) ??
-        /^diff --git "a\/(?:[^"\\]|\\.)*" b\/(\S+)$/.exec(raw) ??
-        /^diff --git a\/\S+ "(b\/(?:[^"\\]|\\.)*)"$/.exec(raw) ??
-        /^diff --git a\/\S+ b\/(\S+)$/.exec(raw);
-      file = m ? unquoteGitPath(m[1]).replace(/^b\//, "") : "";
+      file = diffHeaderPath(raw) ?? "";
       inHunk = false;
       remain = 0;
       continue;
@@ -114,6 +116,75 @@ export function diffCoveredLines(diff: string): Map<string, Set<number>> {
     }
   }
   return covered;
+}
+
+// diff 截断预算（字符）：超大 diff 全量进 prompt 浪费 token 甚至超模型上下文；默认 300_000 留足余量
+export function diffMaxChars(): number {
+  const raw = process.env.DIFF_MAX_CHARS;
+  if (!raw) return 300_000;
+  const parsed = Number(raw);
+  // 小数（如 0.5）会得到所有块都装不下的预算、返回纯省略列表——与非法值一并回退
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) {
+    console.warn(`DIFF_MAX_CHARS="${raw}" 不是正整数，回退默认 300000`);
+    return 300_000;
+  }
+  return parsed;
+}
+
+// 超预算时整文件块丢弃（D018）：切 hunk 破坏行号定位、分批多次调用翻倍延迟，都不取——
+// 按块大小升序贪心保留（大文件多为 lock/生成物噪声，正是 PR #1 印证的取舍），保留块按原顺序
+// 字节级重组，丢弃文件附省略行让模型知道看到的不是全量。
+export function truncateDiff(diff: string, budget: number = diffMaxChars()): string {
+  if (diff.length <= budget) return diff;
+  const blocks: { lines: string[]; path: string; adds: number; dels: number; size: number; binary: boolean; pseudo?: true }[] = [];
+  let cur: (typeof blocks)[number] | null = null;
+  for (const line of diff.split("\n")) {
+    if (line.startsWith("diff --git ")) {
+      cur = { lines: [line], path: diffHeaderPath(line) ?? "(无法解析路径的文件)", adds: 0, dels: 0, size: 0, binary: false };
+      blocks.push(cur);
+    } else if (!cur) {
+      // 畸形 diff 首个文件头之前的散落内容：不是文件，被丢弃时不产出省略行（伪路径会误导模型）
+      cur = { lines: [line], path: "(diff 头之前的内容)", adds: 0, dels: 0, size: 0, binary: false, pseudo: true };
+      blocks.push(cur);
+    } else {
+      cur.lines.push(line);
+      // 二进制负载行（GIT binary patch 的 base64 / Binary files 摘要之后）可能以 +/- 开头，停止计数；
+      // 标记置位后不重置——git 输出中二进制段后不再有文本 hunk，手工拼接的混合 diff 会漏记（输入来源仅 GitHub 标准 diff，接受）
+      if (line === "GIT binary patch" || line.startsWith("Binary files ")) cur.binary = true;
+      else if (!cur.binary) {
+        if (line.startsWith("+") && !line.startsWith("+++")) cur.adds++;
+        else if (line.startsWith("-") && !line.startsWith("---")) cur.dels++;
+      }
+    }
+  }
+  // 块大小为近似值：join 长度 + 1 个块间换行分隔符（末块无尾换行时多记 1 字符）；预算是软约束，不追求精确
+  for (const b of blocks) b.size = b.lines.join("\n").length + 1;
+  // 装不下就跳过继续试更小的（continue 而非 break），保留集按原顺序输出
+  const order = blocks.map((_, i) => i).sort((a, b) => blocks[a].size - blocks[b].size);
+  const keep = new Set<number>();
+  let used = 0;
+  for (const i of order) {
+    if (used + blocks[i].size > budget) continue;
+    keep.add(i);
+    used += blocks[i].size;
+  }
+  const kept = blocks.filter((_, i) => keep.has(i));
+  // 非文件的 pseudo 块被丢弃时不产出省略行、不进汇总计数
+  const omitTargets = blocks.filter((b, i) => !keep.has(i) && !b.pseudo);
+  const out = kept.flatMap((b) => b.lines);
+  const omitLines = omitTargets.map((b) => `[diff 截断] 省略 ${b.path} (+${b.adds}/-${b.dels})`);
+  // 省略行自身也占输出：丢弃文件极多时会反噬预算——超了就压缩成一行汇总（总量有界，无条件核对）
+  if (used + omitLines.join("\n").length + 1 > budget) {
+    const adds = omitTargets.reduce((s, b) => s + b.adds, 0);
+    const dels = omitTargets.reduce((s, b) => s + b.dels, 0);
+    out.push(`[diff 截断] 省略 ${omitTargets.length} 个文件（超出 ${budget} 字符预算，合计 +${adds}/-${dels}）`);
+  } else {
+    out.push(...omitLines);
+  }
+  console.log(
+    `[truncateDiff] 预算 ${budget} 字符：${blocks.length} 个文件块保留 ${kept.length} 个、省略 ${blocks.length - kept.length} 个`,
+  );
+  return out.join("\n");
 }
 
 export function loadPrompt(): string {
@@ -169,7 +240,7 @@ export async function reviewDiff(diff: string): Promise<ReviewResult> {
     model: llm.chat(LLM_MODEL),
     output: Output.object({ schema: reviewResultSchema, name: "ReviewResult" }),
     system: loadPrompt(),
-    prompt: diff,
+    prompt: truncateDiff(diff),
     abortSignal: AbortSignal.timeout(llmTimeoutMs()),
   });
   return output;

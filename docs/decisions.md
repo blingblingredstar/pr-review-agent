@@ -168,3 +168,14 @@
   - 仅 branch protection required check——private 仓库需付费（D013），且覆盖不了窗口期 (a) 的 pending 语义；
   - 外部锁服务——过度工程。
 - **后果**：私有仓库期间，有意见 = 合并按钮物理禁用（强于软约束），审查中 = status 黄色可见；合并前流程新增「确认 REQUEST_CHANGES 已解除」核对点。代价：REQUEST_CHANGES 由 bot 同账号发出，作者不能 dismiss 别人的 review——解除路径只有 bot 重审无意见（或 resolve 后 bot 复审 COMMENT），与意见闭环方向一致。
+
+## D018 — diff 截断用整文件块预算丢弃，不切 hunk、不分子调用
+
+- **状态**：已接受（2026-10-30）
+- **背景**：`reviewDiff` 把整个 diff 全量喂模型。超大 PR 一是大半 token 花在 lock/生成物噪声上（PR #1 37KB diff 的教训），二是可能超模型上下文窗口直接失败。PLAN §三 预留的截断策略是唯一未落代码的关键工程细节，且验收标准 #4 要求 README 讲清它。
+- **决策**：以 `diff --git` 行为界切文件块，总长超 `DIFF_MAX_CHARS`（默认 300_000 字符，非法值告警回退）时按块大小升序贪心保留（小文件优先，大文件多为噪声），保留块按原顺序字节级重组，被丢弃文件在 diff 末尾附 `[diff 截断] 省略 path (+a/-b)` 行告知模型非全量；落点 `src/review.ts` `truncateDiff()`，`reviewDiff` 构造 prompt 前应用（webhook / eval / 本地脚本单点生效）。
+- **备选**：
+  - 按行截断单文件——破坏 hunk 完整性，`diffCoveredLines` 行号错位、模型理解断片；
+  - 按文件分批多次调用 LLM——成本与延迟翻倍，意见间互相看不到上下文；
+  - lock 文件黑名单等内容级过滤——预算机制已天然把大噪声文件排后面，第二套规则没有第二份收益。
+- **后果**：`diffCoveredLines` 仍吃原始 diff（被截断文件模型看不到、不会有意见，覆盖行号是其超集，无害）；预算内 diff 零影响（eval 用例全部远小于默认预算，回归安全）。

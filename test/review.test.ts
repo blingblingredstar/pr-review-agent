@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { diffCoveredLines, pathVariants, unquoteGitPath, withExtraBody } from "../src/review.ts";
+import { diffCoveredLines, diffMaxChars, pathVariants, truncateDiff, unquoteGitPath, withExtraBody } from "../src/review.ts";
 
 test("withExtraBody：扩展字段合并进 JSON 请求体，显式配置优先", async () => {
   let captured: string | undefined;
@@ -183,4 +183,86 @@ test("diffCoveredLines：+++ /dev/null 精确匹配，路径含该字样的真�
   ].join("\n") + "\n";
   const covered = diffCoveredLines(diff);
   assert.ok(covered.get("test/a/dev/null")!.has(2), "路径含 /dev/null 字样的真实文件应正常解析");
+});
+
+test("truncateDiff：预算内原样返回", () => {
+  const diff = "diff --git a/a.ts b/a.ts\n@@ -1,1 +1,2 @@\n ctx\n+new\n";
+  assert.equal(truncateDiff(diff, 10_000), diff);
+});
+
+test("truncateDiff：超预算丢最大块，保留块按原顺序重组，省略行带路径与增删计数", () => {
+  const a = ["diff --git a/a.ts b/a.ts", "@@ -1,1 +1,2 @@", " ctx", "+a1"].join("\n") + "\n";
+  const b = ["diff --git a/big.ts b/big.ts", "@@ -1,1 +1,2 @@", " ctx", "+" + "x".repeat(200)].join("\n") + "\n";
+  const c = ["diff --git a/c.ts b/c.ts", "@@ -1,1 +1,2 @@", " ctx", "+c1"].join("\n") + "\n";
+  const out = truncateDiff(a + b + c, a.length + c.length + 50);
+  assert.equal(out, a + c + "\n[diff 截断] 省略 big.ts (+1/-0)");
+});
+
+test("truncateDiff：装不下最大的就跳过继续试更小的（continue 而非 break）", () => {
+  const small = ["diff --git a/s.ts b/s.ts", "@@ -1,1 +1,2 @@", " ctx", "+s1"].join("\n") + "\n";
+  const huge = ["diff --git a/h.ts b/h.ts", "@@ -1,1 +1,2 @@", " ctx", "+" + "x".repeat(500)].join("\n") + "\n";
+  const mid = ["diff --git a/m.ts b/m.ts", "@@ -1,1 +1,2 @@", " ctx", "+" + "y".repeat(100)].join("\n") + "\n";
+  // 顺序 small→huge→mid：贪心遇 huge 装不下，mid 在后面仍要能装进
+  const out = truncateDiff(small + huge + mid, small.length + mid.length + 50);
+  assert.ok(out.includes("s.ts") && out.includes("m.ts"), "small 与 mid 都应保留");
+  assert.ok(out.includes("省略 h.ts"), "huge 应被省略");
+});
+
+test("truncateDiff：全部块都超预算时压缩为汇总（无条件核对，单文件也一样）", () => {
+  const a = ["diff --git a/a.ts b/a.ts", "@@ -1,1 +1,2 @@", " ctx", "+" + "x".repeat(50)].join("\n") + "\n";
+  const out = truncateDiff(a, 10);
+  assert.equal(out, "[diff 截断] 省略 1 个文件（超出 10 字符预算，合计 +1/-0）");
+});
+
+test("truncateDiff：GIT binary patch 数据行不计入增删", () => {
+  const a = [
+    "diff --git a/img.png b/img.png",
+    "index 1..2 100644",
+    "GIT binary patch",
+    "literal 10",
+    "+cmVtb3ZlZC1iYXNlNjQ=",
+    "-c2Fk",
+  ].join("\n") + "\n";
+  const out = truncateDiff(a, 10);
+  // binary 标记行之后的 +/- 数据行不计：合计 +0/-0
+  assert.ok(out.includes("省略 1 个文件"), `实际输出: ${out}`);
+  assert.ok(out.includes("合计 +0/-0"), `实际输出: ${out}`);
+});
+
+test("truncateDiff：省略行自身超预算时压缩为汇总行", () => {
+  // 主块最小（贪心先保留，used=50），d 块 130 > 剩余 40 全部被丢——30 条省略行 ~900 字符超剩余预算触发压缩
+  const kept = "diff --git a/k.ts b/k.ts\n@@ -1,1 +1,2 @@\n ctx\n+kk\n";
+  let diff = kept;
+  for (let i = 0; i < 30; i++) diff += `diff --git a/d${i}.ts b/d${i}.ts\n@@ -1,1 +1,2 @@\n ctx\n+${"x".repeat(80)}\n`;
+  const out = truncateDiff(diff, kept.length + 40);
+  assert.equal((out.match(/\[diff 截断\]/g) ?? []).length, 1, "应只有压缩后的汇总行");
+  assert.ok(out.includes("省略 30 个文件"), `实际输出末尾: ${out.slice(-120)}`);
+});
+
+test("truncateDiff：diff 头之前的散落内容被丢弃时不产出伪路径省略行", () => {
+  const junk = "not a diff line\n";
+  const a = "diff --git a/a.ts b/a.ts\n@@ -1,1 +1,2 @@\n ctx\n+kk\n";
+  // budget 60：junk（16）保留、a（50）装不下被丢；省略行 31 字符在剩余 44 内不触发压缩
+  const out = truncateDiff(junk + a, 60);
+  assert.ok(!out.includes("diff 头之前"), `伪块不应产出省略行，实际输出: ${out}`);
+  assert.equal(out, "not a diff line\n[diff 截断] 省略 a.ts (+1/-0)");
+});
+
+test("diffMaxChars：未配置默认 300000，非法值告警回退，合法值生效", () => {
+  const saved = process.env.DIFF_MAX_CHARS;
+  try {
+    delete process.env.DIFF_MAX_CHARS;
+    assert.equal(diffMaxChars(), 300_000);
+    process.env.DIFF_MAX_CHARS = "abc";
+    assert.equal(diffMaxChars(), 300_000);
+    process.env.DIFF_MAX_CHARS = "0";
+    assert.equal(diffMaxChars(), 300_000);
+    process.env.DIFF_MAX_CHARS = "0.5";
+    assert.equal(diffMaxChars(), 300_000);
+    process.env.DIFF_MAX_CHARS = "1234";
+    assert.equal(diffMaxChars(), 1234);
+  } finally {
+    if (saved === undefined) delete process.env.DIFF_MAX_CHARS;
+    else process.env.DIFF_MAX_CHARS = saved;
+  }
 });

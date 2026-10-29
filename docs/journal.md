@@ -241,3 +241,13 @@
 - **流程首次完整走对**：合并前核对 review body 降级列表（0 条才合并）——AGENTS.md 新流程第一次真正执行到位。
 - **发现 / 坑**：python 生成补丁改模板字符串时 `\\$` 转义层级连错三次——这类修法应改用 Edit 工具直接改源文件，或补丁后 grep -F 验证无 `\${` 残留。
 - **下一步**：Day 6——改 prompt + 多轮均值对比；上下文增强方案待拍板
+
+## 2026-10-30 · 会话 19：剩余工作清点 + 夜间批量实施（PR A/B/C 串行）
+
+- **目标**：清点 PLAN 剩余项全部实现——Day 6（prompt 迭代 + 多轮对比报告）、Day 7（README）、diff 截断（PLAN §三 唯一未落代码的关键工程细节）；用户夜间离线授权代决策，分 PR 串行、每个走完整闭环再开下一个。
+- **代决策记录**：上下文增强（拉相关文件喂 prompt）延后 v2——改输入契约需另设计 eval，不在本期验收标准内；`synchronize` 维持全量重审（增量列 v2 路线）；多模型对比跳过（无第二家端点 key）。
+- **PR A（diff 截断，D018）**：`truncateDiff` 整文件块预算丢弃——`DIFF_MAX_CHARS` 默认 300_000 字符，超预算按块大小升序贪心保留（小文件优先，大文件多为 lock 噪声），保留块原顺序字节级重组，被丢弃文件附 `[diff 截断] 省略 path (+a/-b)` 行；`reviewDiff` prompt 构造前单点生效。复用重构：diff 头行 b 侧路径解析抽为 `diffHeaderPath`（diffCoveredLines / truncateDiff 共用）。规格 `docs/plans/diff-truncation.md`，单测 +5（40 → 45 例），typecheck / eval 回归通过。
+- **发现 / 坑**：
+  - 块重组的字节级保真：整 diff split("\n") 后按 `diff --git` 行分块，块间不丢行——尾部空串只存在于最后一块，join 回原样；省略行前会多一个空行（末块尾换行的空串元素 + join 分隔符），无碍
+  - 会话上下文管理（用户要求）：单会话无法 compact，用 jq 投影 / 后台跑 eval / 控制读取面保持主对话精简
+- **下一步**：PR B（Day 6 prompt 迭代）→ PR C（Day 7 README）
