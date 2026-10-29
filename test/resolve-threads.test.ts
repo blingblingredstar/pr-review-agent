@@ -26,6 +26,8 @@ test("parseArgs：--only 缺值 / 纯分隔符 / --reply 空文本 / 空 id 均�
   assert.throws(() => parseArgs(["r#1", "--reply", "441="]), /非空id=非空文本/);
   assert.throws(() => parseArgs(["r#1", "--reply", "=文本"]), /非空id=非空文本/);
   assert.throws(() => parseArgs(["r#1", "--reply"]), /非空id=非空文本/);
+  assert.throws(() => parseArgs(["r#1", "--reply", "abc=x"]), /不是合法的线程 databaseId/);
+  assert.throws(() => parseArgs(["r#1", "--reply", "-1=x"]), /不是合法的线程 databaseId/);
 });
 
 test("parseArgs：无参数时全默认（列表模式）", () => {

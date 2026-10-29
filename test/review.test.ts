@@ -120,3 +120,17 @@ test("diffCoveredLines：引号内含转义引号的路径不切错侧", () => {
   const covered = diffCoveredLines(diff);
   assert.ok(covered.has('we"ird.ts'), `实际 key: ${[...covered.keys()].join(", ")}`);
 });
+
+test("diffCoveredLines：rename 混合引号形态（a 侧引号 b 侧裸）取 b 侧路径", () => {
+  const diff = [
+    'diff --git "a/old path.ts" b/new.ts',
+    "similarity index 90%",
+    'rename from "a/old path.ts"',
+    "rename to b/new.ts",
+    "@@ -1,1 +1,2 @@",
+    " ctx",
+    "+new",
+  ].join("\n");
+  const covered = diffCoveredLines(diff);
+  assert.ok(covered.has("new.ts"), `实际 key: ${[...covered.keys()].join(", ")}`);
+});

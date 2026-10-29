@@ -84,7 +84,8 @@ async function main() {
   };
   const overall = metrics(capability);
   const groupMetrics = Object.fromEntries(
-    (["synthetic", "real", "dogfood"] as const).map((src) => {
+    // source 集合从用例数据收集：新增枚举值时报告不会静默漏组
+    [...new Set(runs.map((r) => r.source))].map((src) => {
       const rs = okRuns.filter((r) => r.source === src);
       const groupFailed = runs.filter((r) => r.source === src && r.error).length;
       // runs/failed 附带：某组全部失败时指标为 0，读报告的人需要能区分「0 命中」和「没跑」

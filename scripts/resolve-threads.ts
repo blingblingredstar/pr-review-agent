@@ -56,7 +56,12 @@ export function parseArgs(argv: string[]): ParsedArgs {
       // 空文本会被回复分支当 falsy 静默跳过，产生无留痕闭环
       throw new Error(`--reply 格式应为 非空id=非空文本，收到："${spec || "(缺参数)"}"`);
     }
-    replies.set(Number(spec.slice(0, eq)), spec.slice(eq + 1));
+    const id = Number(spec.slice(0, eq));
+    // 与 --only 同一段校验：非法 id 静默生成 key 会让回复悄悄不发、流程照走
+    if (!Number.isSafeInteger(id) || id <= 0) {
+      throw new Error(`--reply 的 id "${spec.slice(0, eq)}" 不是合法的线程 databaseId`);
+    }
+    replies.set(id, spec.slice(eq + 1));
   }
   const yes = args.some((a, i) => a === "--yes" && !consumed.has(i));
   return { ref, yes, only, replies };
