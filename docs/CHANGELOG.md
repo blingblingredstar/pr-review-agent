@@ -50,3 +50,19 @@
 ### Decided（Day 2）
 
 - D008 定稿：回帖身份用 PAT（`GITHUB_TOKEN`），GitHub App 留产品化阶段
+
+### Added（Day 3）
+
+- webhook 全链路：`src/webhook.ts`（HMAC-SHA256 验签 + 事件分发 opened/synchronize + `waitUntil` 异步审查）、`api/webhook.ts` Vercel function 薄壳（`maxDuration: 300`）
+- `src/dedupe.ts`：查 GitHub 已有 review 的内嵌 sha 标记实现幂等（D010）；review summary 标记嵌入 head SHA
+- 超时降级（D011）：`reviewDiff` 硬超时 `LLM_TIMEOUT_MS`（默认 270s），超时发 issue comment 告知并可重投重试
+- `LLM_EXTRA_BODY` 端点扩展点（D012）：JSON 合并进请求体，GLM 用 `{"thinking":{"type":"disabled"}}` 关 thinking 控延迟——真跑从 270s 超时降到 ~20s 出结果
+- `npm run setup:webhook -- owner/repo <url>`：PAT 一键创建/更新 webhook（secret 自动生成写入 `.env`）
+- 部署 Vercel Hobby 生产（`vercel.json`：maxDuration 300 + `includeFiles: prompts/**`），环境变量 6 个
+- 单测扩到 10 例：验签、事件分发、dedupe 标记、请求体扩展合并；`.gitignore` 补 `.zcode/`
+
+### Decided（Day 3）
+
+- D010：幂等去重用「查 GitHub 已有 review」而非外部存储（Vercel KV / 内存 Map 备选否决）
+- D011：LLM 硬超时 270s + 超时评论降级（Vercel Hobby 函数上限实为 300s，「60s」系 Fluid 之前过时数据）
+- D012：thinking 模型延迟治理走请求级关 thinking（`LLM_EXTRA_BODY`），QStash/Workflows 异步化列为 v2 候选

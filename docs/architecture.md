@@ -21,11 +21,12 @@ GitHub API 回帖（逐条 PR review comment）◄──────────
 
 | 模块 | 职责 | 关键点 |
 |---|---|---|
-| `src/webhook.ts` | 接收事件、验签、事件分发、立即 200 + `waitUntil` | 只处理 `opened` / `synchronize`；其余事件直接 200 忽略 |
-| `src/review.ts` | 拉 diff → 构造 prompt → LLM 审查 → 结构化输出 | prompt 从 `prompts/review.md` 读取；`generateText` + `Output.object` 强约束 schema；`llm.chat()` 显式走 chat/completions（兼容端点无 Responses API） |
-| `src/github.ts` | GitHub API 封装：拉 PR diff、发 review comment | 只依赖 octokit；便于 eval 时 mock |
-| `src/dedupe.ts` | 同一 commit SHA 只审一次 | 防止 webhook 重试 → 重复评论 |
-| `prompts/review.md` | 审查提示词（迭代对象） | prompt 与代码分离，方便 diff 和 eval 对比 |
+| `api/webhook.ts` | Vercel function 薄壳 | 读 raw body（不能碰 `req.body`，惰性解析会消费流破坏验签）+ 响应；`maxDuration: 300`（Hobby 上限） |
+| `src/webhook.ts` | 验签、事件分发、后台审查编排 | HMAC-SHA256 + `timingSafeEqual`，失败 401；只处理 `opened` / `synchronize`（其余含 `ping` 200 忽略）；立即 200 + `waitUntil`（`@vercel/functions`）执行 `runReview`；后台任务失败只记日志不抛出 |
+| `src/review.ts` | 拉 diff → 构造 prompt → LLM 审查 → 结构化输出 | prompt 从 `prompts/review.md` 读取；`generateText` + `Output.object` 强约束 schema；`llm.chat()` 显式走 chat/completions（兼容端点无 Responses API）；`AbortSignal.timeout(LLM_TIMEOUT_MS)` 默认 270s（D011）；`LLM_EXTRA_BODY` 合并进请求体控制 thinking 等端点参数（D012） |
+| `src/github.ts` | GitHub API 封装：拉 PR diff、发 review comment、超时通知 | 只依赖 octokit；便于 eval 时 mock；review summary 内嵌 sha 标记（D010） |
+| `src/dedupe.ts` | 同一 commit SHA 只审一次 | 查 PR 已有 review 的 `<!-- pr-review-agent sha:<SHA> -->` 标记（D010） |
+| `prompts/review.md` | 审查提示词（迭代对象） | prompt 与代码分离，方便 diff 和 eval 对比；`vercel.json` `includeFiles` 保证随函数打包 |
 | `evals/` | 用例集 + 跑分脚本 + 报告 | `cases/` 20 个 (diff, 期望发现) 用例；`run.ts` 打分；`report.md` 前后对比 |
 
 ## 结构化输出 schema
@@ -47,8 +48,9 @@ schema 变更属于破坏性改动：必须同步改 `evals/run.ts` 的打分逻
 
 ## 关键工程机制
 
-- **先 200 再异步**：LLM 审查可能几十秒，超过 GitHub webhook 超时会触发重试导致重复评论。用 `waitUntil` 后台执行，HTTP 层立刻返回 200。
-- **幂等去重**：以 `(repo, commit SHA)` 为键去重，同一 commit 只审一次；重试到达时直接跳过。
+- **先 200 再异步**：LLM 审查可能几十秒到数分钟，超过 GitHub webhook 超时会触发重试导致重复评论。用 `waitUntil` 后台执行，HTTP 层立刻返回 200；Vercel Hobby 函数上限 300s（Fluid compute）。
+- **幂等去重**：以 review body 内嵌的 `(repo, commit SHA)` 标记为键（D010），同 SHA 已审直接跳过；超时通知不带标记，同 SHA 重投可重试。
+- **超时降级**（D011）：`AbortSignal.timeout(LLM_TIMEOUT_MS)`（默认 270s）硬超时；超时发 issue comment 告知并提示重推重试。
 - **diff 截断**：超大 PR 按文件分批调用，或只取变更行附近上下文，避免超出模型上下文窗口。
 
 ## 环境变量
@@ -59,7 +61,9 @@ schema 变更属于破坏性改动：必须同步改 `evals/run.ts` 的打分逻
 | `LLM_BASE_URL` | OpenAI 兼容端点地址 | AI SDK 的 OpenAI provider 自定义 `baseURL` |
 | `LLM_MODEL` | 模型名 | 换模型 / 多模型对比只改配置 |
 | `GITHUB_TOKEN` | 拉 diff、发评论 | GitHub PAT（D008 已定稿；App 留产品化） |
-| `WEBHOOK_SECRET` | webhook 签名校验 | HMAC-SHA256 |
+| `WEBHOOK_SECRET` | webhook 签名校验 | HMAC-SHA256；`scripts/setup-webhook.ts` 首跑自动生成写入 `.env` |
+| `LLM_TIMEOUT_MS` | LLM 审查硬超时（毫秒） | 默认 270000；Vercel Hobby 函数上限 300s，留回帖余量（D011） |
+| `LLM_EXTRA_BODY` | 端点扩展参数（JSON） | 合并进请求体；GLM 关 thinking `{"thinking":{"type":"disabled"}}` 控延迟（D012） |
 
 ## 待定问题
 

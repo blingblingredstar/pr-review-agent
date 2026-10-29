@@ -77,3 +77,33 @@
 - **背景**：`ai` v7 将 `generateObject` 标记废弃，官方方向是 `generateText` + output specification。实测中另发现 `@ai-sdk/openai` v4 默认调用 OpenAI 新 Responses API（`/responses`），OpenAI 兼容端点（如 GLM）只实现 `/chat/completions`，默认形态直接 404。
 - **决策**：`reviewDiff` 用 `generateText` + `Output.object({ schema })` 取 `result.output`；provider 调用一律 `llm.chat(model)` 显式指定 Chat Completions 形态。取代 D003 的实现机制——D003「结构化输出 + schema 契约」的决策本身不变。
 - **后果**：消除每次运行的废弃警告，跟进 SDK 演进方向；接任何 OpenAI 兼容端点的代码约定固化为 `.chat()`。
+
+## D010 — 幂等去重用「查 GitHub 已有 review」而非外部存储
+
+- **状态**：已接受（2026-10-29）
+- **背景**：D004 留白去重状态载体（Vercel KV 或内存 Map），部署形态定稿时决策。Vercel serverless 实例内存不跨请求可靠（D005），KV 则引入外部服务。
+- **决策**：review body 内嵌 `<!-- pr-review-agent sha:<head SHA> -->` 标记，处理事件前 `listReviews` 查同 SHA 标记，命中即跳过。
+- **备选**：
+  - Vercel KV（Upstash Redis）——防并发更严格，但多一个外部服务、环境变量与免费额度管理；
+  - 内存 Map——Hobby 多实例下基本失效。
+- **后果**：零新基建、天然跨实例持久；代价是每次事件多一个只读 API 调用。并发窗口内（同 SHA 两 delivery 同时在途）仍可能双发，概率极低，接受。超时通知走 issue comment 不带标记——同 SHA 重投仍可重试。
+
+## D011 — LLM 硬超时 + 超时评论降级
+
+- **状态**：已接受（2026-10-29）
+- **背景**：实测端点延迟极不稳定（5s～2min+，journal 会话 9）。Vercel Hobby 函数上限 300s（Fluid compute 默认开启；「10s 默认/60s 上限」为 Fluid 之前的过时数据）。
+- **决策**：`reviewDiff` 加 `AbortSignal.timeout(LLM_TIMEOUT_MS)`，默认 270s（留 30s 给拉 diff + 回帖）；超时后发一条 issue comment 告知并提示重试。
+- **备选**：
+  - 静默跳过只记日志——失败对 PR 作者不可见；
+  - 更短超时——大部分审查会失败。
+- **后果**：失败可观测；超时不写 review 标记，同 SHA 重投 webhook 可重试。延迟波动属模型层问题，若频繁超时在 Day 6 多模型对比时处理。
+
+## D012 — thinking 模型延迟治理：`LLM_EXTRA_BODY` 端点扩展点，关 thinking 而非异步化
+
+- **状态**：已接受（2026-10-29，Day 3 首次全链路实测触发）
+- **背景**：当前模型（glm-4.6）为 thinking 模型，单次审查 2～5 分钟起步，Day 3 首次真跑 270s 必然超时（journal 会话 10）。webhook 层已是先 200 再异步，「等待」只受 Vercel 函数 300s 硬上限约束——继续加大超时无出路。
+- **决策**：加通用请求扩展点 `LLM_EXTRA_BODY`（JSON，合并进 chat/completions 请求体，显式配置优先），GLM 用 `{"thinking":{"type":"disabled"}}` 请求级关闭 thinking；超时 + 重投兜底保留。「必须长 thinking」时的真正异步化（QStash 外部队列 / Vercel Workflows，突破 300s）列为 v2 候选。
+- **备选**：
+  - 外部队列异步化（QStash + worker）——解决重试语义但不突破单次调用 300s 上限，且引入外部服务，与 D010 零基建取向相悖；
+  - 直接换非 thinking 小模型——等价于改 `LLM_MODEL`，与本法不互斥，但质量对比交给 Day 6 eval 拿数据。
+- **后果**：单次审查延迟回落到 300s 内；thinking 开关成为配置项，eval 可量化其对质量的影响（正是 eval 集的用途）。`LLM_EXTRA_BODY` 同时是任何端点私有参数的通用入口，不绑定厂商。

@@ -109,3 +109,18 @@
   - 同仓开 PR 的 REST API 必须显式传 `base`；多行 body 用 JSON 文件传参，shell 内联转义易错
   - PR #1 diff 37KB，其中大半是 package-lock 噪声——PLAN §三 diff 截断策略的必要性提前得到印证
 - **下一步**：PR #1 人工确认后合并；PLAN Day 3——webhook 路由 + 签名校验 + dedupe，部署 Vercel 全链路验证
+
+## 2026-10-29 · 会话 10：PLAN Day 3——webhook 全链路上线 + Vercel 部署验收
+
+- **目标**：webhook 路由 + 签名校验 + dedupe，部署 Vercel，真实仓库开 PR 全链路验证。
+- **完成**：
+  - 前置：PR #1（Day 2）确认合并进 main（bc34262）
+  - 代码：`src/webhook.ts`（HMAC-SHA256 验签 + opened/synchronize 分发 + `waitUntil` 异步审查）、`api/webhook.ts` Vercel 薄壳、`src/dedupe.ts`（D010 查 GitHub review 标记）、`LLM_TIMEOUT_MS` 硬超时 + 超时评论降级（D011）、`scripts/setup-webhook.ts`（PAT 一键建 webhook）、`vercel.json`（maxDuration 300 + `includeFiles: prompts/**`）
+  - 单测 8 → 10 例全过；Vercel Hobby 生产部署 `pr-review-agent-mauve.vercel.app`（6 个环境变量）；webhook id 704670191 指向生产
+  - **dogfood PR #2 全链路验证通过**：opened → thinking 全开 270s 超时 → 超时评论降级（D011 首跑即触发）→ 同 SHA 重投自动重试 → 定位根因后关 thinking（D012）→ synchronize 约 20s 出 3 条行内评论（minor×2 / nit×1，定位全中）→ 同 SHA 再重投幂等跳过、无重复评论（D010 验证）。验收标准 #1「1 分钟内留评」达成
+- **发现 / 坑**：
+  - **Vercel Hobby 函数上限是 300s**（Fluid compute 默认开启；「10s/60s」是 Fluid 之前的过时数据），差点据此过度设计超时方案
+  - thinking 模型延迟根因在模型层不在架构层：`LLM_EXTRA_BODY={"thinking":{"type":"disabled"}}` 请求级关闭即可，真正的异步化（QStash / Vercel Workflows）记 v2 候选，等 eval 证明必须开 thinking 再上
+  - 仓库 webhook 重投 REST 端点带 `/attempts` 后缀（不带直接 404）
+  - `includeFiles` 必须配：Vercel 打包不带非 import 的 `prompts/*.md`，`loadPrompt()` 会挂
+- **下一步**：PR #2 人工确认后合并；PLAN Day 4-5——攒 eval 集（20 用例：一半明确 bug、一半关联问题，参考 Surge AI DAYJOB 的 rubric 思路）
