@@ -27,7 +27,7 @@ GitHub API 回帖（逐条 PR review comment）◄──────────
 | `src/github.ts` | GitHub API 封装：拉 PR diff、发 review comment、超时通知、打 severity 标签 | 只依赖 octokit；便于 eval 时 mock；review summary 内嵌 sha 标记（D010）；`postReview` 后自动打 `has-blocker`/`has-major` 标签（minor/nit 不打，Day 6 eval 可当按时间的质量数据） |
 | `src/dedupe.ts` | 同一 commit SHA 只审一次 | 查 PR 已有 review 的 `<!-- pr-review-agent sha:<SHA> -->` 标记（D010） |
 | `prompts/review.md` | 审查提示词（迭代对象） | prompt 与代码分离，方便 diff 和 eval 对比；`vercel.json` `includeFiles` 保证随函数打包 |
-| `evals/` | 用例集 + 跑分脚本 + 报告 | `cases/` 20 个 (diff, 期望发现) 用例；`run.ts` 打分；`report.md` 前后对比 |
+| `evals/` | eval 用例集 + 跑分脚本 | `cases/` 20 个自包含 diff 用例（10 bug + 10 关联问题，格式见 D014）；`score.ts` 打分纯函数（命中 = file + 行 ±3 + mustMention 任一关键词）；`run.ts` 入口（`npm run eval`，串行 + 失败重试，结果落盘 `runs/`）；用例结构校验在 `test/eval-cases.test.ts` |
 
 ## 结构化输出 schema
 

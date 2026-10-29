@@ -176,3 +176,17 @@
   - 创建 PR 的 API 不收 labels 参数之外，本次确认：设计内「失败」绝不能用 workflow 失败表达，否则通知系统会把工作状态当异常
   - 旧失败邮件无法撤回，收件箱手动标记已读即可
 - **下一步**：PLAN Day 4-5——攒 eval 集（20 用例：一半明确 bug、一半关联问题，参考 Surge AI DAYJOB rubric）
+
+## 2026-10-29 · 会话 15：PLAN Day 4-5——eval 集从零建立，基线 95%/73%
+
+- **目标**：20 用例 + 打分脚本 + `npm run eval` 一条命令出打分表（验收标准 #2）。
+- **完成**：
+  - `evals/` 建立（D014 定稿）：`cases/` 20 个自包含 diff 用例（10 明确 bug：off-by-one / 除零 / 判空 / 丢 await / 赋值当比较 / 遮蔽 / 空数组 -1 / Date 月份 / replace 单次 / reduce 无初始值；10 关联问题：改名漏 import / 加字段漏构造 / 删导出漏清理 / 常量漂移 / 签名漏测试 / 文档漂移 / 错误处理不对称 / 重复逻辑漏同步 / 秒毫秒混用 / env 键名不一致），每用例一文件 readdir 动态加载
+  - `score.ts` 确定性打分：命中 = file（可候选数组）+ 行 ±3（可 null 文件级）+ body 含 mustMention 任一关键词；recall / precision（micro）；`run.ts` 串行 + 失败重试，结果落盘 `evals/runs/`
+  - 结构校验进单测（`test/eval-cases.test.ts`：hunk 行数、期望行落点、id 唯一、20 个 bug/linked 各 10）——手写 hunk 行数错了 5 处全被拦下
+  - 三轮基线（每轮修正期望标注后重跑）：80%/65% → 90%/76% → **95%/73% 定稿**（`evals/runs/2026-10-29T15-25-47-glm-5.3-flash.*`）；glm-5.3-flash 单用例 3-10s，20 用例 1.7 分钟跑完，零失败
+- **发现 / 坑**：
+  - 5 个未命中里 4 个是期望标注问题、1 个是真漏报——标注要为「合法报法变体」留余地：模型可能报在删除处而非漏用处（linked-03）、报在对照行而非问题行（bug-02）、用「0 基」而非「0-based」（bug-08）
+  - 稳定 miss：linked-08（重复逻辑漏同步，三轮中两轮 0 意见）——Day 6 prompt 迭代的头号靶子；precision 65-76% 波动（每轮意见数 25-30 条浮动），单轮数字不可作结论，Day 6 对比要多轮取均值
+  - NodeNext 下动态 import 的 specifier 必须是 string（`.href`）；Node 22/24 的 nvm 不在 ZCode shell 默认 PATH，每条命令要先 source nvm
+- **下一步**：PR 自审闭环后合并；Day 6——改 prompt（靶子：关联问题类 recall、precision 降噪），跑对比报告（验收标准 #3）
