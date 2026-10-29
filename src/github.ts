@@ -55,18 +55,19 @@ export function severityLabels(result: ReviewResult): string[] {
 // 意见按「行号是否落在 diff 内」拆分：可定位的行内发（进线程、可 resolve 闭环），
 // 其余列进 summary body（Day 2 的全量降级会把可定位意见也拖进无线程的 body，逃出意见闭环）。
 // covered 的 key 是 diff 头解析出的真实路径；模型报的路径做 a/ b/ 变体对照（照抄 diff 头的情况），
-// 不能预先剥前缀——仓库真有顶层 a/ b/ 目录时会误剥导致错误降级
+// 不能预先剥前缀——仓库真有顶层 a/ b/ 目录时会误剥导致错误降级。
+// inline 带命中变体的 path：发帖必须用 diff 头的真实路径，模型原话可能是 a/src/x.ts 这类带前缀形态（仓库不存在，发帖必 422）
 export function splitByLocatable(
   result: ReviewResult,
   diff: string,
-): { inline: ReviewComment[]; degraded: ReviewComment[] } {
+): { inline: { comment: ReviewComment; path: string }[]; degraded: ReviewComment[] } {
   const covered = diffCoveredLines(diff);
-  const inline: ReviewComment[] = [];
+  const inline: { comment: ReviewComment; path: string }[] = [];
   const degraded: ReviewComment[] = [];
   for (const c of result.comments) {
-    // covered 的 key 是 diff 头解析出的真实路径；模型报的路径做 a/ b/ 变体对照（照抄 diff 头的情况），
-    // 不能预先剥前缀——仓库真有顶层 a/ b/ 目录时会误剥导致错误降级
-    (pathVariants(c.file).some((v) => covered.get(v)?.has(c.line)) ? inline : degraded).push(c);
+    const hit = pathVariants(c.file).find((v) => covered.get(v)?.has(c.line));
+    if (hit) inline.push({ comment: c, path: hit });
+    else degraded.push(c);
   }
   return { inline, degraded };
 }
@@ -78,8 +79,8 @@ export async function postReview(
   diff: string,
 ): Promise<void> {
   const { inline, degraded } = splitByLocatable(result, diff);
-  const comments = inline.map((c) => ({
-    path: c.file,
+  const comments = inline.map(({ comment: c, path }) => ({
+    path,
     line: c.line,
     side: "RIGHT" as const,
     body: `**[${c.severity}]** ${c.body}`,

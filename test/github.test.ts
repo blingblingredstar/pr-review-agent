@@ -35,6 +35,6 @@ test("splitByLocatable：行号在 diff 内行内发，变体对照命中，幻�
   const comment = (file: string, line: number, body = "问题") => ({ file, line, severity: "minor" as const, body });
   const result = { comments: [comment("src/a.ts", 11), comment("a/src/a.ts", 10), comment("src/ghost.ts", 1), comment("src/a.ts", 999)] };
   const { inline, degraded } = splitByLocatable(result, diff);
-  assert.deepEqual(inline.map((c) => [c.file, c.line]), [["src/a.ts", 11], ["a/src/a.ts", 10]]);
+  assert.deepEqual(inline.map(({ comment: c, path }) => [c.file, c.line, path]), [["src/a.ts", 11, "src/a.ts"], ["a/src/a.ts", 10, "src/a.ts"]]);
   assert.deepEqual(degraded.map((c) => [c.file, c.line]), [["src/ghost.ts", 1], ["src/a.ts", 999]]);
 });
