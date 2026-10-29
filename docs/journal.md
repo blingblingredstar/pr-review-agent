@@ -152,3 +152,16 @@
   - resolve 动作不触发任何 PR 事件——脚本里主动 rerun check 是「绿门」成立的关键，workflow 注释已注明两者成对
   - git push 偶发 SSH 挂住（进程卡死无输出），kill 重试即恢复
 - **下一步**：PLAN Day 4-5——攒 eval 集（20 用例：一半明确 bug、一半关联问题）；转 public 时记得启用 branch protection 硬闸门
+
+## 2026-10-29 · 会话 13：PR 标签体系——bot 自动打 severity 标签
+
+- **目标**：用户提出给 PR 加标签；按「bot 自动打、信号有下游价值」取舍落地。
+- **完成**：
+  - 标签集：`has-blocker` / `has-major`（bot 回帖时按审查结果自动打，`severityLabels()` 纯函数 + 单测，共 12 例；标签失败只告警不连坐）+ 类型标签 feat/fix/docs/ci/chore/refactor/test（开 PR 时按标题前缀打）
+  - 历史补打：PR #2 feat / #3 fix / #4 ci；PR #5（本改动）零意见收敛合并（46d181d）并重部署
+  - AGENTS.md / architecture.md 同步标签约定；Projects / Milestone 明确不加（单人一周项目，PLAN checkbox 即里程碑）
+- **发现 / 坑**：
+  - 创建 PR 的 REST API 不接受 `labels` 参数（静默忽略）——labels 必须建 PR 后走 issues API 单独打
+  - 本机 fake-IP 代理（198.18.0.18）对连续 API 请求间歇性 000：单发易过、循环连发全挂，重试 + 拉开间隔可解；此前 push 卡死同源
+  - git checkout -b 在 tsc 失败时被 && 短路是好事——错误在推送前被拦
+- **下一步**：PLAN Day 4-5——攒 eval 集（20 用例：一半明确 bug、一半关联问题）；has-* 标签届时即免费的按时间质量数据

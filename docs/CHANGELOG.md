@@ -77,3 +77,7 @@
 
 - `.github/workflows/review-threads.yml`：未 resolve 的 review 线程 → check 红灯（PR 事件 + review 提交触发）
 - `npm run resolve:threads -- owner/repo#N [--yes]`：列摘要、确认后批量 resolve 并主动重跑 check 闭合绿门
+
+### Added（Day 3 · PR 标签体系）
+
+- bot 回帖后自动打 `has-blocker` / `has-major` 标签（minor/nit 不打）；开 PR 按标题前缀打类型标签，历史 PR 已补
