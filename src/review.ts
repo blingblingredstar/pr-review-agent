@@ -136,18 +136,20 @@ export function diffMaxChars(): number {
 // 字节级重组，丢弃文件附省略行让模型知道看到的不是全量。
 export function truncateDiff(diff: string, budget: number = diffMaxChars()): string {
   if (diff.length <= budget) return diff;
-  const blocks: { lines: string[]; path: string; adds: number; dels: number; size: number; binary: boolean }[] = [];
+  const blocks: { lines: string[]; path: string; adds: number; dels: number; size: number; binary: boolean; pseudo?: true }[] = [];
   let cur: (typeof blocks)[number] | null = null;
   for (const line of diff.split("\n")) {
     if (line.startsWith("diff --git ")) {
       cur = { lines: [line], path: diffHeaderPath(line) ?? "(无法解析路径的文件)", adds: 0, dels: 0, size: 0, binary: false };
       blocks.push(cur);
     } else if (!cur) {
-      cur = { lines: [line], path: "(diff 头之前的内容，非文件)", adds: 0, dels: 0, size: 0, binary: false };
+      // 畸形 diff 首个文件头之前的散落内容：不是文件，被丢弃时不产出省略行（伪路径会误导模型）
+      cur = { lines: [line], path: "(diff 头之前的内容)", adds: 0, dels: 0, size: 0, binary: false, pseudo: true };
       blocks.push(cur);
     } else {
       cur.lines.push(line);
-      // 二进制负载行（GIT binary patch 的 base64 / Binary files 摘要之后）可能以 +/- 开头，停止计数
+      // 二进制负载行（GIT binary patch 的 base64 / Binary files 摘要之后）可能以 +/- 开头，停止计数；
+      // 标记置位后不重置——git 输出中二进制段后不再有文本 hunk，手工拼接的混合 diff 会漏记（输入来源仅 GitHub 标准 diff，接受）
       if (line === "GIT binary patch" || line.startsWith("Binary files ")) cur.binary = true;
       else if (!cur.binary) {
         if (line.startsWith("+") && !line.startsWith("+++")) cur.adds++;
@@ -166,16 +168,16 @@ export function truncateDiff(diff: string, budget: number = diffMaxChars()): str
     keep.add(i);
     used += blocks[i].size;
   }
-  if (keep.size === blocks.length) return diff;
   const kept = blocks.filter((_, i) => keep.has(i));
-  const droppedList = blocks.filter((_, i) => !keep.has(i));
+  // 非文件的 pseudo 块被丢弃时不产出省略行、不进汇总计数
+  const omitTargets = blocks.filter((b, i) => !keep.has(i) && !b.pseudo);
   const out = kept.flatMap((b) => b.lines);
-  const omitLines = droppedList.map((b) => `[diff 截断] 省略 ${b.path} (+${b.adds}/-${b.dels})`);
+  const omitLines = omitTargets.map((b) => `[diff 截断] 省略 ${b.path} (+${b.adds}/-${b.dels})`);
   // 省略行自身也占输出：丢弃文件极多时会反噬预算——超了就压缩成一行汇总（总量有界，无条件核对）
   if (used + omitLines.join("\n").length + 1 > budget) {
-    const adds = droppedList.reduce((s, b) => s + b.adds, 0);
-    const dels = droppedList.reduce((s, b) => s + b.dels, 0);
-    out.push(`[diff 截断] 省略 ${droppedList.length} 个文件（超出 ${budget} 字符预算，合计 +${adds}/-${dels}）`);
+    const adds = omitTargets.reduce((s, b) => s + b.adds, 0);
+    const dels = omitTargets.reduce((s, b) => s + b.dels, 0);
+    out.push(`[diff 截断] 省略 ${omitTargets.length} 个文件（超出 ${budget} 字符预算，合计 +${adds}/-${dels}）`);
   } else {
     out.push(...omitLines);
   }

@@ -239,6 +239,15 @@ test("truncateDiff：省略行自身超预算时压缩为汇总行", () => {
   assert.ok(out.includes("省略 30 个文件"), `实际输出末尾: ${out.slice(-120)}`);
 });
 
+test("truncateDiff：diff 头之前的散落内容被丢弃时不产出伪路径省略行", () => {
+  const junk = "not a diff line\n";
+  const a = "diff --git a/a.ts b/a.ts\n@@ -1,1 +1,2 @@\n ctx\n+kk\n";
+  // budget 60：junk（16）保留、a（50）装不下被丢；省略行 31 字符在剩余 44 内不触发压缩
+  const out = truncateDiff(junk + a, 60);
+  assert.ok(!out.includes("diff 头之前"), `伪块不应产出省略行，实际输出: ${out}`);
+  assert.equal(out, "not a diff line\n[diff 截断] 省略 a.ts (+1/-0)");
+});
+
 test("diffMaxChars：未配置默认 300000，非法值告警回退，合法值生效", () => {
   const saved = process.env.DIFF_MAX_CHARS;
   try {
