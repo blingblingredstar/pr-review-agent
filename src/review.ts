@@ -38,7 +38,15 @@ export function diffCoveredLines(diff: string): Map<string, Set<number>> {
   };
   for (const raw of diff.split("\n")) {
     if (raw.startsWith("diff --git ")) {
-      file = /^diff --git \S+ b\/(.+)$/.exec(raw)?.[1] ?? "";
+      // 路径含空格时 git 用引号包裹（core.quotePath）；无引号形式两侧都不含空格
+      const m = /^diff --git "a\/.+" "b\/(.+)"$/.exec(raw) ?? /^diff --git \S+ b\/(.+)$/.exec(raw);
+      file = m?.[1] ?? "";
+      inHunk = false;
+      continue;
+    }
+    if (raw.startsWith("+++ ") && raw.includes("/dev/null")) {
+      // 纯删除文件新侧不存在，任何行内评论必然 422——跳过以免坏意见拖累同 review 的好意见
+      file = "";
       inHunk = false;
       continue;
     }
