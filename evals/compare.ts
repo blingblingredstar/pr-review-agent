@@ -133,39 +133,45 @@ async function main() {
     process.exitCode = 1;
     return;
   }
-  const files = paths.map((p) => {
-    let data: RunJson;
-    try {
-      data = JSON.parse(readFileSync(p, "utf8")) as RunJson;
-    } catch (e) {
-      throw new Error(`run 文件不可读或非 JSON：${p}（${String(e).slice(0, 120)}）`);
-    }
-    if (!Array.isArray(data?.runs)) throw new Error(`run 文件结构不对（缺 runs 数组）：${p}`);
-    return { name: p, data };
-  });
-  const models = [...new Set(files.map((f) => f.data.model))];
-  console.log(`# eval 对比：${files.length} 轮，模型 ${models.join(", ")}\n`);
-  // 按 prompt 首次出现顺序输出（命令行顺序即时间顺序）
-  for (const agg of aggregateRuns(files)) {
-    console.log(`## ${agg.model} · prompt \`${agg.promptHash}\`（${agg.files.length} 轮：${agg.files.join(", ")}）\n`);
-    console.log(`| 组 | recall（微平均） | precision（微平均） |`);
-    console.log(`|---|---|---|`);
-    for (const [src, m] of Object.entries(agg.groups)) {
-      console.log(`| ${src} | ${percent(m.recall)} | ${m.precision === null ? "—" : percent(m.precision)} |`);
-    }
-    console.log(`| **合计（能力评估）** | **${percent(agg.micro.recall)}** | **${agg.micro.precision === null ? "—" : percent(agg.micro.precision)}** |`);
-    if (agg.unstable.length > 0) {
-      console.log(`\n跨轮未全命中的用例（短板矩阵）：\n`);
-      console.log(`| case | source | ${agg.files.map((_, i) => `轮${i + 1}`).join(" | ")} | 未命中期望定位 |`);
-      console.log(`|---|---|${agg.files.map(() => "---").join("|")}|---|`);
-      for (const u of agg.unstable) {
-        const miss = u.missAt.length ? u.missAt.join("、") : "(仅错误/缺失轮，无未命中定位)";
-        console.log(`| ${u.caseId} | ${u.source} | ${u.perRun.join(" | ")} | ${miss} |`);
+  try {
+    const files = paths.map((p) => {
+      let data: RunJson;
+      try {
+        data = JSON.parse(readFileSync(p, "utf8")) as RunJson;
+      } catch (e) {
+        throw new Error(`run 文件不可读或非 JSON：${p}（${String(e).slice(0, 120)}）`);
       }
-    } else {
-      console.log(`\n（全部用例跨轮全命中）`);
+      if (!Array.isArray(data?.runs)) throw new Error(`run 文件结构不对（缺 runs 数组）：${p}`);
+      return { name: p, data };
+    });
+    const models = [...new Set(files.map((f) => f.data.model ?? "(unknown)"))];
+    console.log(`# eval 对比：${files.length} 轮，模型 ${models.join(", ")}\n`);
+    // 按 prompt 首次出现顺序输出（命令行顺序即时间顺序）
+    for (const agg of aggregateRuns(files)) {
+      console.log(`## ${agg.model} · prompt \`${agg.promptHash}\`（${agg.files.length} 轮：${agg.files.join(", ")}）\n`);
+      console.log(`| 组 | recall（微平均） | precision（微平均） |`);
+      console.log(`|---|---|---|`);
+      for (const [src, m] of Object.entries(agg.groups)) {
+        console.log(`| ${src} | ${percent(m.recall)} | ${percent(m.precision)} |`);
+      }
+      console.log(`| **合计（能力评估）** | **${percent(agg.micro.recall)}** | **${percent(agg.micro.precision)}** |`);
+      if (agg.unstable.length > 0) {
+        console.log(`\n跨轮未全命中的用例（短板矩阵；含 dogfood 回归用例——它不进上面的能力指标，单独解读）：\n`);
+        console.log(`| case | source | ${agg.files.map((_, i) => `轮${i + 1}`).join(" | ")} | 未命中期望定位 |`);
+        console.log(`|---|---|${agg.files.map(() => "---").join("|")}|---|`);
+        for (const u of agg.unstable) {
+          const miss = u.missAt.length ? u.missAt.join("、") : "(仅错误/缺失轮，无未命中定位)";
+          console.log(`| ${u.caseId} | ${u.source} | ${u.perRun.join(" | ")} | ${miss} |`);
+        }
+      } else {
+        console.log(`\n（全部用例跨轮全命中）`);
+      }
+      console.log("");
     }
-    console.log("");
+  } catch (e) {
+    // 工具脚本：干净报错退出，不甩未捕获堆栈
+    console.error(e instanceof Error ? e.message : e);
+    process.exitCode = 1;
   }
 }
 
