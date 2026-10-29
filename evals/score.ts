@@ -26,6 +26,10 @@ export function sourceOf(c: EvalCase): "synthetic" | "real" | "dogfood" {
   return c.source ?? "synthetic";
 }
 
+// 能力评估口径（D015）：synthetic + real；dogfood 是回归集（考过的原题）不进能力指标。
+// 显式白名单：拼错或新增的 source 字符串不会被静默计入能力口径——run.ts 打分与 compare.ts 聚合共用
+export const isCapabilitySource = (src: string): boolean => src === "synthetic" || src === "real";
+
 // 模型可能带 git 的 a/ b/ 前缀，规范化后再比
 export function normalizePath(file: string): string {
   return file.replace(/^a\//, "").replace(/^b\//, "");

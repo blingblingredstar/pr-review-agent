@@ -112,3 +112,10 @@
 
 - `truncateDiff`：超大 diff 按 `DIFF_MAX_CHARS`（默认 300_000 字符）整文件块预算丢弃——小文件优先贪心保留、原顺序字节级重组、被丢弃文件附 `[diff 截断] 省略 path (+a/-b)` 行告知模型；`reviewDiff` 构造 prompt 前单点生效（webhook / eval / 本地脚本共用）
 - PLAN §三 关键工程细节全部落地；规格见 `docs/plans/diff-truncation.md`，单测 45 例
+
+### Added（Day 6 · prompt 迭代与对比报告，D019）
+
+- prompt 定稿 v2（执行语义追踪 / diff 内副本扫描 / 评论缺陷指向性）：三轮微平均 recall 92.6%→96.3%、precision 81.9%→94.2%，意见数 -18%；对比报告 `evals/report.md`（验收标准 #3）
+- eval run 元数据带 prompt 指纹（同 prompt 多轮与改版 run 机械可分）；`evals/compare.ts` 多轮聚合对比工具 + 单测
+- v3 迭代负结果在案：放宽「需 diff 外确认」照报 → precision 92.5%→84.7%、双指标劣于 v2，回退；张力结论（指向性 vs 外调 recall）留下批迭代
+- 范围拍板：上下文增强与 synchronize 增量审查延后 v2 路线（D019）

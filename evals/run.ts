@@ -1,9 +1,10 @@
 // npm run eval —— 全部用例串行跑 LLM 审查，输出打分表，结果落盘 evals/runs/
 // 串行 + 用例间隔：本地代理对连续 API 请求间歇性失败（journal 会话 13），失败自动重试一次
+import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { loadCases } from "./cases/index.ts";
-import { scoreCase, sourceOf, type CaseScore } from "./score.ts";
-import { reviewDiff, type ReviewResult } from "../src/review.ts";
+import { isCapabilitySource, scoreCase, sourceOf, type CaseScore } from "./score.ts";
+import { loadPrompt, reviewDiff, type ReviewResult } from "../src/review.ts";
 
 const CASE_GAP_MS = 2_000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -45,8 +46,10 @@ type OkRun = CaseRun & { score: CaseScore };
 async function main() {
   const cases = await loadCases();
   const model = process.env.LLM_MODEL ?? "(unknown)";
+  // prompt 内容指纹：同 prompt 多轮与改版后的 run 机械可分（D006——eval 报告引用具体 prompt 版本）
+  const promptHash = createHash("sha256").update(loadPrompt()).digest("hex").slice(0, 12);
   const startedAt = new Date().toISOString();
-  console.log(`eval 开始：${cases.length} 个用例，模型 ${model}`);
+  console.log(`eval 开始：${cases.length} 个用例，模型 ${model}，prompt ${promptHash}`);
 
   const runs: CaseRun[] = [];
   for (const [i, c] of cases.entries()) {
@@ -70,7 +73,7 @@ async function main() {
   // 失败用例的空意见是 API 抖动的伪影，不进指标（失败数单独展示）
   const okRuns = runs.filter((r): r is OkRun => !r.error && r.score !== null);
   // 能力评估 = synthetic + real；dogfood 是回归集（考过的原题），单独统计不进能力结论
-  const capability = okRuns.filter((r) => r.source !== "dogfood");
+  const capability = okRuns.filter((r) => isCapabilitySource(r.source));
   const metrics = (rs: OkRun[]) => {
     const expectN = rs.reduce((s, r) => s + r.score.verdicts.length, 0);
     const hits = rs.reduce((s, r) => s + r.score.hits, 0);
@@ -134,6 +137,7 @@ async function main() {
     ``,
     `- 模型：\`${model}\``
     + (process.env.LLM_BASE_URL ? `（${process.env.LLM_BASE_URL}）` : ""),
+    `- prompt 指纹：\`${promptHash}\``,
     `- 汇总（能力评估 = synthetic + real）：recall ${percent(recall)}（${totalHits}/${totalExpect}），precision ${precision === null ? "—" : percent(precision)}（${totalTp}/${totalComments}），失败用例 ${failed}（不计入指标），总耗时 ${(totalMs / 1000 / 60).toFixed(1)} 分钟`,
     ``,
     ...groupLines,
@@ -148,7 +152,7 @@ async function main() {
   const base = `${stamp}-${safeModel}`;
   writeFileSync(
     new URL(`./runs/${base}.json`, import.meta.url),
-    JSON.stringify({ startedAt, model, llmBaseUrl: process.env.LLM_BASE_URL ?? null, capabilityScope: "synthetic+real", runs, summary: { recall, precision, totalExpect, totalHits, totalComments, totalTp, failed, groups: groupMetrics } }, null, 2) + "\n",
+    JSON.stringify({ startedAt, model, llmBaseUrl: process.env.LLM_BASE_URL ?? null, promptHash, capabilityScope: "synthetic+real", runs, summary: { recall, precision, totalExpect, totalHits, totalComments, totalTp, failed, groups: groupMetrics } }, null, 2) + "\n",
   );
   writeFileSync(new URL(`./runs/${base}.md`, import.meta.url), report);
 
