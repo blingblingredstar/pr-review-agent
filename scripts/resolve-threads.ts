@@ -33,7 +33,14 @@ async function main(): Promise<void> {
     `query($owner:String!,$name:String!,$number:Int!){
       repository(owner:$owner,name:$name){
         pullRequest(number:$number){
-          reviewThreads(first:100){ nodes{ id isResolved } pageInfo{ hasNextPage } }
+          reviewThreads(first:100){
+            nodes{
+              id
+              isResolved
+              comments(last:1){ nodes{ body author{ login } } }
+            }
+            pageInfo{ hasNextPage }
+          }
         }
       }
     }`,
