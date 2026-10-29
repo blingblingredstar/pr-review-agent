@@ -1,6 +1,6 @@
 # 规格：Day 6 — prompt 迭代与 eval 对比报告（PR B）
 
-> 状态：实施中。对应 PLAN 执行步骤 Day 6、验收标准 #3（eval 报告能展示至少一轮 prompt 改进 → 指标提升）。
+> 状态：已完成（2026-10-30，PR #13）。9 轮 run 落盘、`evals/report.md` 产出、compare.ts + 单测齐备；结论与数据见 `evals/report.md` 与 decisions.md D019。对应 PLAN 执行步骤 Day 6、验收标准 #3（eval 报告能展示至少一轮 prompt 改进 → 指标提升）。
 
 ## 目标
 

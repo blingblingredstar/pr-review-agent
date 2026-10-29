@@ -1,8 +1,8 @@
 // evals/compare.ts —— 多轮 run 按 prompt 指纹聚合对比（Day 6 对比报告的数据出口，evals/compare.test.ts 覆盖核心）
 // 用法：node --import tsx evals/compare.ts evals/runs/<run>.json [more.json ...]
 // 指标口径与 run.ts 一致：能力评估 = synthetic + real（dogfood 不进）；跨轮微平均 = Σhits/ΣexpectN、Σtp/Σcomments。
-import { readFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
+import { readFileSync, realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { isCapabilitySource } from "./score.ts";
 
 // 只声明 compare 消费的字段：run.ts 写盘的 summary/groups 等其余结构不在此处复述——
@@ -183,6 +183,13 @@ async function main() {
   }
 }
 
-// 与 import.meta.url 全 URL 比对：文件名后缀判断会被符号链接/编译产物/别的路径误触发
-const isDirectRun = process.argv[1] ? import.meta.url === pathToFileURL(process.argv[1]).href : false;
-if (isDirectRun) main();
+// 直跑判定：两侧都做 realpath 归一（macOS /tmp → /private/tmp 这类符号链接会让字面比对失配）
+function invokedDirectly(): boolean {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1]);
+  } catch {
+    return false;
+  }
+}
+if (invokedDirectly()) main();
