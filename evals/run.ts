@@ -81,7 +81,9 @@ async function main() {
     `|---|---|---|---|---|---|---|---|`,
     ...runs.map((r) => {
       if (r.error) {
-        return `| ${r.caseId} ✗ ${r.error.slice(0, 60)} | ${r.kind} | — | — | — | — | — | ${(r.durationMs / 1000).toFixed(1)} |`;
+        // error 文本可能含 |、换行、反引号，破坏 markdown 表格结构
+        const reason = r.error.slice(0, 60).replace(/[|`\\\n]/g, " ");
+        return `| ${r.caseId} ✗ ${reason} | ${r.kind} | — | — | — | — | — | ${(r.durationMs / 1000).toFixed(1)} |`;
       }
       const s = r.score!;
       const rec = s.hits === s.verdicts.length ? `${s.hits}/${s.verdicts.length}` : `**${s.hits}/${s.verdicts.length}**`;
