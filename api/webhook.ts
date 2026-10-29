@@ -7,7 +7,17 @@ export const config = { maxDuration: 300 };
 
 export default async function handler(req: IncomingMessage, res: ServerResponse): Promise<void> {
   try {
+    if (req.method !== "POST") {
+      res.statusCode = 405;
+      res.end("method not allowed");
+      return;
+    }
     const rawBody = await readRawBody(req);
+    if (rawBody === null) {
+      res.statusCode = 413;
+      res.end("payload too large");
+      return;
+    }
     const outcome = handleWebhook(req.headers, rawBody);
     res.statusCode = outcome.status;
     res.end(outcome.note);
@@ -19,8 +29,15 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 }
 
 // 签名校验必须用原始字节，不能碰 req.body（@vercel/node 的惰性解析会消费流）
-async function readRawBody(req: IncomingMessage): Promise<string> {
+// 上限 25MB = GitHub webhook payload 官方上限，超限返回 null 由调用方 413
+const MAX_BODY_BYTES = 25 * 1024 * 1024;
+async function readRawBody(req: IncomingMessage): Promise<string | null> {
   const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(chunk as Buffer);
+  let total = 0;
+  for await (const chunk of req) {
+    total += (chunk as Buffer).length;
+    if (total > MAX_BODY_BYTES) return null;
+    chunks.push(chunk as Buffer);
+  }
   return Buffer.concat(chunks).toString("utf8");
 }

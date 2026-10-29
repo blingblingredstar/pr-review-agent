@@ -48,7 +48,13 @@ function extraBody(): Record<string, unknown> {
 }
 
 export function llmTimeoutMs(): number {
-  return Number(process.env.LLM_TIMEOUT_MS) || 270_000;
+  const raw = process.env.LLM_TIMEOUT_MS;
+  const parsed = Number(raw);
+  if (raw && !Number.isFinite(parsed)) {
+    console.warn(`LLM_TIMEOUT_MS="${raw}" 不是数字，回退默认 270000ms`);
+    return 270_000;
+  }
+  return parsed > 0 ? parsed : 270_000;
 }
 
 export async function reviewDiff(diff: string): Promise<ReviewResult> {
