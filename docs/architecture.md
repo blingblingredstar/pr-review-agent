@@ -27,7 +27,7 @@ GitHub API 回帖（逐条 PR review comment）◄──────────
 | `src/github.ts` | GitHub API 封装：拉 PR diff、发 review comment（有意见 REQUEST_CHANGES，D017）、审查生命周期 status、超时通知、打 severity 标签 | 只依赖 octokit；便于 eval 时 mock；review summary 内嵌 sha 标记（D010）；`postReview` 后自动打 `has-blocker`/`has-major` 标签（minor/nit 不打，Day 6 eval 可当按时间的质量数据） |
 | `src/dedupe.ts` | 同一 commit SHA 只审一次 | 查 PR 已有 review 的 `<!-- pr-review-agent sha:<SHA> -->` 标记（D010） |
 | `prompts/review.md` | 审查提示词（迭代对象） | prompt 与代码分离，方便 diff 和 eval 对比；`vercel.json` `includeFiles` 保证随函数打包 |
-| `evals/` | eval 用例集 + 跑分脚本 | `cases/` 29 个自包含 diff 用例（D015 三级 source：synthetic 20 手写教学 / real 7 真实仓库 fix 反转与配对 / dogfood 2 回归集；格式见 D014）；`score.ts` 打分纯函数（命中 = file + 行 ±3 + mustMention 任一关键词）；`run.ts` 入口（`npm run eval`，串行 + 失败重试，按 source 分组统计，能力评估 = synthetic + real，结果落盘 `runs/`）；用例结构校验在 `test/eval-cases.test.ts` |
+| `evals/` | eval 用例集 + 跑分脚本 | `cases/` 29 个自包含 diff 用例（D015 三级 source：synthetic 20 手写教学 / real 7 真实仓库 fix 反转与配对 / dogfood 2 回归集；格式见 D014）；`score.ts` 打分纯函数（命中 = file + 行 ±3 + mustMention 任一关键词）；`run.ts` 入口（`npm run eval`，串行 + 失败重试，按 source 分组统计，结果带 `promptHash` 指纹落盘 `runs/`）；`compare.ts` 多轮 run 按 prompt 指纹聚合对比（Day 6 报告的数据出口，`evals/report.md`）；用例结构校验在 `test/eval-cases.test.ts` |
 
 ## 结构化输出 schema
 
@@ -70,4 +70,4 @@ schema 变更属于破坏性改动：必须同步改 `evals/run.ts` 的打分逻
 
 ## 待定问题
 
-- `synchronize` 事件是全量重审还是增量审查（增量在 PLAN §7 列为后续路线）
+- （无——原「synchronize 全量重审还是增量审查」经 D019 拍板维持全量，增量列 v2 路线；上下文增强同批延后）

@@ -251,3 +251,18 @@
   - 块重组的字节级保真：整 diff split("\n") 后按 `diff --git` 行分块，块间不丢行——尾部空串只存在于最后一块，join 回原样；省略行前会多一个空行（末块尾换行的空串元素 + join 分隔符），无碍
   - 会话上下文管理（用户要求）：单会话无法 compact，用 jq 投影 / 后台跑 eval / 控制读取面保持主对话精简
 - **下一步**：PR B（Day 6 prompt 迭代）→ PR C（Day 7 README）
+
+## 2026-10-30 · 会话 19 续：PR B（Day 6）——prompt v2 定稿，recall +3.7pp / precision +12.3pp
+
+- **目标**：PLAN Day 6——改 prompt 迭代、多轮均值对比、出报告（验收标准 #3）。
+- **完成**：
+  - 工具链先行：run 元数据加 `promptHash`（同 prompt 多轮与改版 run 机械可分）；`evals/compare.ts`（aggregateRuns 纯函数 + 3 单测）按指纹聚合组指标与逐用例短板矩阵——报告数据零手工抄表
+  - 基线 v1 ×3（92.6%/81.9% 微平均）→ **v2 ×3（96.3%/94.2%，双指标 +3.7pp/+12.3pp，意见数 -18%）** → v3 ×3（95.1%/87.9%，回退）；9 轮 run 全部落盘入库，报告 `evals/report.md`
+  - v2 三规则逐条兑现靶子：执行语义追踪 → real-02（getter）三轮全命中；缺陷指向性 → synthetic precision 77.4→92.5、bug-01/03、linked-09 不稳定全消；副本扫描 → linked-08 改善未根治
+  - v3 负结果有信息量：修好 linked-08/real-03/dogfood-02 沉默，但 real-02/bug-03 重新波动——「缺陷指向性 vs 外调确认 recall」张力实锤，按 severity 分层的细规则留下批
+  - 拍板进 D019：上下文增强 / synchronize 增量审查延后 v2；prompt 文件定稿停在 v2（指纹校验一致）
+- **发现 / 坑**：
+  - 逐用例矩阵是报告的真正主角：v2 对 v1 的 recall 提升全部来自「不稳定用例转稳」，汇总数字只讲了一半
+  - dogfood-02 在 v2 期间掉到 1/3：模型转报 fixture 里另一个真实问题（extraBody 的 parse 错误处理）——期望标注覆盖面缺口被召回率的口径放大成「回归」，dogfood 单列的价值实证
+  - eval 轮次是长杆任务（每轮 2-3 分钟 ×9），后台串行跑 + 只留汇总行在上下文里，主对话全程干净
+- **下一步**：PR C（Day 7 README + 社交帖草稿 + PLAN 勾选收尾）
