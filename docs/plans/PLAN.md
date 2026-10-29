@@ -11,7 +11,7 @@
 2. **评测意识**：一个 eval 集 + 回归脚本，改 prompt 后能拿出前后对比数据（改 prompt 不再盲改）
 3. **真实工程集成**：GitHub webhook 签名校验、异步处理防超时重试、密钥管理
 
-一句话项目描述（目标）：*"基于大模型的 PR 审查 Agent，webhook 架构部署在 Vercel，附 20 个标注用例的 eval 集与 prompt 迭代对比报告。"*
+一句话项目描述（目标）：*"基于大模型的 PR 审查 Agent，webhook 架构部署在 Vercel，附 29 个标注用例的 eval 集与 prompt 迭代对比报告。"*
 
 ## 二、技术选型（已确认）
 
@@ -69,9 +69,9 @@ pr-review-agent/
 - [x] **Day 1**：`npm init` + Vercel AI SDK 接 OpenAI 兼容端点，跑通"输入 diff 文本 → 输出结构化审查意见"（核心链路，先本地 hardcode 一个 diff）
 - [x] **Day 2**：`github.ts`（octokit 拉真 PR diff + 回帖），本地对任意公开仓库 PR 试跑
 - [x] **Day 3**：webhook 路由 + 签名校验 + dedupe，部署 Vercel，在自己建的真实仓库上开 PR 全链路验证
-- [x] **Day 4-5**：攒 eval 集（20 个用例：一半有明确 bug 的 diff，一半是"应该主动发现的关联问题"——参考 Surge AI DAYJOB 的 rubric 思路：计算/证据/关联问题/交付物）
-- [ ] **Day 6**：跑 eval → 改 2-3 轮 prompt → 出对比报告（准确率/召回率或逐条命中表）
-- [ ] **Day 7**：README（含 eval 报告），发一条社交平台总结帖
+- [x] **Day 4-5**：攒 eval 集（29 个用例：synthetic 20 + real 7 真实仓库 fix 反转与配对 + dogfood 2 回归集，D015 扩充）
+- [x] **Day 6**：跑 eval → 改 2 轮 prompt（v2 定稿，v3 负结果回退）→ 出对比报告（`evals/report.md`：recall 92.6%→96.3%、precision 81.9%→94.2%，三轮微平均）
+- [x] **Day 7**：README（含 eval 报告摘要与架构决策）；社交总结帖已代拟草稿（`docs/social-post-draft.md`），发布动作留用户执行
 
 ## 六、验收标准
 
