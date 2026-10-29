@@ -190,3 +190,18 @@
   - 稳定 miss：linked-08（重复逻辑漏同步，三轮中两轮 0 意见）——Day 6 prompt 迭代的头号靶子；precision 65-76% 波动（每轮意见数 25-30 条浮动），单轮数字不可作结论，Day 6 对比要多轮取均值
   - NodeNext 下动态 import 的 specifier 必须是 string（`.href`）；Node 22/24 的 nvm 不在 ZCode shell 默认 PATH，每条命令要先 source nvm
 - **下一步**：PR 自审闭环后合并；Day 6——改 prompt（靶子：关联问题类 recall、precision 降噪），跑对比报告（验收标准 #3）
+
+## 2026-10-29 · 会话 16：resolve 流程改进 + eval 混入真实来源用例
+
+- **目标**：用户两点反馈落地——resolve 应「处理一条闭环一条」且要留回复；手写用例是自己生成的、通过率偏高不可信，要引入真实测试集。
+- **完成**：
+  - `resolve:threads` 升级：`--only <id>` 选择性 resolve、`--reply <id>=文本` resolve 前先 REST 回复留痕（回复失败不 resolve）；列表带 databaseId；部分 resolve 不 rerun check（红正确）。AGENTS.md 流程改为「处理一条闭环一条，全部处理完 --yes 收尾」
+  - eval 集 20 → 29（D015）：新增 7 个 real（fastify#7068/#7124/#6973、axios#11216、koa#1961/#2013 的 fix diff 反转 + vscode#330629→#343670 真实配对）+ 2 个 dogfood 回归（PR #2 真实意见转用例）；跑分按 source 分组，能力评估 = synthetic + real，dogfood 单列
+  - 反转构造 = 人类修复 diff 的 +/- 对调：agent 看到的是「真实代码、真实 bug 被引入」的 diff，修复内容是独立于构造者的 ground truth；脚本化提取源码 hunk（丢测试）+ 反转 + 行数自校验
+  - 基线两轮：92.6%/78.4% → 标注定稿后 100%/91.2%（单轮波动大，Day 6 须多轮均值）
+- **发现 / 坑**：
+  - 「fix 小 ≠ 引入小」：5 个全真配对候选只有 1 个引入侧也小，且配出的 bug 往往要领域知识才能从 diff 推断——反转构造才是可量产路线
+  - real-02（getter 求值两次）一轮报「行为一致」（模型不理解 getter 语义）一轮命中——真实短板与随机性并存
+  - 手工转录 GitHub diff 会丢上下文行（hunk 头行数对不上被校验器拦下），改为 curl 直落文件 + 脚本处理；split("\n") 尾部空串在末尾文件块会被当上下文多计 1 行
+  - dogfood 首跑 0/2 是行号期望问题（模型报在调度处而非 ref 构造处，发现本身完全正确）——问题点分散的用例应该文件级
+- **下一步**：Day 6——改 prompt（靶子：getter/闭包类语义理解、precision 降噪），多轮均值出对比报告

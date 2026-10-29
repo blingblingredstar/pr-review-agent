@@ -91,3 +91,8 @@
 - `evals/` 从零建立：20 个自包含 diff 用例（10 明确 bug + 10 关联问题）+ `score.ts` 确定性打分（D014：file + 行 ±3 + mustMention 任一关键词）+ `run.ts` 跑分入口
 - `npm run eval`：一条命令跑完 20 用例输出打分表（recall / precision / 逐条命中），结果落盘 `evals/runs/` 供 Day 6 对比
 - 用例结构校验进单测（hunk 行数、期望行落点），手写 diff 的行号错误进不了主干
+
+### Added（eval 集混入真实来源 + resolve 流程改进）
+
+- eval 用例 20 → 29：新增 7 个 `real` 用例（fastify/axios/koa 的真实 fix diff 反转 + vscode 真实配对，ground truth 来自人类修复、独立于用例构造）+ 2 个 `dogfood` 回归用例（本仓库历史真实意见）；跑分按 source 分组，能力评估 = synthetic + real，dogfood 单列（D015）
+- `resolve:threads` 支持选择性闭环：`--only <id>` 指定线程、`--reply <id>=文本` resolve 前先回复留痕；流程约定改为「处理一条闭环一条」（AGENTS.md）

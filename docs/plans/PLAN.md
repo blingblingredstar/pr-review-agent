@@ -60,7 +60,7 @@ pr-review-agent/
 ├── scripts/              # review-pr / setup-webhook / resolve-threads（本地工具）
 ├── .github/workflows/    # review-threads 意见闭环 check（D013）
 ├── test/                 # 单测（npm test）
-├── evals/                # Day 4-5：cases/ 20 用例（自包含 diff + 期望发现）+ score/run.ts 打分 + runs/ 落盘
+├── evals/                # cases/ 29 用例（D015：synthetic 20 + real 7 + dogfood 2）+ score/run.ts 打分 + runs/ 落盘
 └── vercel.json           # maxDuration 300 + includeFiles prompts/**
 ```
 

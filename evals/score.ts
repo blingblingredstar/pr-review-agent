@@ -18,7 +18,13 @@ export type EvalCase = {
   description: string;
   diff: string;
   expect: Expectation[];
+  // synthetic=手写教学用例（缺省）；real=真实仓库 fix 反构/配对（能力评估的主依据）；dogfood=本仓库历史真实意见（回归集，防 prompt 退化，不计入能力评估）
+  source?: "synthetic" | "real" | "dogfood";
 };
+
+export function sourceOf(c: EvalCase): "synthetic" | "real" | "dogfood" {
+  return c.source ?? "synthetic";
+}
 
 // 模型可能带 git 的 a/ b/ 前缀，规范化后再比
 export function normalizePath(file: string): string {
