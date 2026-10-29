@@ -4,6 +4,7 @@ import type { EvalCase } from "../score.ts";
 export default {
   id: "linked-08-duplicated-logic",
   kind: "linked",
+  source: "synthetic",
   description: "重复实现只修了一处，另一处未同步",
   diff: `diff --git a/src/format/money.ts b/src/format/money.ts
 index 0d1e2f3..4f5a6b7 100644

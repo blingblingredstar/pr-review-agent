@@ -80,13 +80,23 @@ function parseDiff(diff: string): { files: Set<string>; newLineRanges: Map<strin
   return { files, newLineRanges, errors };
 }
 
-test("用例集：20 个、id 唯一、bug/linked 各 10", async () => {
+test("用例集：29 个、id 唯一、synthetic 20（bug/linked 各 10）+ real 7 + dogfood 2", async () => {
   const cases = await loadCases();
-  assert.equal(cases.length, 20, `应有 20 个用例，实际 ${cases.length}`);
+  assert.equal(cases.length, 29, `应有 29 个用例，实际 ${cases.length}`);
   const ids = cases.map((c) => c.id);
-  assert.equal(new Set(ids).size, 20, "id 有重复");
-  assert.equal(cases.filter((c) => c.kind === "bug").length, 10, "bug 类应 10 个");
-  assert.equal(cases.filter((c) => c.kind === "linked").length, 10, "linked 类应 10 个");
+  assert.equal(new Set(ids).size, 29, "id 有重复");
+  const synthetic = cases.filter((c) => (c.source ?? "synthetic") === "synthetic");
+  assert.equal(synthetic.length, 20, "synthetic 应 20 个");
+  assert.equal(synthetic.filter((c) => c.kind === "bug").length, 10, "synthetic bug 类应 10 个");
+  assert.equal(synthetic.filter((c) => c.kind === "linked").length, 10, "synthetic linked 类应 10 个");
+  assert.equal(cases.filter((c) => c.source === "real").length, 7, "real 应 7 个");
+  assert.equal(cases.filter((c) => c.source === "dogfood").length, 2, "dogfood 应 2 个");
+  // source 必须显式声明：real/dogfood 漏写会静默混进 synthetic 污染能力评估
+  for (const c of cases) {
+    assert.ok(c.source, `${c.id} 未显式声明 source`);
+    if (c.source === "dogfood") assert.ok(c.id.startsWith("dogfood-"), `${c.id} source=dogfood 但 id 前缀不符`);
+    if (c.source === "real") assert.ok(c.id.startsWith("real-"), `${c.id} source=real 但 id 前缀不符`);
+  }
 });
 
 test("parseDiff：引号形式的含空格路径取 b 侧全路径", () => {

@@ -4,6 +4,7 @@ import type { EvalCase } from "../score.ts";
 export default {
   id: "linked-03-removed-export-still-used",
   kind: "linked",
+  source: "synthetic",
   description: "删除导出函数，另一文件的 import 与调用未清理",
   diff: `diff --git a/src/legacy.ts b/src/legacy.ts
 index 9d0e1f2..3f4a5b6 100644

@@ -4,6 +4,7 @@ import type { EvalCase } from "../score.ts";
 export default {
   id: "linked-07-error-handling-asymmetry",
   kind: "linked",
+  source: "synthetic",
   description: "新分支未检查 send 返回的 ok，与 email 分支的错误处理不对称",
   diff: `diff --git a/src/sms.ts b/src/sms.ts
 index 8b9c0d1..2d3e4f5 100644

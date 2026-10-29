@@ -4,6 +4,7 @@ import type { EvalCase } from "../score.ts";
 export default {
   id: "linked-09-unit-mismatch",
   kind: "linked",
+  source: "synthetic",
   description: "秒与毫秒单位混用，缓存提前过期约 1000 倍",
   diff: `diff --git a/src/cache.ts b/src/cache.ts
 index 1e2f3a4..5a6b7c8 100644

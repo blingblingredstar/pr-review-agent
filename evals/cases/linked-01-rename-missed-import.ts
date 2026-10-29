@@ -4,6 +4,7 @@ import type { EvalCase } from "../score.ts";
 export default {
   id: "linked-01-rename-missed-import",
   kind: "linked",
+  source: "synthetic",
   description: "导出函数改名，另一个文件的 import 未同步（运行时崩溃）",
   diff: `diff --git a/src/utils/price.ts b/src/utils/price.ts
 index 5f6a7b8..9b0c1d2 100644

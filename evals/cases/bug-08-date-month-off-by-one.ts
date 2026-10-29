@@ -4,6 +4,7 @@ import type { EvalCase } from "../score.ts";
 export default {
   id: "bug-08-date-month-off-by-one",
   kind: "bug",
+  source: "synthetic",
   description: "Date 构造器月份 0 起始，解析 ISO 日期月份多 1",
   diff: `diff --git a/src/report.ts b/src/report.ts
 index 0a1b2c3..4b5c6d7 100644

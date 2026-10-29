@@ -4,6 +4,7 @@ import type { EvalCase } from "../score.ts";
 export default {
   id: "bug-04-missing-await",
   kind: "bug",
+  source: "synthetic",
   description: "invalidate 改为 async 后调用方未 await，缓存清理与后续日志竞态",
   diff: `diff --git a/src/cache.ts b/src/cache.ts
 index 5b6c7d8..9c0d1e2 100644

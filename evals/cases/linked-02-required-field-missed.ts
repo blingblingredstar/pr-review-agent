@@ -4,6 +4,7 @@ import type { EvalCase } from "../score.ts";
 export default {
   id: "linked-02-required-field-missed",
   kind: "linked",
+  source: "synthetic",
   description: "类型新增必填字段，构造处只同步了其中一个（TS 编译失败）",
   diff: `diff --git a/src/types.ts b/src/types.ts
 index 7b8c9d0..1d2e3f4 100644
