@@ -71,8 +71,9 @@ export function handleWebhook(
 // 后台任务：任何失败只记日志不抛出——waitUntil 无人接 catch，抛了只会变成 unhandled rejection
 async function runReview(ref: PrRef & { headSha: string }): Promise<void> {
   const key = `${ref.owner}/${ref.repo}#${ref.pullNumber}@${ref.headSha.slice(0, 7)}`;
+  let client: ReturnType<typeof getOctokit> | undefined;
   try {
-    const client = getOctokit();
+    client = getOctokit();
     if (await hasReviewed(client, ref, ref.headSha)) {
       console.log(`[review] ${key} 已有同 SHA 审查，跳过（幂等，D010）`);
       return;
@@ -108,14 +109,14 @@ async function runReview(ref: PrRef & { headSha: string }): Promise<void> {
       }
       // status 落定独立于通知成败——通知挂了也不能留永久 pending（「审查在途」的黄灯更具误导性）
       try {
-        await setReviewStatus(getOctokit(), { ...ref, sha: ref.headSha }, "failure", "审查超时，重推 commit 可重试");
+        await setReviewStatus(client ?? getOctokit(), { ...ref, sha: ref.headSha }, "failure", "审查超时，重推 commit 可重试");
       } catch (statusErr) {
         console.error(`[review] ${key} failure status 写失败`, statusErr);
       }
       return;
     }
     try {
-      await setReviewStatus(getOctokit(), { ...ref, sha: ref.headSha }, "failure", "审查失败，见 Vercel 日志");
+      await setReviewStatus(client ?? getOctokit(), { ...ref, sha: ref.headSha }, "failure", "审查失败，见 Vercel 日志");
     } catch (statusErr) {
       console.error(`[review] ${key} failure status 写失败`, statusErr);
     }

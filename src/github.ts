@@ -128,18 +128,33 @@ export async function postReview(
       body: reviewBody,
       comments,
     });
-  try {
+  // 统一提交通道：REQUEST_CHANGES 被 403（无写权限）/ 422（自家 PR 不能 request changes on own pull request）拒绝时
+  // 回退 COMMENT——意见不丢，只降级为不 block。dogfood（bot = PR 作者）场景恒走回退，多仓产品化时原生生效
+  const createReviewWithFallback = async (event: "COMMENT" | "REQUEST_CHANGES", reviewBody: string, withComments: boolean) => {
+    const payload = {
+      owner,
+      repo,
+      pull_number: pullNumber,
+      commit_id: commitId,
+      event,
+      body: reviewBody,
+      comments: withComments ? comments : [],
+    };
     try {
-      await postReviewRequest(reviewEvent, body);
+      await client.rest.pulls.createReview(payload);
+      return;
     } catch (err) {
-      // REQUEST_CHANGES 需要写权限：403 时回退 COMMENT 保住意见本身（降级为不 block，也不丢意见）
-      if (isStatus(err, 403) && reviewEvent === "REQUEST_CHANGES") {
-        console.warn("[github] REQUEST_CHANGES 发送 403（token 无写权限？），回退 COMMENT 重发");
-        await postReviewRequest("COMMENT", body);
-      } else {
-        throw err;
+      const ownPr = isStatus(err, 422) && /own pull request/i.test(String((err as Error).message ?? err));
+      if (event === "REQUEST_CHANGES" && (isStatus(err, 403) || ownPr)) {
+        console.warn(`[github] REQUEST_CHANGES 被拒（\${ownPr ? "自家 PR 不能 request changes" : "403 无写权限"}），回退 COMMENT`);
+        await client.rest.pulls.createReview({ ...payload, event: "COMMENT" });
+        return;
       }
+      throw err;
     }
+  };
+  try {
+    await createReviewWithFallback(reviewEvent, body, true);
   } catch (err) {
     // 预定位仍有漏网（或 422 的其他原因）→ 整体降级为全部意见写进 review body，保证不丢意见
     if (!isStatus(err, 422)) throw err;
@@ -149,15 +164,8 @@ export async function postReview(
       "> 部分意见的行号不在 diff 内，无法行内定位，全部列在下面：",
       ...result.comments.map((c) => `- \`${c.file}:${c.line}\` **[${c.severity}]** ${c.body}`),
     ].join("\n");
-    await client.rest.pulls.createReview({
-      owner,
-      repo,
-      pull_number: pullNumber,
-      commit_id: commitId,
-      // 降级只改意见落点（全部进 body），block 语义不变：有意见仍 REQUEST_CHANGES
-      event: reviewEvent,
-      body: fallback,
-    });
+    // 降级只改意见落点（全部进 body），block 语义不变：有意见仍 REQUEST_CHANGES
+    await createReviewWithFallback(reviewEvent, fallback, false);
     posted = { inline: 0, degraded: result.comments.length };
   }
   const labels = severityLabels(result);

@@ -233,6 +233,7 @@ async function main(): Promise<void> {
     if (reviews.data.length < 100) break;
   }
   if (!reviewed) {
+    // 假阳性提示：翻页上限耗尽或真在途都走这里——方向保守（多提示不漏合并）
     console.log("⚠ 最新 head SHA 还没有任何 review 提交——bot 复审可能在途（PR #9 教训）。建议等复审落地、核对无降级意见后再合并");
   }
 }

@@ -79,7 +79,7 @@ export function diffCoveredLines(diff: string): Map<string, Set<number>> {
       continue;
     }
     if (inHunk) {
-      const nextHunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/.exec(raw);
+      const nextHunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))?/.exec(raw);
       if (nextHunk) {
         // 声明行数未用尽就出现 @@：畸形 diff——直接按新 hunk 头接管（起始行号与新侧行数都取自该头）
         line = Number(nextHunk[1]);
@@ -106,7 +106,7 @@ export function diffCoveredLines(diff: string): Map<string, Set<number>> {
       remain = 0;
       continue;
     }
-    const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/.exec(raw);
+    const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))?/.exec(raw);
     if (hunk) {
       inHunk = true;
       line = Number(hunk[1]);
