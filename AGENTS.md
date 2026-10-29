@@ -6,7 +6,7 @@
 
 按顺序读，建立上下文：
 
-1. `PLAN.md` — 项目定位、技术选型、执行步骤、验收标准
+1. `docs/plans/PLAN.md` — 项目定位、技术选型、执行步骤、验收标准
 2. `docs/architecture.md` — 当前架构（组件、数据流、输出 schema）
 3. `docs/decisions.md` — 已定决策（不要重新讨论已关闭的问题）
 4. `docs/journal.md` 末尾条目 — 上次会话做到哪、遗留什么
@@ -27,6 +27,8 @@ Harness 的核心纪律：**每一步都可回放**。文档只追加、少改�
 - eval 相关改动必须保持 `npm run eval` 可回归（`evals/` 目录自包含）
 - 遵循 lazy senior dev 原则（本仓库装有 ponytail skill，见 `.agents/skills/`）：最小完整改动，不加没人要的抽象
 - 密钥只走环境变量，任何 key 不入库
+- 阶段性计划与规格（specs）统一归档 `docs/plans/`，后续新计划也放这个目录
+- 对外表述按真实项目定位，不出现个人背景相关措辞
 
 ## 提交规范
 

@@ -1,24 +1,24 @@
 # PR Review Agent — 项目计划
 
-> 求职作品集项目：一个带 eval 的 GitHub PR 审查 Agent。
-> 本文件是新对话/新会话的交接文档——在新目录（本文件夹）开对话，让 Agent 先读本文件。
+> 一个带 eval 的 GitHub PR 审查 Agent。
+> 本文件是项目总计划。新会话先读 `AGENTS.md`，按其指引再读本文档与 `docs/` 下的架构、决策、日志。
 
 ## 一、项目定位
 
-**不是**"再写一个 code review 工具"，而是展示三件当前 AI 招聘市场最稀缺的能力：
+**不是**"再写一个 code review 工具"，而是把三件最考验工程功底的事做扎实：
 
 1. **Agent 工作流设计**：webhook 接收 PR 事件 → 拉 diff → 分层审查（结构化输出）→ 调 GitHub API 回帖
-2. **评测意识**：一个 eval 集 + 回归脚本，改 prompt 后能拿出前后对比数据（这是面试最硬的谈资）
+2. **评测意识**：一个 eval 集 + 回归脚本，改 prompt 后能拿出前后对比数据（改 prompt 不再盲改）
 3. **真实工程集成**：GitHub webhook 签名校验、异步处理防超时重试、密钥管理
 
-一句话简历描述（目标）：*"基于 GLM 的 PR 审查 Agent，webhook 架构部署在 Vercel，附 20 个标注用例的 eval 集与 prompt 迭代对比报告。"*
+一句话项目描述（目标）：*"基于 GLM 的 PR 审查 Agent，webhook 架构部署在 Vercel，附 20 个标注用例的 eval 集与 prompt 迭代对比报告。"*
 
 ## 二、技术选型（已确认）
 
 | 项 | 选择 | 理由 |
 |---|---|---|
 | 运行时 | TypeScript + Node 22 | 前端背景零摩擦 |
-| LLM 接入 | Vercel AI SDK + GLM OpenAI 兼容端点 | JD 出现频率最高的框架；用现有 GLM API key |
+| LLM 接入 | Vercel AI SDK + GLM OpenAI 兼容端点 | TS 生态最主流的 LLM 接入框架；用现有 GLM API key |
 | 结构化输出 | AI SDK 的 `generateObject` / `streamObject` | 审查意见需要稳定 schema |
 | 部署 | Vercel Hobby（免费，100 万次调用/月，非商用） | 无状态 webhook 服务的标准形态，无需云服务器 |
 | 模型计费 | GLM key 按 token（唯一实际成本，可能被 coding plan 覆盖） | 不用 Cursor SDK（绑订阅）/ Claude Agent SDK（无 key） |
@@ -39,7 +39,7 @@ GLM 审查：generateObject → { comments: [{file, line, severity, body}] }
 GitHub API 回帖（逐条 PR review comment）
 ```
 
-关键工程细节（写进 README，面试考点）：
+关键工程细节（写进 README）：
 - **先 200 再异步**：GLM 审查可能几十秒，超过 GitHub webhook 超时会触发重试导致重复评论 → 用 `waitUntil` 后台执行 + 幂等去重（同一 commit SHA 只审一次）。
 - **diff 截断策略**：超大 PR 只取变更行附近上下文 / 按 file 分批调用。
 - 提示词放 `prompts/*.md`，代码里只引用，方便迭代和 diff。
@@ -80,7 +80,7 @@ pr-review-agent/
 3. eval 报告能展示至少一轮"prompt 改进 → 指标提升"
 4. README 里讲清架构决策（异步/幂等/diff 截断）
 
-## 七、面试叙事要点（背下来）
+## 七、核心设计问答（为什么这么做）
 
 - 为什么 agent 需要 eval？（没有评测的 agent 迭代 = 盲改）
 - webhook 为什么先回 200？（超时重试语义 + 幂等）

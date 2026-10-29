@@ -8,7 +8,7 @@
 
 | 文档 | 内容 |
 |---|---|
-| [PLAN.md](./PLAN.md) | 项目定位、技术选型、执行计划（交接文档） |
+| [docs/plans/PLAN.md](./docs/plans/PLAN.md) | 项目定位、技术选型、执行计划（交接文档） |
 | [AGENTS.md](./AGENTS.md) | Agent 在本仓库的工作规则 |
 | [docs/architecture.md](./docs/architecture.md) | 架构：组件、数据流、输出 schema |
 | [docs/decisions.md](./docs/decisions.md) | 技术决策记录（append-only） |

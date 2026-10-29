@@ -8,7 +8,7 @@
 ## D001 — 运行时选 TypeScript + Node 22
 
 - **状态**：已接受（2026-10-29）
-- **背景**：求职作品集项目，需在有限时间内交付。
+- **背景**：独立项目起步，需在有限时间内交付。
 - **决策**：TypeScript（strict）+ Node 22。
 - **备选**：Python——生态同样成熟，但与本人前端背景衔接成本更高。
 - **后果**：与 Vercel AI SDK、Vercel 部署链路零摩擦。
@@ -16,7 +16,7 @@
 ## D002 — LLM 接入用 Vercel AI SDK + GLM OpenAI 兼容端点
 
 - **状态**：已接受（2026-10-29）
-- **背景**：JD 中出现频率最高的框架是 Vercel AI SDK；手头有可用的 GLM API key。
+- **背景**：Vercel AI SDK 是 TypeScript 生态最主流的 LLM 接入框架；手头有可用的 GLM API key。
 - **决策**：AI SDK 的 OpenAI provider 指向 GLM 兼容端点（自定义 `baseURL`）。
 - **备选**：
   - Cursor Agent SDK——绑定 Cursor 订阅，排除；
@@ -28,7 +28,7 @@
 - **状态**：已接受（2026-10-29）
 - **背景**：下游要逐条回帖、逐条打分，自由文本不可执行。
 - **决策**：AI SDK `generateObject` 强约束 `{ comments: [{file, line, severity, body}] }`。
-- **后果**：eval 打分变成结构化字段比对，而不是文本猜测；面试考点「为什么结构化输出」有了具体答案。
+- **后果**：eval 打分变成结构化字段比对，而不是文本猜测；「为什么结构化输出」这个设计问题有了具体答案：下游可执行、可打分。
 
 ## D004 — 先 200 再异步 + commit SHA 幂等去重
 
@@ -57,7 +57,7 @@
 - **状态**：已接受（2026-10-29）
 - **背景**：借鉴 DeepSeek Harness「Agent = Model + Harness」思路——用仓库内文档而非记忆在会话间传递上下文；改动可回放。
 - **决策**：建 `AGENTS.md`（工作规则）+ `docs/architecture.md`（架构）+ `docs/decisions.md`（决策，append-only）+ `docs/journal.md`（会话日志，append-only）+ `docs/CHANGELOG.md`（变更）；文档随代码同 commit 提交。
-- **后果**：任何新会话读四个文件即可恢复上下文；代价是每次改动多写几行文档，换来面试时能展示完整的过程记录。
+- **后果**：任何新会话读四个文件即可恢复上下文；代价是每次改动多写几行文档，换来完整可追溯的过程记录。
 
 ## D008 — GitHub 身份：App vs PAT（待定）
 
@@ -72,3 +72,10 @@
 - **背景**：ZCode 中插件本体只能装在用户级；项目内共享需走 workspace skills（`<repo>/.zcode/skills/`）。
 - **决策**：将 [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) 的 6 个 skill 复制到 `.zcode/skills/`，随仓库版本化。
 - **后果**：任何用 ZCode 打开本仓库的人自动获得同一套 lazy senior dev 规则；升级需手动重新复制。
+
+## D010 — 计划与规格文档统一归档 docs/plans/
+
+- **状态**：已接受（2026-10-29）
+- **背景**：PLAN.md 原在仓库根，后续还会有阶段性计划与规格文档，根目录需要保持干净。
+- **决策**：`PLAN.md` 迁移为 `docs/plans/PLAN.md`（git mv 保留历史）；之后的计划/ specs 一律放 `docs/plans/`。
+- **后果**：根目录只留 `README.md` 与 `AGENTS.md`；AGENTS.md、README 中的路径引用已同步更新。
