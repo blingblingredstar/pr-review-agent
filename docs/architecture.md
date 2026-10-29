@@ -51,6 +51,7 @@ schema 变更属于破坏性改动：必须同步改 `evals/run.ts` 的打分逻
 - **先 200 再异步**：LLM 审查可能几十秒到数分钟，超过 GitHub webhook 超时会触发重试导致重复评论。用 `waitUntil` 后台执行，HTTP 层立刻返回 200；Vercel Hobby 函数上限 300s（Fluid compute）。
 - **幂等去重**：以 review body 内嵌的 `(repo, commit SHA)` 标记为键（D010），同 SHA 已审直接跳过；超时通知不带标记，同 SHA 重投可重试。
 - **超时降级**（D011）：`AbortSignal.timeout(LLM_TIMEOUT_MS)`（默认 270s）硬超时；超时发 issue comment 告知并提示重推重试。
+- **合并前意见闭环**（D013）：`.github/workflows/review-threads.yml` 查未 resolve 线程写 commit status（红灯走 status 而非 workflow 失败，避免设计内红灯触发失败邮件）；`scripts/resolve-threads.ts`（`npm run resolve:threads -- owner/repo#N --yes`）批量 resolve 后主动 rerun 闭合绿门。仓库工具，非运行时组件。
 - **diff 截断**：超大 PR 按文件分批调用，或只取变更行附近上下文，避免超出模型上下文窗口。
 
 ## 环境变量

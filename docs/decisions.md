@@ -80,7 +80,7 @@
 
 ## D010 — 幂等去重用「查 GitHub 已有 review」而非外部存储
 
-- **状态**：已接受（2026-10-29）
+- **状态**：已接受（2026-10-29；关闭 D004 遗留的去重载体决策点）
 - **背景**：D004 留白去重状态载体（Vercel KV 或内存 Map），部署形态定稿时决策。Vercel serverless 实例内存不跨请求可靠（D005），KV 则引入外部服务。
 - **决策**：review body 内嵌 `<!-- pr-review-agent sha:<head SHA> -->` 标记，处理事件前 `listReviews` 查同 SHA 标记，命中即跳过。
 - **备选**：

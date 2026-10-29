@@ -44,24 +44,24 @@ GitHub API 回帖（逐条 PR review comment）
 - **diff 截断策略**：超大 PR 只取变更行附近上下文 / 按 file 分批调用。
 - 提示词放 `prompts/*.md`，代码里只引用，方便迭代和 diff。
 
-## 四、目录结构（目标）
+## 四、目录结构（Day 3 后实况）
 
 ```
 pr-review-agent/
-├── PLAN.md               # 本文件
-├── README.md             # 最后写：架构图 + eval 报告摘要
+├── AGENTS.md             # 本仓库的 Agent 工作规则
+├── docs/                 # harness 文档体系（architecture / decisions / journal / CHANGELOG / plans/）
+├── api/webhook.ts        # Vercel function 薄壳（raw body → src/webhook.ts）
 ├── src/
-│   ├── webhook.ts        # 签名校验 + 事件分发 + waitUntil
-│   ├── review.ts         # 拉 diff → LLM 审查 → 结构化输出
-│   ├── github.ts         # GitHub API（diff/回帖）
-│   └── dedupe.ts         # commit SHA 幂等
-├── prompts/
-│   └── review.md         # 审查提示词（迭代对象）
-├── evals/
-│   ├── cases/            # 20 个 (diff, 期望发现) 用例
-│   ├── run.ts            # 跑评测、打分
-│   └── report.md         # 前后对比报告
-└── vercel.json
+│   ├── webhook.ts        # 验签 + 事件分发 + waitUntil 编排
+│   ├── review.ts         # LLM 审查 → 结构化输出（超时 / LLM_EXTRA_BODY）
+│   ├── github.ts         # GitHub API（diff / 回帖 / 超时通知 / severity 标签）
+│   └── dedupe.ts         # commit SHA 幂等（查 review 内嵌标记）
+├── prompts/review.md     # 审查提示词（迭代对象）
+├── scripts/              # review-pr / setup-webhook / resolve-threads（本地工具）
+├── .github/workflows/    # review-threads 意见闭环 check（D013）
+├── test/                 # 单测（npm test）
+├── evals/                # Day 4-5：cases/ 20 用例 + run.ts 打分 + report.md
+└── vercel.json           # maxDuration 300 + includeFiles prompts/**
 ```
 
 ## 五、执行步骤（约一周）
