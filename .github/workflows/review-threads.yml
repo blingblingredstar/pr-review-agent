@@ -1,5 +1,7 @@
 # 检查 PR 是否还有未 resolve 的 review 线程——「合并前意见闭环」的机制保障（D013）。
-# 注意：private 仓库免费计划没有 branch protection，本 check 是软约束（红灯可见但可越过）；
+# 注意：resolve 线程不触发本工作流（GitHub 无对应事件），由 scripts/resolve-threads.ts 在 resolve 后主动 rerun——
+# 两者是一对，勿单删其一，否则 check 会停留在旧结论。
+# private 仓库免费计划没有 branch protection，本 check 是软约束（红灯可见但可越过）；
 # 仓库转 public 后建议启用 branch protection 的 Require conversation resolution 升级为硬约束。
 name: review-threads
 

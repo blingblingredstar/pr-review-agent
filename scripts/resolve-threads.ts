@@ -104,19 +104,24 @@ async function main(): Promise<void> {
     per_page: 1,
   });
   const run = runs.data.workflow_runs[0];
-  if (run) {
-    try {
-      await client.rest.actions.reRunWorkflow({ owner, repo, run_id: run.id });
-      console.log(`已重跑 review-threads check（run ${run.id}），变绿后即可合并`);
-    } catch (err) {
-      console.error(
-        `重跑 check 失败（reRunWorkflow 需带 repo/actions:write 权限的 PAT）：`,
-        err instanceof Error ? err.message : err,
-      );
-      process.exit(1);
-    }
-  } else {
+  if (!run) {
     console.log("未找到该 head SHA 的 check run（可能尚未触发过），请人工确认线程已全部 resolve 再合并");
+    return;
+  }
+  if (run.status !== "completed") {
+    // reRunWorkflow 只能重跑已完成的 run；正在跑的 check 本就会反映 resolve 后的状态
+    console.log(`check 正在运行（status=${run.status}），线程已全部 resolve，等它跑完即可`);
+    return;
+  }
+  try {
+    await client.rest.actions.reRunWorkflow({ owner, repo, run_id: run.id });
+    console.log(`已重跑 review-threads check（run ${run.id}），变绿后即可合并`);
+  } catch (err) {
+    console.error(
+      `重跑 check 失败（reRunWorkflow 需带 repo/actions:write 权限的 PAT）：`,
+      err instanceof Error ? err.message : err,
+    );
+    process.exit(1);
   }
 }
 
