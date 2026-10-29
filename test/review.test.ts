@@ -105,3 +105,18 @@ test("unquoteGitPath：无引号带转义也解码（正则消费引号后的输
   assert.equal(unquoteGitPath("b/docs/\\344\\270\\255.md"), "b/docs/中.md");
   assert.equal(unquoteGitPath("plain/path.ts"), "plain/path.ts");
 });
+
+test("diffCoveredLines：引号内含转义引号的路径不切错侧", () => {
+  // git 对路径内引号字符转义为 \"：(?:[^"\\]|\\.)* 不会跨引号
+  const diff = [
+    'diff --git "a/we\\"ird.ts" "b/we\\"ird.ts"',
+    "index 1..2 100644",
+    '--- "a/we\\"ird.ts"',
+    '+++ "b/we\\"ird.ts"',
+    "@@ -1,1 +1,2 @@",
+    " ctx",
+    "+new",
+  ].join("\n");
+  const covered = diffCoveredLines(diff);
+  assert.ok(covered.has('we"ird.ts'), `实际 key: ${[...covered.keys()].join(", ")}`);
+});

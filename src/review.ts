@@ -63,8 +63,9 @@ export function diffCoveredLines(diff: string): Map<string, Set<number>> {
     // hunk 内容行（+/ /-）自带前缀，不会以下面的文件头形态开头；先处理文件头判定
     if (raw.startsWith("diff --git ")) {
       // 路径含空格时 git 用引号包裹（core.quotePath，非 ASCII 编成八进制转义）；无引号形式两侧都不含空格。
-      // 已知边界不做：路径本身含引号字符（git 转义为 \"）时贪婪 .+ 会切错侧——极罕见，出现时降级兜底
-      const m = /^diff --git "a\/.+" "(b\/.+)"$/.exec(raw) ?? /^diff --git \S+ b\/(.+)$/.exec(raw);
+      // (?:[^"\\]|\\.)* 不跨引号也不吃转义序列，路径本身含引号字符（git 转义为 \"）时不会切错侧
+      const m = /^diff --git "a\/(?:[^"\\]|\\.)*" "(b\/(?:[^"\\]|\\.)*)"$/.exec(raw)
+        ?? /^diff --git \S+ b\/(.+)$/.exec(raw);
       file = m ? unquoteGitPath(m[1]).replace(/^b\//, "") : "";
       inHunk = false;
       continue;

@@ -30,7 +30,14 @@ export function parseArgs(argv: string[]): ParsedArgs {
       // 传了 --only 没传值会静默退回列表模式，用户以为执行了闭环实际什么都没做
       throw new Error("--only 需要逗号分隔的线程 databaseId，如 --only 4414932445,4414932456");
     }
-    const ids = v.split(",").filter(Boolean).map(Number);
+    const ids = v.split(",").filter(Boolean).map((s) => {
+      const n = Number(s);
+      // NaN/非正整数静默进集合会让 --only X --yes 表现为「解析成功但什么都没 resolve」——必须在这里报错
+      if (!Number.isSafeInteger(n) || n <= 0) {
+        throw new Error(`--only 的值 "${s}" 不是合法的线程 databaseId`);
+      }
+      return n;
+    });
     if (ids.length === 0) {
       // "--only ," 这类只含分隔符的值会得到空集合，被当成未指定后可能反向触发全量 resolve
       throw new Error(`--only 的值 "${v}" 没有解析出任何线程 id`);

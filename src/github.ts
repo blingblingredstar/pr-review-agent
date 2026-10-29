@@ -61,11 +61,14 @@ export function splitByLocatable(
   diff: string,
 ): { inline: ReviewComment[]; degraded: ReviewComment[] } {
   const covered = diffCoveredLines(diff);
-  const locatable = (c: ReviewComment) => pathVariants(c.file).some((v) => covered.get(v)?.has(c.line));
-  return {
-    inline: result.comments.filter(locatable),
-    degraded: result.comments.filter((c) => !locatable(c)),
-  };
+  const inline: ReviewComment[] = [];
+  const degraded: ReviewComment[] = [];
+  for (const c of result.comments) {
+    // covered 的 key 是 diff 头解析出的真实路径；模型报的路径做 a/ b/ 变体对照（照抄 diff 头的情况），
+    // 不能预先剥前缀——仓库真有顶层 a/ b/ 目录时会误剥导致错误降级
+    (pathVariants(c.file).some((v) => covered.get(v)?.has(c.line)) ? inline : degraded).push(c);
+  }
+  return { inline, degraded };
 }
 
 export async function postReview(
