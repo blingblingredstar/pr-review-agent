@@ -80,14 +80,15 @@ async function main() {
       expectN, hits, comments, tp,
     };
   };
-  const totalExpect = capability.reduce((s, r) => s + r.score.verdicts.length, 0);
-  const totalHits = capability.reduce((s, r) => s + r.score.hits, 0);
-  const totalComments = capability.reduce((s, r) => s + r.score.agentComments, 0);
-  const totalTp = capability.reduce((s, r) => s + r.score.truePositives, 0);
+  const overall = metrics(capability);
+  const totalExpect = overall.expectN;
+  const totalHits = overall.hits;
+  const totalComments = overall.comments;
+  const totalTp = overall.tp;
   const totalMs = runs.reduce((s, r) => s + r.durationMs, 0);
-  const recall = totalExpect ? totalHits / totalExpect : 0;
+  const recall = overall.recall;
   // 全部失败 / 零意见时 precision 无意义，置 null 报告显示 —（与单用例语义一致）
-  const precision = totalComments ? totalTp / totalComments : null;
+  const precision = overall.precision;
   const failed = runs.length - okRuns.length;
 
   const groupLines = (["synthetic", "real", "dogfood"] as const)

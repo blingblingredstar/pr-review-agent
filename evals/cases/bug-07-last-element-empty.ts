@@ -4,6 +4,7 @@ import type { EvalCase } from "../score.ts";
 export default {
   id: "bug-07-last-element-empty",
   kind: "bug",
+  source: "synthetic",
   description: "删除空数组守卫后 events[-1] 为 undefined，访问 .state 抛错",
   diff: `diff --git a/src/status.ts b/src/status.ts
 index 9f0a1b2..3a4b5c6 100644

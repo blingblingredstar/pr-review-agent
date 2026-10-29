@@ -4,6 +4,7 @@ import type { EvalCase } from "../score.ts";
 export default {
   id: "linked-04-duplicated-constant",
   kind: "linked",
+  source: "synthetic",
   description: "全局常量本 PR 已调整，新增代码硬编码旧值未复用常量",
   diff: `diff --git a/src/config.ts b/src/config.ts
 index 1f2a3b4..5b6c7d8 100644

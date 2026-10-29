@@ -4,6 +4,7 @@ import type { EvalCase } from "../score.ts";
 export default {
   id: "bug-03-null-access",
   kind: "bug",
+  source: "synthetic",
   description: "address 类型改为 Address | null 后新函数未判空直接访问",
   diff: `diff --git a/src/ship.ts b/src/ship.ts
 index 3d4e5f6..7a8b9c0 100644

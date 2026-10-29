@@ -4,6 +4,7 @@ import type { EvalCase } from "../score.ts";
 export default {
   id: "bug-10-reduce-no-initial",
   kind: "bug",
+  source: "synthetic",
   description: "reduce 删掉初始值后空数组直接抛 TypeError",
   diff: `diff --git a/src/cart.ts b/src/cart.ts
 index 2c3d4e5..6d7e8f9 100644

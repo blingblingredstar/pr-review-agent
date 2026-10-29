@@ -11,9 +11,16 @@ async function main(): Promise<void> {
   const args = process.argv.slice(3);
   const yes = args.includes("--yes");
   const onlyIdx = args.indexOf("--only");
-  const only = new Set<number>(
-    onlyIdx >= 0 ? (args[onlyIdx + 1] ?? "").split(",").filter(Boolean).map(Number) : [],
-  );
+  let onlyArg: string | null = null;
+  if (onlyIdx >= 0) {
+    onlyArg = args[onlyIdx + 1] ?? "";
+    if (!onlyArg.trim()) {
+      // 传了 --only 没传值会静默退回列表模式，用户以为执行了闭环实际什么都没做
+      console.error("--only 需要逗号分隔的线程 databaseId，如 --only 4414932445,4414932456");
+      process.exit(1);
+    }
+  }
+  const only = new Set<number>(onlyArg ? onlyArg.split(",").filter(Boolean).map(Number) : []);
   // --reply <databaseId>=<文本>，可多次；resolve 前先发回复，回应必须留痕后才关线程
   const replies = new Map<number, string>();
   for (const a of args) {
@@ -81,6 +88,11 @@ async function main(): Promise<void> {
     console.log(`  #${i + 1} id=${last?.databaseId ?? "?"} [${last?.author?.login ?? "?"}] ${text}`);
   }
   if (!yes && only.size === 0) {
+    if (replies.size > 0) {
+      // 回复必须落在明确的闭环动作上，否则回应没留痕、线程也没关
+      console.error("--reply 必须与 --only 或 --yes 搭配使用");
+      process.exit(1);
+    }
     // 防「一键清场」：每条意见都要走过 修复/回应 才该被 resolve（AGENTS.md 流程）
     console.log("逐条处理后：--only <id1,id2> 回复并 resolve 指定线程；全部处理完 --yes 全量收尾");
     return;
@@ -90,6 +102,12 @@ async function main(): Promise<void> {
   const missing = [...only].filter((id) => !openIds.has(id));
   if (missing.length > 0) {
     console.error(`--only 里的 id 不在未 resolve 线程中（可能已 resolve 或打错）：${missing.join(",")}`);
+    process.exit(1);
+  }
+  // --reply 同样校验：id 不存在时回应无处落，静默忽略违背「没有留痕的闭环不算闭环」
+  const missingReply = [...replies.keys()].filter((id) => !openIds.has(id));
+  if (missingReply.length > 0) {
+    console.error(`--reply 里的 id 不在未 resolve 线程中（可能已 resolve、打错，或漏配 --only）：${missingReply.join(",")}`);
     process.exit(1);
   }
   const targets = only.size > 0 ? open.filter((t) => only.has(t.comments.nodes[0]!.databaseId!)) : open;

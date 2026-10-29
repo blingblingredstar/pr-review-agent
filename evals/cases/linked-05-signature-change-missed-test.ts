@@ -4,6 +4,7 @@ import type { EvalCase } from "../score.ts";
 export default {
   id: "linked-05-signature-change-missed-test",
   kind: "linked",
+  source: "synthetic",
   description: "函数签名加必填参数，同 PR 的测试文件有一个用例未同步",
   diff: `diff --git a/src/shipping.ts b/src/shipping.ts
 index 3c4d5e6..7d8e9f0 100644

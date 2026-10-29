@@ -4,6 +4,7 @@ import type { EvalCase } from "../score.ts";
 export default {
   id: "bug-02-divide-by-zero",
   kind: "bug",
+  source: "synthetic",
   description: "games 为空数组时除零得 NaN，同文件既有函数有守卫可对照",
   diff: `diff --git a/src/stats.ts b/src/stats.ts
 index 21c3d4e..6e7f8a9 100644

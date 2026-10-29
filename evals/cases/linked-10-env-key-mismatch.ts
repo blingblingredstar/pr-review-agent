@@ -4,6 +4,7 @@ import type { EvalCase } from "../score.ts";
 export default {
   id: "linked-10-env-key-mismatch",
   kind: "linked",
+  source: "synthetic",
   description: "环境变量键名不一致，代码读到的永远是 undefined",
   diff: `diff --git a/.env.example b/.env.example
 index 2f3a4b5..6b7c8d9 100644

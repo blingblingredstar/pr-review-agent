@@ -4,6 +4,7 @@ import type { EvalCase } from "../score.ts";
 export default {
   id: "bug-01-pagination-off-by-one",
   kind: "bug",
+  source: "synthetic",
   description: "slice 上界多 +1 造成 off-by-one，每页多返回一条数据",
   diff: `diff --git a/src/pagination.ts b/src/pagination.ts
 index 1a2b3c4..5d6e7f8 100644

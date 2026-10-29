@@ -4,6 +4,7 @@ import type { EvalCase } from "../score.ts";
 export default {
   id: "linked-06-doc-drift",
   kind: "linked",
+  source: "synthetic",
   description: "默认值改动未同步 README 配置表（文档漂移）",
   diff: `diff --git a/src/config.ts b/src/config.ts
 index 1f2a3b4..5b6c7d8 100644

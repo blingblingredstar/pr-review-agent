@@ -2,7 +2,7 @@ import type { EvalCase } from "../score.ts";
 
 // 回归集：本仓库 PR #2 真实自审意见（空值 ?? 兜底后仍调度审查，应在入口忽略）。agent 考过的原题，能力评估不计入，防 prompt 退化
 export default {
-  id: "real-08-dogfood-webhook-guard",
+  id: "dogfood-01-webhook-guard",
   kind: "bug",
   source: "dogfood",
   description: "回归集：本仓库 PR #2 真实自审意见（空值 ?? 兜底后仍调度审查，应在入口忽略）。agent 考过的原题，能力评估不计入，防 prompt 退化",

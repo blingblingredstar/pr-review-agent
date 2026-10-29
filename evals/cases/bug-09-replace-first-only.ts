@@ -4,6 +4,7 @@ import type { EvalCase } from "../score.ts";
 export default {
   id: "bug-09-replace-first-only",
   kind: "bug",
+  source: "synthetic",
   description: "replaceAll 误改回 replace，只替换第一个匹配",
   diff: `diff --git a/src/sanitize.ts b/src/sanitize.ts
 index 1b2c3d4..5c6d7e8 100644

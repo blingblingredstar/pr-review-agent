@@ -4,6 +4,7 @@ import type { EvalCase } from "../score.ts";
 export default {
   id: "bug-06-variable-shadowing",
   kind: "bug",
+  source: "synthetic",
   description: "内层 const total 遮蔽外层累加变量，函数返回 0",
   diff: `diff --git a/src/checkout.ts b/src/checkout.ts
 index 8e9f0a1..2f3a4b5 100644

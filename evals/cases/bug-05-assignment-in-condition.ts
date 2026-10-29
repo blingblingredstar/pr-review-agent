@@ -4,6 +4,7 @@ import type { EvalCase } from "../score.ts";
 export default {
   id: "bug-05-assignment-in-condition",
   kind: "bug",
+  source: "synthetic",
   description: "把 === 误写成 =，if 条件变成赋值恒真",
   diff: `diff --git a/src/feature-flags.ts b/src/feature-flags.ts
 index 7d8e9f0..1e2f3a4 100644
