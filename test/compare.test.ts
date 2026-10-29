@@ -82,7 +82,8 @@ test("aggregateRuns：旧 run 无指纹归 legacy 组；未全命中用例进短
   const bbb = aggs[1]!;
   // r-01 两轮都未全命中：定位取首候选文件、跨轮去重；s-01 第二轮全命中（第一份 run 基准里它存在但 new 里两轮全命中——矩阵只列未全命中）
   const r01 = bbb.unstable.find((u) => u.caseId === "r-01")!;
-  assert.deepEqual(r01.missAt, ["src/x.ts:42", "src/z.ts:*"]);
+  // 数组期望列出全部候选（fileA|fileB:行）
+  assert.deepEqual(r01.missAt, ["src/x.ts|src/y.ts:42", "src/z.ts:*"]);
   assert.deepEqual(r01.perRun, ["0/2", "0/2"]);
   assert.ok(!bbb.unstable.some((u) => u.caseId === "s-01"));
 });
