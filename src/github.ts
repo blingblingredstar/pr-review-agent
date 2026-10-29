@@ -115,6 +115,9 @@ export async function postReview(
       ].join("\n")
     : summary;
   const reviewEvent = result.comments.length > 0 ? "REQUEST_CHANGES" : "COMMENT";
+  // 实际落点计数：422 回落全量降级后 inline=0——日志与 pr-review status 必须反映真实落点
+  // （行内意味着可闭环线程，降级意味着需人工看 body），不能沿用预定位切分
+  let posted = { inline: inline.length, degraded: degraded.length };
   const postReviewRequest = (event: "COMMENT" | "REQUEST_CHANGES", reviewBody: string) =>
     client.rest.pulls.createReview({
       owner,
@@ -154,6 +157,7 @@ export async function postReview(
       event: "COMMENT",
       body: fallback,
     });
+    posted = { inline: 0, degraded: result.comments.length };
   }
   const labels = severityLabels(result);
   if (labels.length > 0) {
@@ -164,7 +168,7 @@ export async function postReview(
       console.warn(`[github] PR#${pullNumber} 打标签失败（${labels.join(",")}）`, err);
     }
   }
-  return { inline: inline.length, degraded: degraded.length };
+  return posted;
 }
 
 function isStatus(err: unknown, status: number): boolean {

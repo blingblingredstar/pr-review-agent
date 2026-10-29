@@ -222,7 +222,7 @@ async function main(): Promise<void> {
   }
   // 竞态防护：bot 复审有延迟，全部线程 resolve ≠ 最新 commit 的复审已提交。
   // PR #9 的三条降级意见就是在合并瞬间才落地（无线程、闭环对它不可见），合并前无从核对。
-  // 翻页遍历：长生命周期 PR 的 review 数可超单页（PR #9 已 17 条）
+  // 翻页遍历：长生命周期 PR 的 review 数可超单页（PR #9 已 17 条）；上限 5 页（500 条）已远超实际，超出按「复审在途」提示，方向安全
   let reviewed = false;
   for (let page = 1; page <= 5; page++) {
     const reviews = await client.rest.pulls.listReviews({ owner, repo, pull_number: pullNumber, per_page: 100, page });

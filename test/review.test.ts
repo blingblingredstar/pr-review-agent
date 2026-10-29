@@ -166,7 +166,8 @@ test("diffCoveredLines：hunk 声明内的空上下文行是真实内容，正�
     "",
   ].join("\n") + "\n";
   const covered = diffCoveredLines(diff);
-  // 声明新侧 4 行：第 4 行就是空上下文行（行号 13），不是幻影
+  // 声明新侧 4 行：第 4 行就是空上下文行（行号 13），不是幻影。
+  // 已知残余盲区：模型产出声明行数偏大的畸形 diff 时尾部伪影仍可能被记——由 422 全量降级兜底（journal 会话 18 取舍）
   assert.deepEqual([...covered.get("src/a.ts")!].sort((x, y) => x - y), [10, 11, 12, 13]);
 });
 
