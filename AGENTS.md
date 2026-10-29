@@ -31,7 +31,8 @@ Harness 的核心纪律：**每一步都可回放**。文档只追加、少改�
 - LLM 接入按 OpenAI 兼容端点抽象（`LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`），代码与文档不绑定具体厂商
 - 阶段性计划与规格（specs）统一归档 `docs/plans/`，后续新计划也放这个目录
 - 对外表述按真实项目定位，不出现个人背景相关措辞
-- 开 PR 后先看 agent 自审意见，逐条处理（修复 / 回应不修的理由 / 标记误报）再合并；处理完 `npm run resolve:threads -- owner/repo#N` 清掉全部线程、`review-threads` check 变绿后才合并（D013）
+- 开 PR 后先看 agent 自审意见，逐条处理（修复 / 回应不修的理由 / 标记误报）再合并；处理完 `npm run resolve:threads -- owner/repo#N --yes` 清掉全部线程、`review-threads` check 变绿后才合并（D013）
+- 开 PR 时按标题前缀打类型标签（feat/fix/docs/ci/chore/refactor/test）；bot 回帖时自动打 `has-blocker` / `has-major`（minor/nit 不打，避免噪音）
 
 ## 提交规范
 
