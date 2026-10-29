@@ -180,7 +180,7 @@ test("diffCoveredLines：+++ /dev/null 精确匹配，路径含该字样的真�
     "@@ -1,1 +1,2 @@",
     " ctx",
     "+new",
-  ].join("\n");
+  ].join("\n") + "\n";
   const covered = diffCoveredLines(diff);
   assert.ok(covered.get("test/a/dev/null")!.has(2), "路径含 /dev/null 字样的真实文件应正常解析");
 });

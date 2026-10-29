@@ -134,10 +134,11 @@ export async function postReview(
       await client.rest.pulls.createReview(payload);
       return;
     } catch (err) {
-      // 403 = 无写权限；REQUEST_CHANGES 的 422 唯一来源是自家 PR 拒绝（行号类 422 由外层全量降级处理）——
-      // 无条件回退 COMMENT：意见不丢，只降级为不 block。dogfood（bot = PR 作者）场景恒走此回退
+      // 403 = 无写权限；422 可能是自家 PR 拒绝，也可能是行内意见行号非法（该场景回退 COMMENT 会再 422，
+      // 落到外层全量降级——行为正确但日志归因到 REQUEST_CHANGES，排查时注意）。无条件回退 COMMENT：意见不丢，只降级为不 block。
+      // dogfood（bot = PR 作者）场景恒走此回退，多仓产品化（bot ≠ 作者）时原生生效
       if (event === "REQUEST_CHANGES" && (isStatus(err, 403) || isStatus(err, 422))) {
-        console.warn(`[github] REQUEST_CHANGES 被拒（\${isStatus(err, 403) ? "403 无写权限" : "422 自家 PR"}），回退 COMMENT`);
+        console.warn(`[github] REQUEST_CHANGES 被拒（${isStatus(err, 403) ? "403 无写权限" : "422 自家 PR 或行号非法"}），回退 COMMENT`);
         await client.rest.pulls.createReview({ ...payload, event: "COMMENT" });
         return;
       }
