@@ -68,7 +68,7 @@ pr-review-agent/
 
 - [x] **Day 1**：`npm init` + Vercel AI SDK 接 OpenAI 兼容端点，跑通"输入 diff 文本 → 输出结构化审查意见"（核心链路，先本地 hardcode 一个 diff）
 - [x] **Day 2**：`github.ts`（octokit 拉真 PR diff + 回帖），本地对任意公开仓库 PR 试跑
-- [ ] **Day 3**：webhook 路由 + 签名校验 + dedupe，部署 Vercel，在自己建的真实仓库上开 PR 全链路验证
+- [x] **Day 3**：webhook 路由 + 签名校验 + dedupe，部署 Vercel，在自己建的真实仓库上开 PR 全链路验证
 - [ ] **Day 4-5**：攒 eval 集（20 个用例：一半有明确 bug 的 diff，一半是"应该主动发现的关联问题"——参考 Surge AI DAYJOB 的 rubric 思路：计算/证据/关联问题/交付物）
 - [ ] **Day 6**：跑 eval → 改 2-3 轮 prompt → 出对比报告（准确率/召回率或逐条命中表）
 - [ ] **Day 7**：README（含 eval 报告），发一条社交平台总结帖
