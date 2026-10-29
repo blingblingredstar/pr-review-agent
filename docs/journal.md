@@ -231,7 +231,7 @@
   - 「测试的 diff 都不带尾换行」让幻影行号逃过单测——手写测试夹具与真实输入（GitHub diff 恒以 \n 结尾）形态差异本身就是盲区
   - `-` 行错误消耗新侧行数计数是被新加的 b/ 前缀测试抓出来的——测试间互相兜底的价值
   - resolve:threads 全量收尾时序竞态：check 绿 ≠ 复审已落地，现在有机械提示但仍需人工等——REQUEST_CHANGES 从源头收窄了这个窗口（有意见必 block）
-- **PR #10 六轮闭环实录（新闸门 dogfood）**：21 条意见全部修复/回应（第五轮 major：自家 PR 不能 REQUEST_CHANGES——dogfood 场景恒走回退 COMMENT，多仓产品化时原生生效；422 无条件回退替代文案正则），第七轮 0 条收敛合并。生产部署缺口已补：`npx vercel --prod` 部署成功（CLI 授权本机已有，1 分钟上线），冒烟 405/401 符合预期，D016/D017 生效；`vercel git connect` 失败——私有仓库需在 GitHub 侧安装 Vercel App（CLI 替代不了），留 dashboard 手动开启后 push main 即自动部署
+- **PR #10 六轮闭环实录（新闸门 dogfood）**：21 条意见全部修复/回应（第五轮 major：自家 PR 不能 REQUEST_CHANGES——dogfood 场景恒走回退 COMMENT，多仓产品化时原生生效；422 无条件回退替代文案正则），第七轮 0 条收敛合并。生产部署缺口已补：`npx vercel --prod` 部署成功（CLI 授权本机已有，1 分钟上线），冒烟 405/401 符合预期，D016/D017 生效；`vercel git connect` CLI 失败（私有仓库需 GitHub App 授权），用户在 dashboard 完成连接——空 commit 实测：push main 1 分钟内自动 Production 部署（Ready）+ GitHub deployment 记录出现，此后无需手动 npx vercel --prod
 - **下一步**：部署生产使 D016/D017 生效；Day 6——改 prompt + 多轮均值对比；上下文增强方案待拍板
 
 ## 2026-10-30 · 会话 18 续：PR #11——降级复审第三连的转义残留
