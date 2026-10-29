@@ -101,3 +101,9 @@
 
 - PR #8 合并后发现 review body 里两条 minor 漏处理：422 降级是「全有全无」，body 意见无线程、闭环机制对它不可见。改为逐条预定位——行号在 diff 内的照常行内发（进线程可闭环），只有真定位不了的列 body 并注明
 - 顺带修复同批自审意见：`resolve:threads` 参数解析消费式隔离（回复文本含 "--yes" 不再被误当开关）、eval summary JSON 落盘三级 source 分组指标（`groups`），AGENTS.md 补「拉意见须同时看 review body 降级列表」
+
+### Added（合并闸门双层强化，D017）
+
+- bot 有意见时以 `REQUEST_CHANGES` 提交 review——GitHub 原生禁用合并按钮（无需 branch protection），修复重审无意见后自动解除；审查进行中写 `pr-review` status（pending/success/failure），补上「review 尚未发布」的合并窗口期
+- `diffCoveredLines` 修幻影行号（hunk 头行数计数，尾部空串伪影不再多记一行——它会让行内发帖 422 回落全量降级）；`/dev/null` 精确匹配；完成日志分列行内/降级条数
+- `resolve:threads --yes` 收尾后检测「最新 head SHA 尚无 review 提交」提示复审在途（PR #9 竞态教训）

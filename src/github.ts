@@ -6,6 +6,25 @@ import { reviewMarker } from "./dedupe.ts";
 
 export type PrRef = { owner: string; repo: string; pullNumber: number };
 
+// 审查生命周期 status（D017）：审查中 pending、完成 success、失败 failure。
+// 与 review-threads.yml 的线程状态（context: review-threads）分离，二者共同构成合并闸门——
+// pending 补上「review 尚未发布」的窗口期（PR #9 合并瞬间意见落地的竞态）；转 public 后作为 required check 硬闸门
+export async function setReviewStatus(
+  client: Octokit,
+  { owner, repo, sha }: PrRef & { sha: string },
+  state: "pending" | "success" | "failure",
+  description: string,
+): Promise<void> {
+  await client.rest.repos.createCommitStatus({
+    owner,
+    repo,
+    sha,
+    state,
+    context: "pr-review",
+    description: description.slice(0, 140),
+  });
+}
+
 export function getOctokit(): Octokit {
   const { GITHUB_TOKEN } = process.env;
   if (!GITHUB_TOKEN) {
@@ -78,7 +97,7 @@ export async function postReview(
   { owner, repo, pullNumber, commitId }: PrRef & { commitId: string },
   result: ReviewResult,
   diff: string,
-): Promise<void> {
+): Promise<{ inline: number; degraded: number }> {
   const { inline, degraded } = splitByLocatable(result, diff);
   const comments = inline.map(({ comment: c, path }) => ({
     path,
@@ -101,7 +120,7 @@ export async function postReview(
       repo,
       pull_number: pullNumber,
       commit_id: commitId,
-      event: "COMMENT",
+      event: result.comments.length > 0 ? "REQUEST_CHANGES" : "COMMENT",
       body,
       comments,
     });
@@ -122,7 +141,9 @@ export async function postReview(
       event: "COMMENT",
       body: fallback,
     });
+    return { inline: 0, degraded: result.comments.length };
   }
+  return { inline: inline.length, degraded: degraded.length };
   const labels = severityLabels(result);
   if (labels.length > 0) {
     try {

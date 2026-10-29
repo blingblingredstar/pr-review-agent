@@ -53,6 +53,9 @@ export function diffCoveredLines(diff: string): Map<string, Set<number>> {
   let file = "";
   let inHunk = false;
   let line = 0;
+  // hunk 头声明的新侧行数计数：扫描用尽即结束当前 hunk——真实 diff 以换行结尾，split 出的
+  // 尾部空字符串若被当上下文行会 mark 出「最后一行 +1」的幻影行号，行内发帖必然 422 回落全量降级
+  let remain = 0;
   const mark = () => {
     if (!file) return;
     let set = covered.get(file);
@@ -72,33 +75,41 @@ export function diffCoveredLines(diff: string): Map<string, Set<number>> {
         /^diff --git a\/\S+ b\/(\S+)$/.exec(raw);
       file = m ? unquoteGitPath(m[1]).replace(/^b\//, "") : "";
       inHunk = false;
+      remain = 0;
       continue;
     }
     if (inHunk) {
       const nextHunk = /^@@ -\d+(?:,\d+)? \+(\d+)/.exec(raw);
       if (nextHunk) {
+        // 声明行数未用尽就出现 @@：畸形 diff，仍按新 hunk 接管（防御）
         line = Number(nextHunk[1]);
         continue;
       }
-      if (raw.startsWith("\\")) continue; // "\ No newline at end of file"
-      if (raw.startsWith("-")) {
-        // 旧侧删除行不占新行号，不 mark 不推进
-        continue;
+      if (raw.startsWith("\\")) continue; // "\ No newline at end of file" 不是内容行，不占声明行数
+      if (raw.startsWith("-")) continue; // 旧侧删除行不占新侧行数，不消耗 remain
+      if (remain <= 0) {
+        // 新侧声明行数已用尽：hunk 结束（尾部空字符串行等伪影在此被拒之门外）
+        inHunk = false;
+      } else {
+        remain--;
+        mark();
+        line++;
       }
-      mark();
-      line++;
       continue;
     }
-    if (raw.startsWith("+++ ") && raw.includes("/dev/null")) {
-      // 纯删除文件新侧不存在，任何行内评论必然 422——跳过以免坏意见拖累同 review 的好意见
+    if (raw.startsWith("+++ ") && raw.slice(4).trim() === "/dev/null") {
+      // 纯删除文件新侧不存在，任何行内评论必然 422——跳过以免坏意见拖累同 review 的好意见。
+      // 精确比较：仓库里真有路径含 "/dev/null" 字样的文件（如 fixture）时 includes 会误伤
       file = "";
       inHunk = false;
+      remain = 0;
       continue;
     }
-    const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)/.exec(raw);
+    const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/.exec(raw);
     if (hunk) {
       inHunk = true;
       line = Number(hunk[1]);
+      remain = Number(hunk[2] ?? 1);
     }
   }
   return covered;

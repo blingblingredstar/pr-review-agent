@@ -219,3 +219,16 @@
   - `review-pr.ts` 本地工具也调 postReview，签名变更会被 typecheck 拦——脚本纳入 tsconfig include 的价值实证
 - **能力边界（用户问题解答）**：当前 reviewDiff 只把 unified diff 文本喂给模型，看不到仓库其他文件——「删除导出后别处还在用」这类 diff 外引用只能靠 hunk 上下文恰好覆盖（eval 的 linked-01/03 正是这么设计的）。上下文增强（拉相关文件/搜索引用喂 prompt）列为候选改进，待与多模型对比（Day 6）一起取舍
 - **下一步**：Day 6——改 prompt（getter 语义、linked-08 类漂移、precision 降噪）+ 多轮均值对比报告；上下文增强是否本期做待定
+
+## 2026-10-30 · 会话 18：合并闸门双层强化（D017）+ 幻影行号修复
+
+- **目标**：用户看到 PR #9 合并瞬间又落地 3 条降级意见（与 PR #8 同款竞态），提出「review 进行中应 block 合并」。
+- **完成**：
+  - D017 双层：有意见 → REQUEST_CHANGES（原生禁合并按钮，无 branch protection 也可用）；审查生命周期 pr-review status（pending/success/failure）补窗口期；resolve:threads --yes 收尾后检测复审在途
+  - 幻影行号 major 修复：diffCoveredLines 按 hunk 头声明的行数计数（remain），尾部空串伪影被拒之门外；- 行不消耗新侧计数（测试抓出）；声明内的空上下文行仍是真实内容——两个方向的单测都补了
+  - /dev/null 精确匹配（includes 误伤路径含该字样的真实文件）；完成日志分列行内/降级
+- **发现 / 坑**：
+  - 「测试的 diff 都不带尾换行」让幻影行号逃过单测——手写测试夹具与真实输入（GitHub diff 恒以 \n 结尾）形态差异本身就是盲区
+  - `-` 行错误消耗新侧行数计数是被新加的 b/ 前缀测试抓出来的——测试间互相兜底的价值
+  - resolve:threads 全量收尾时序竞态：check 绿 ≠ 复审已落地，现在有机械提示但仍需人工等——REQUEST_CHANGES 从源头收窄了这个窗口（有意见必 block）
+- **下一步**：本 PR 走新闸门 dogfood（看 REQUEST_CHANGES 解除流程是否顺）；Day 6——改 prompt + 多轮均值对比；上下文增强方案待拍板

@@ -2,7 +2,7 @@
 // 立即 200 + waitUntil 后台审查（D004）。与 Vercel 解耦：headers/body 进、{status, note} 出，便于单测。
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { waitUntil } from "@vercel/functions";
-import { fetchPr, getOctokit, postReview, postTimeoutNotice, type PrRef } from "./github.ts";
+import { fetchPr, getOctokit, postReview, postTimeoutNotice, setReviewStatus, type PrRef } from "./github.ts";
 import { hasReviewed } from "./dedupe.ts";
 import { llmTimeoutMs, reviewDiff } from "./review.ts";
 
@@ -77,19 +77,42 @@ async function runReview(ref: PrRef & { headSha: string }): Promise<void> {
       console.log(`[review] ${key} 已有同 SHA 审查，跳过（幂等，D010）`);
       return;
     }
+    // 审查生命周期 status（D017）：开始即 pending，补上「review 尚未发布」的合并窗口期；
+    // 失败只记日志不连坐流程，status 由下方 finally 之外的成功/失败路径分别落定
+    try {
+      await setReviewStatus(client, { ...ref, sha: ref.headSha }, "pending", "审查进行中");
+    } catch (statusErr) {
+      console.error(`[review] ${key} pending status 写失败`, statusErr);
+    }
     const { diff } = await fetchPr(client, ref);
     const result = await reviewDiff(diff);
-    await postReview(client, { owner: ref.owner, repo: ref.repo, pullNumber: ref.pullNumber, commitId: ref.headSha }, result, diff);
-    console.log(`[review] ${key} 完成：${result.comments.length} 条意见`);
+    const posted = await postReview(client, { owner: ref.owner, repo: ref.repo, pullNumber: ref.pullNumber, commitId: ref.headSha }, result, diff);
+    console.log(`[review] ${key} 完成：${posted.inline} 条行内（进线程可闭环），${posted.degraded} 条降级进 body`);
+    try {
+      await setReviewStatus(
+        client,
+        { ...ref, sha: ref.headSha },
+        "success",
+        posted.degraded > 0 ? `完成：${posted.inline} 条行内 / ${posted.degraded} 条降级进 body` : `完成：${posted.inline} 条意见`,
+      );
+    } catch (statusErr) {
+      console.error(`[review] ${key} success status 写失败`, statusErr);
+    }
   } catch (err) {
     if (isTimeoutError(err)) {
       console.error(`[review] ${key} LLM 超时（${llmTimeoutMs()}ms），发降级通知（D011）`);
       try {
         await postTimeoutNotice(getOctokit(), ref, llmTimeoutMs());
+        await setReviewStatus(getOctokit(), { ...ref, sha: ref.headSha }, "failure", "审查超时，重推 commit 可重试");
       } catch (postErr) {
         console.error(`[review] ${key} 降级通知发送失败`, postErr);
       }
       return;
+    }
+    try {
+      await setReviewStatus(getOctokit(), { ...ref, sha: ref.headSha }, "failure", "审查失败，见 Vercel 日志");
+    } catch (statusErr) {
+      console.error(`[review] ${key} failure status 写失败`, statusErr);
     }
     console.error(`[review] ${key} 审查失败`, err);
   }

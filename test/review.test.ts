@@ -134,3 +134,52 @@ test("diffCoveredLines：rename 混合引号形态（a 侧引号 b 侧裸）取 
   const covered = diffCoveredLines(diff);
   assert.ok(covered.has("new.ts"), `实际 key: ${[...covered.keys()].join(", ")}`);
 });
+
+test("diffCoveredLines：真实 diff 的尾部换行不产生幻影行号", () => {
+  // 真实 GitHub diff 以 \n 结尾：split 出的尾部空串曾被当上下文行 mark 出「最后一行 +1」的幻影。
+  // hunk 声明 3 行新侧，内容 3 行后尾空串应被 remain 拒绝
+  const diff = [
+    "diff --git a/src/a.ts b/src/a.ts",
+    "index 1..2 100644",
+    "--- a/src/a.ts",
+    "+++ b/src/a.ts",
+    "@@ -10,3 +10,3 @@",
+    " ctx",
+    "+added",
+    " tail",
+    "",
+  ].join("\n") + "\n";
+  const covered = diffCoveredLines(diff);
+  assert.deepEqual([...covered.get("src/a.ts")!].sort((x, y) => x - y), [10, 11, 12]);
+});
+
+test("diffCoveredLines：hunk 声明内的空上下文行是真实内容，正常记录", () => {
+  const diff = [
+    "diff --git a/src/a.ts b/src/a.ts",
+    "index 1..2 100644",
+    "--- a/src/a.ts",
+    "+++ b/src/a.ts",
+    "@@ -10,3 +10,4 @@",
+    " ctx",
+    "+added",
+    " tail",
+    "",
+  ].join("\n") + "\n";
+  const covered = diffCoveredLines(diff);
+  // 声明新侧 4 行：第 4 行就是空上下文行（行号 13），不是幻影
+  assert.deepEqual([...covered.get("src/a.ts")!].sort((x, y) => x - y), [10, 11, 12, 13]);
+});
+
+test("diffCoveredLines：+++ /dev/null 精确匹配，路径含该字样的真实文件不受影响", () => {
+  const diff = [
+    "diff --git a/test/a/dev/null b/test/a/dev/null",
+    "index 1..2 100644",
+    "--- a/test/a/dev/null",
+    "+++ b/test/a/dev/null",
+    "@@ -1,1 +1,2 @@",
+    " ctx",
+    "+new",
+  ].join("\n");
+  const covered = diffCoveredLines(diff);
+  assert.ok(covered.get("test/a/dev/null")!.has(2), "路径含 /dev/null 字样的真实文件应正常解析");
+});

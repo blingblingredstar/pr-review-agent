@@ -24,7 +24,7 @@ GitHub API 回帖（逐条 PR review comment）◄──────────
 | `api/webhook.ts` | Vercel function 薄壳 | 读 raw body（不能碰 `req.body`，惰性解析会消费流破坏验签）+ 响应；`maxDuration: 300`（Hobby 上限） |
 | `src/webhook.ts` | 验签、事件分发、后台审查编排 | HMAC-SHA256 + `timingSafeEqual`，失败 401；只处理 `opened` / `synchronize`（其余含 `ping` 200 忽略）；立即 200 + `waitUntil`（`@vercel/functions`）执行 `runReview`；后台任务失败只记日志不抛出 |
 | `src/review.ts` | 拉 diff → 构造 prompt → LLM 审查 → 结构化输出 | prompt 从 `prompts/review.md` 读取；`generateText` + `Output.object` 强约束 schema；`llm.chat()` 显式走 chat/completions（兼容端点无 Responses API）；`AbortSignal.timeout(LLM_TIMEOUT_MS)` 默认 270s（D011）；`LLM_EXTRA_BODY` 合并进请求体控制 thinking 等端点参数（D012） |
-| `src/github.ts` | GitHub API 封装：拉 PR diff、发 review comment、超时通知、打 severity 标签 | 只依赖 octokit；便于 eval 时 mock；review summary 内嵌 sha 标记（D010）；`postReview` 后自动打 `has-blocker`/`has-major` 标签（minor/nit 不打，Day 6 eval 可当按时间的质量数据） |
+| `src/github.ts` | GitHub API 封装：拉 PR diff、发 review comment（有意见 REQUEST_CHANGES，D017）、审查生命周期 status、超时通知、打 severity 标签 | 只依赖 octokit；便于 eval 时 mock；review summary 内嵌 sha 标记（D010）；`postReview` 后自动打 `has-blocker`/`has-major` 标签（minor/nit 不打，Day 6 eval 可当按时间的质量数据） |
 | `src/dedupe.ts` | 同一 commit SHA 只审一次 | 查 PR 已有 review 的 `<!-- pr-review-agent sha:<SHA> -->` 标记（D010） |
 | `prompts/review.md` | 审查提示词（迭代对象） | prompt 与代码分离，方便 diff 和 eval 对比；`vercel.json` `includeFiles` 保证随函数打包 |
 | `evals/` | eval 用例集 + 跑分脚本 | `cases/` 29 个自包含 diff 用例（D015 三级 source：synthetic 20 手写教学 / real 7 真实仓库 fix 反转与配对 / dogfood 2 回归集；格式见 D014）；`score.ts` 打分纯函数（命中 = file + 行 ±3 + mustMention 任一关键词）；`run.ts` 入口（`npm run eval`，串行 + 失败重试，按 source 分组统计，能力评估 = synthetic + real，结果落盘 `runs/`）；用例结构校验在 `test/eval-cases.test.ts` |
@@ -51,6 +51,7 @@ schema 变更属于破坏性改动：必须同步改 `evals/run.ts` 的打分逻
 - **先 200 再异步**：LLM 审查可能几十秒到数分钟，超过 GitHub webhook 超时会触发重试导致重复评论。用 `waitUntil` 后台执行，HTTP 层立刻返回 200；Vercel Hobby 函数上限 300s（Fluid compute）。
 - **幂等去重**：以 review body 内嵌的 `(repo, commit SHA)` 标记为键（D010），同 SHA 已审直接跳过；超时通知不带标记，同 SHA 重投可重试。
 - **超时降级**（D011）：`AbortSignal.timeout(LLM_TIMEOUT_MS)`（默认 270s）硬超时；超时发 issue comment 告知并提示重推重试。
+- **合并闸门双层强化**（D017）：bot 有意见以 REQUEST_CHANGES 提交 review（GitHub 原生禁合并按钮，重审无意见自动解除）；审查生命周期写 `pr-review` status（pending/success/failure，与线程状态的 review-threads 分离），补上「review 尚未发布」的窗口期；`resolve:threads --yes` 收尾后检测 head SHA 复审在途。
 - **合并前意见闭环**（D013）：`.github/workflows/review-threads.yml` 查未 resolve 线程写 commit status（红灯走 status 而非 workflow 失败，避免设计内红灯触发失败邮件）；`scripts/resolve-threads.ts`（`npm run resolve:threads -- owner/repo#N --yes`）批量 resolve 后主动 rerun 闭合绿门。仓库工具，非运行时组件。
 - **diff 截断**：超大 PR 按文件分批调用，或只取变更行附近上下文，避免超出模型上下文窗口。
 
