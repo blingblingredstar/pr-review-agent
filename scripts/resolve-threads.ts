@@ -1,13 +1,15 @@
-// 解决 PR 上全部未 resolve 的 review 线程——合并仪式的最后一步（AGENTS.md 工程约定、D013）。
-// 用法：npm run resolve:threads -- owner/repo#N
+// 解决 PR 上未 resolve 的 review 线程——合并仪式的最后一步（AGENTS.md 工程约定、D013）。
+// 默认只列出线程摘要，确认逐条已处理（修复/回应）后加 --yes 执行。
+// 用法：npm run resolve:threads -- owner/repo#N [--yes]
 import { getOctokit } from "../src/github.ts";
 
 async function main(): Promise<void> {
   // 仓库名含 . - _ 之外字符极罕见，[\w.-]+ 已覆盖常规场景；不匹配时按用法错误退出
   const ref = process.argv[2] ?? "";
+  const yes = process.argv.includes("--yes");
   const m = ref.match(/^([\w.-]+)\/([\w.-]+)#(\d+)$/);
   if (!m) {
-    console.error("用法：npm run resolve:threads -- owner/repo#N");
+    console.error("用法：npm run resolve:threads -- owner/repo#N [--yes]");
     process.exit(1);
   }
   const [, owner, repo, num] = m;
@@ -15,7 +17,16 @@ async function main(): Promise<void> {
   const client = getOctokit();
   type Threads = {
     repository: {
-      pullRequest: { reviewThreads: { nodes: { id: string; isResolved: boolean }[]; pageInfo: { hasNextPage: boolean } } };
+      pullRequest: {
+        reviewThreads: {
+          nodes: {
+            id: string;
+            isResolved: boolean;
+            comments: { nodes: { author: { login: string | null } | null; body: string }[] };
+          }[];
+          pageInfo: { hasNextPage: boolean };
+        };
+      };
     };
   };
   const data = await client.graphql<Threads>(
@@ -36,30 +47,42 @@ async function main(): Promise<void> {
   }
   const open = threads.nodes.filter((t) => !t.isResolved);
   console.log(`未 resolve 线程：${open.length}`);
+  for (const t of open) {
+    const last = t.comments.nodes[0];
+    const text = (last?.body ?? "").split("\n")[0].slice(0, 80);
+    console.log(`  [${last?.author?.login ?? "?"}] ${text}`);
+  }
+  if (!yes) {
+    // 防「一键清场」：每条意见都要走过 修复/回应 才该被 resolve（AGENTS.md 流程）
+    console.log("确认已逐条处理后，加 --yes 执行 resolve");
+    return;
+  }
   type ResolveResult = { resolveReviewThread: { thread: { isResolved: boolean } } };
-  const results = await Promise.allSettled(
-    open.map((t) =>
-      client
-        .graphql<ResolveResult>(
-          `mutation($id:ID!){ resolveReviewThread(input:{threadId:$id}){ thread{ isResolved } } }`,
-          { id: t.id },
-        )
-        .then((res) => {
-          // GraphQL 不抛错的边缘场景（如线程刚被删除）也要算失败
-          if (!res.resolveReviewThread.thread.isResolved) {
-            throw new Error(`线程 ${t.id} resolve 后仍为未解决`);
-          }
-          console.log(`resolved: ${t.id}`);
-        }),
-    ),
-  );
-  const failed = results.filter((r) => r.status === "rejected");
-  if (failed.length > 0) {
-    // 逐条报告：部分成功时必须能看出哪些漏了
-    console.error(
-      `${failed.length} 条 resolve 失败：`,
-      failed.map((r) => (r as PromiseRejectedResult).reason?.message ?? (r as PromiseRejectedResult).reason),
-    );
+  const resolveOne = (t: { id: string }) =>
+    client
+      .graphql<ResolveResult>(
+        `mutation($id:ID!){ resolveReviewThread(input:{threadId:$id}){ thread{ isResolved } } }`,
+        { id: t.id },
+      )
+      .then((res) => {
+        // GraphQL 不抛错的边缘场景（如线程刚被删除）也要算失败
+        if (!res.resolveReviewThread.thread.isResolved) {
+          throw new Error(`线程 ${t.id} resolve 后仍为未解决`);
+        }
+        console.log(`resolved: ${t.id}`);
+      });
+  // 小批量并发，避免瞬时打满 GraphQL 点率
+  const failures: string[] = [];
+  for (let i = 0; i < open.length; i += 5) {
+    const results = await Promise.allSettled(open.slice(i, i + 5).map(resolveOne));
+    results.forEach((r, j) => {
+      if (r.status === "rejected") {
+        failures.push(`${open[i + j].id}: ${r.reason?.message ?? String(r.reason)}`);
+      }
+    });
+  }
+  if (failures.length > 0) {
+    console.error(`${failures.length} 条 resolve 失败：\n${failures.join("\n")}`);
     process.exit(1);
   }
 
