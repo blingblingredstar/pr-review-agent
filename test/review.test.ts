@@ -214,6 +214,16 @@ test("truncateDiff：全部块都超预算时返回纯省略列表", () => {
   assert.equal(out, "[diff 截断] 省略 a.ts (+1/-0)");
 });
 
+test("truncateDiff：省略行自身超预算时压缩为汇总行", () => {
+  // 主块最小（贪心先保留，used=50），d 块 130 > 剩余 40 全部被丢——30 条省略行 ~900 字符超剩余预算触发压缩
+  const kept = "diff --git a/k.ts b/k.ts\n@@ -1,1 +1,2 @@\n ctx\n+kk\n";
+  let diff = kept;
+  for (let i = 0; i < 30; i++) diff += `diff --git a/d${i}.ts b/d${i}.ts\n@@ -1,1 +1,2 @@\n ctx\n+${"x".repeat(80)}\n`;
+  const out = truncateDiff(diff, kept.length + 40);
+  assert.equal((out.match(/\[diff 截断\]/g) ?? []).length, 1, "应只有压缩后的汇总行");
+  assert.ok(out.includes("省略 30 个文件"), `实际输出末尾: ${out.slice(-120)}`);
+});
+
 test("diffMaxChars：未配置默认 300000，非法值告警回退，合法值生效", () => {
   const saved = process.env.DIFF_MAX_CHARS;
   try {

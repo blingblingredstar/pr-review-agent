@@ -150,6 +150,7 @@ export function truncateDiff(diff: string, budget: number = diffMaxChars()): str
       else if (line.startsWith("-") && !line.startsWith("---")) cur.dels++;
     }
   }
+  // 块大小为近似值：join 长度 + 1 个块间换行分隔符（末块无尾换行时多记 1 字符）；预算是软约束，不追求精确
   for (const b of blocks) b.size = b.lines.join("\n").length + 1;
   // 装不下就跳过继续试更小的（continue 而非 break），保留集按原顺序输出
   const order = blocks.map((_, i) => i).sort((a, b) => blocks[a].size - blocks[b].size);
@@ -162,9 +163,16 @@ export function truncateDiff(diff: string, budget: number = diffMaxChars()): str
   }
   if (keep.size === blocks.length) return diff;
   const kept = blocks.filter((_, i) => keep.has(i));
+  const droppedList = blocks.filter((_, i) => !keep.has(i));
   const out = kept.flatMap((b) => b.lines);
-  for (const [i, b] of blocks.entries()) {
-    if (!keep.has(i)) out.push(`[diff 截断] 省略 ${b.path} (+${b.adds}/-${b.dels})`);
+  const omitLines = droppedList.map((b) => `[diff 截断] 省略 ${b.path} (+${b.adds}/-${b.dels})`);
+  // 省略行自身也占输出：丢弃文件极多时会反噬预算——超了就压缩成一行汇总（总量有界）
+  if (omitLines.length > 1 && used + omitLines.join("\n").length + 1 > budget) {
+    const adds = droppedList.reduce((s, b) => s + b.adds, 0);
+    const dels = droppedList.reduce((s, b) => s + b.dels, 0);
+    out.push(`[diff 截断] 省略 ${droppedList.length} 个文件（超出 ${budget} 字符预算，合计 +${adds}/-${dels}）`);
+  } else {
+    out.push(...omitLines);
   }
   console.log(
     `[truncateDiff] 预算 ${budget} 字符：${blocks.length} 个文件块保留 ${kept.length} 个、省略 ${blocks.length - kept.length} 个`,
