@@ -43,7 +43,9 @@ test("aggregateRuns：跨轮微平均与分组指标", () => {
   assert.equal(agg.groups.synthetic.recall, 1);
   assert.ok(Math.abs(agg.groups.synthetic.precision! - 3 / 4) < 1e-9);
   assert.equal(agg.groups.real.recall, 0.5);
-  assert.ok(!("dogfood" in agg.groups));
+  // dogfood 组照常输出（打印处标注回归集），只是不进 micro 合计
+  assert.equal(agg.groups.dogfood.recall, 0.5);
+  assert.ok(Math.abs(agg.groups.dogfood.precision! - 5 / 7) < 1e-9);
   // 全命中轮显示 ✓（hits === verdicts，多期望用例也适用），miss 轮显示分数
   const r01 = agg.unstable.find((u) => u.caseId === "r-01")!;
   assert.deepEqual(r01.perRun, ["0/1", "✓"]);

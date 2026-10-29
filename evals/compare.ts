@@ -74,7 +74,8 @@ export function aggregateRuns(files: { name: string; data: RunJson }[]): Version
       capScores.map((s) => s.truePositives),
       capScores.map((s) => s.agentComments),
     );
-    const sources = [...new Set(ordered.flatMap((f) => f.data.runs.map((r) => r.source)))].filter(isCapabilitySource);
+    // groups 含全部 source（dogfood 照常输出、打印处标注回归集），能力口径只作用于 micro 合计
+    const sources = [...new Set(ordered.flatMap((f) => f.data.runs.map((r) => r.source)))];
     const groups = Object.fromEntries(
       sources.map((src) => {
         const ss = ordered
@@ -160,7 +161,8 @@ async function main() {
       console.log(`| 组 | recall（微平均） | precision（微平均） |`);
       console.log(`|---|---|---|`);
       for (const [src, m] of Object.entries(agg.groups)) {
-        console.log(`| ${src} | ${percent(m.recall)} | ${percent(m.precision)} |`);
+        const tag = isCapabilitySource(src) ? "" : "（回归集，不进合计）";
+        console.log(`| ${src}${tag} | ${percent(m.recall)} | ${percent(m.precision)} |`);
       }
       console.log(`| **合计（能力评估）** | **${percent(agg.micro.recall)}** | **${percent(agg.micro.precision)}** |`);
       if (agg.unstable.length > 0) {
