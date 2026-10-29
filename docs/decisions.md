@@ -117,3 +117,18 @@
   - 付费计划解锁 branch protection——单人项目成本不成比例；
   - 纯 AGENTS.md 约定——PR #2 已证明会被跳过。
 - **后果**：check 红灯技术上仍可合并，但未决意见在每次 PR 上显式暴露；合并流程多一步 resolve，换来闭环可核查。
+
+## D014 — eval 集：手写自包含 diff 用例 + 确定性规则打分
+
+- **状态**：已接受（2026-10-29，Day 4-5）
+- **背景**：PLAN 验收标准要求 `npm run eval` 一条命令跑 20 用例出打分表，且 Day 6 改 prompt 需要前后可比的数据。真实开源 PR 抓取不可控（diff 噪音大、期望发现无法精确标注），打分若靠 LLM judge 则引入偏差与成本。
+- **决策**：
+  - 20 个手写自包含 unified diff 用例（10 个明确 bug + 10 个「应主动发现的关联问题」），每用例一个 TS 文件，`evals/cases/` 目录 readdir 动态加载；
+  - 期望意见形如 `{ file（可给候选数组）, line（可 null 表示文件级）, mustMention[] }`；命中 = 文件命中 + 行号 ±3 容差 + body 含任一关键词（大小写不敏感）；
+  - 指标：recall（期望意见命中率）+ precision（agent 意见中命中期望的比例，micro 平均）；severity 不进判定、只做报告展示；
+  - 结果每次落盘 `evals/runs/<时间戳>-<模型>.{json,md}`，Day 6 改 prompt 前后取两份 run 对比出 report。
+- **备选**：
+  - 抓真实开源 PR——期望发现要人工逆向标注，且 diff 无法复制到 CI 稳定复现；
+  - LLM judge 语义打分——每次跑分多一层模型成本与波动，20 用例规模下确定性规则足够判定；
+  - 精确匹配（行号无容差 / body 全文比对）——把措辞差异误判为未命中，recall 虚低。
+- **后果**：用例正确性（hunk 行数、期望行落点）由 `test/eval-cases.test.ts` 结构校验兜底，手写行号错误进不了主干；关键词弱匹配的判定误差用多候选 mustMention 缓解，残余误差对「同一 prompt 前后对比」是系统性的，不影响趋势结论；agent 发现 diff 中未标注的真问题会被计成 FP，写用例时保持 diff 干净即可。

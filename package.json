@@ -9,6 +9,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test test/*.test.ts",
+    "eval": "node --env-file=.env --import tsx evals/run.ts",
     "review:local": "node --env-file=.env --import tsx scripts/local.ts",
     "review:pr": "node --env-file=.env --import tsx scripts/review-pr.ts",
     "setup:webhook": "node --env-file=.env --import tsx scripts/setup-webhook.ts",

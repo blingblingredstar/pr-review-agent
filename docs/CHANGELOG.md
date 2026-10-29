@@ -85,3 +85,9 @@
 ### Fixed（Day 3 · 邮件治理）
 
 - review-threads 红灯从 workflow 失败改写 commit status——设计内的「有未决意见」不再触发 GitHub 失败邮件（PR #4 曾炸出 27 封）；workflow 只在 status 写入失败（异常）时失败
+
+### Added（Day 4-5 · eval 集）
+
+- `evals/` 从零建立：20 个自包含 diff 用例（10 明确 bug + 10 关联问题）+ `score.ts` 确定性打分（D014：file + 行 ±3 + mustMention 任一关键词）+ `run.ts` 跑分入口
+- `npm run eval`：一条命令跑完 20 用例输出打分表（recall / precision / 逐条命中），结果落盘 `evals/runs/` 供 Day 6 对比
+- 用例结构校验进单测（hunk 行数、期望行落点），手写 diff 的行号错误进不了主干
