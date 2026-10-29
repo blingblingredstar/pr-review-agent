@@ -7,7 +7,6 @@ function runJson({ runs, ...rest }: Partial<RunJson> & { runs: RunJson["runs"] }
     startedAt: "2026-10-30T00:00:00Z",
     model: "test-model",
     promptHash: "aaa",
-    summary: { groups: {} },
     ...rest,
     runs,
   } as RunJson;

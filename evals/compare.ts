@@ -96,9 +96,9 @@ export function aggregateRuns(files: { name: string; data: RunJson }[]): Version
         const r = lookup(f);
         if (!r) return "缺";
         if (r.error || !r.score) return "err";
-        return r.score.verdicts.length > 0 && r.score.hits === r.score.verdicts.length
-          ? "✓"
-          : `${r.score.hits}/${r.score.verdicts.length}`;
+        const { hits, verdicts } = r.score;
+        // 空期望显示 —：「没有期望可打分」与「全 miss」（0/N）是两回事
+        return verdicts.length === 0 ? "—" : hits === verdicts.length ? "✓" : `${hits}/${verdicts.length}`;
       });
       const allFull = ordered.every((f) => {
         const r = lookup(f);
