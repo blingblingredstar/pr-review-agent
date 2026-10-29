@@ -47,9 +47,9 @@ async function main(): Promise<void> {
         .then((res) => {
           // GraphQL 不抛错的边缘场景（如线程刚被删除）也要算失败
           if (!res.resolveReviewThread.thread.isResolved) {
-            throw new Error(`线程 ${t.id.slice(0, 20)}… resolve 后仍为未解决`);
+            throw new Error(`线程 ${t.id} resolve 后仍为未解决`);
           }
-          console.log(`resolved: ${t.id.slice(0, 20)}…`);
+          console.log(`resolved: ${t.id}`);
         }),
     ),
   );
@@ -64,20 +64,28 @@ async function main(): Promise<void> {
   }
 
   // resolve 动作不触发 pull_request / pull_request_review 事件，check 不会自动重跑——主动触发，闭合「绿了才合并」
+  // 按 head_sha 匹配 run：fork PR 的分支在本仓库无对应 run，同分支多 PR 时 branch 过滤会张冠李戴
   const pr = await client.rest.pulls.get({ owner, repo, pull_number: Number(num) });
   const runs = await client.rest.actions.listWorkflowRuns({
     owner,
     repo,
     workflow_id: "review-threads.yml",
-    branch: pr.data.head.ref,
-    per_page: 1,
+    per_page: 20,
   });
-  const run = runs.data.workflow_runs[0];
+  const run = runs.data.workflow_runs.find((r) => r.head_sha === pr.data.head.sha);
   if (run) {
-    await client.rest.actions.reRunWorkflow({ owner, repo, run_id: run.id });
-    console.log(`已重跑 review-threads check（run ${run.id}），变绿后即可合并`);
+    try {
+      await client.rest.actions.reRunWorkflow({ owner, repo, run_id: run.id });
+      console.log(`已重跑 review-threads check（run ${run.id}），变绿后即可合并`);
+    } catch (err) {
+      console.error(
+        `重跑 check 失败（reRunWorkflow 需带 repo/actions:write 权限的 PAT）：`,
+        err instanceof Error ? err.message : err,
+      );
+      process.exit(1);
+    }
   } else {
-    console.log("未找到可重跑的 check run（可能尚未触发过），请人工确认线程已全部 resolve 再合并");
+    console.log("未找到该 head SHA 的 check run（可能尚未触发过），请人工确认线程已全部 resolve 再合并");
   }
 }
 
