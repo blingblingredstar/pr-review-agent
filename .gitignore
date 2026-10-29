@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Environment & secrets
+.env
+.env.local
+.env*.local
+
+# Vercel
+.vercel/
+
+# Build output
+dist/
+build/
+
+# Test / eval artifacts
+coverage/
+evals/output/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+*.swp
