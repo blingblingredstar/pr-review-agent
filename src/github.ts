@@ -141,9 +141,7 @@ export async function postReview(
       event: "COMMENT",
       body: fallback,
     });
-    return { inline: 0, degraded: result.comments.length };
   }
-  return { inline: inline.length, degraded: degraded.length };
   const labels = severityLabels(result);
   if (labels.length > 0) {
     try {
@@ -153,6 +151,7 @@ export async function postReview(
       console.warn(`[github] PR#${pullNumber} 打标签失败（${labels.join(",")}）`, err);
     }
   }
+  return { inline: inline.length, degraded: degraded.length };
 }
 
 function isStatus(err: unknown, status: number): boolean {
