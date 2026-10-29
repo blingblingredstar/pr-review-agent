@@ -38,12 +38,16 @@ test("aggregateRuns：跨轮微平均与分组指标", () => {
   const [agg] = aggregateRuns([{ name: "a.json", data: f1 }, { name: "b.json", data: f2 }]);
   // 合计（synthetic+real）：recall 3/4，precision 4/6；dogfood 不进
   assert.equal(agg.promptHash, "aaa");
+  assert.equal(agg.model, "test-model");
   assert.equal(agg.micro.recall, 0.75);
   assert.ok(Math.abs(agg.micro.precision! - 4 / 6) < 1e-9);
   assert.equal(agg.groups.synthetic.recall, 1);
   assert.ok(Math.abs(agg.groups.synthetic.precision! - 3 / 4) < 1e-9);
   assert.equal(agg.groups.real.recall, 0.5);
   assert.ok(!("dogfood" in agg.groups));
+  // 全命中轮显示 ✓（hits === verdicts，多期望用例也适用），miss 轮显示分数
+  const r01 = agg.unstable.find((u) => u.caseId === "r-01")!;
+  assert.deepEqual(r01.perRun, ["0/1", "✓"]);
 });
 
 test("aggregateRuns：旧 run 无指纹归 legacy 组；未全命中用例进短板矩阵并去重定位", () => {

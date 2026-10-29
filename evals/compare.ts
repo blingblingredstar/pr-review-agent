@@ -26,6 +26,7 @@ export type RunJson = {
 
 export type VersionAggregate = {
   promptHash: string;
+  model: string;
   files: string[];
   micro: Micro;
   groups: Record<string, Micro>;
@@ -45,14 +46,18 @@ function micro(hits: number[], expects: number[], tps: number[], comments: numbe
 export type Micro = { recall: number | null; precision: number | null };
 
 export function aggregateRuns(files: { name: string; data: RunJson }[]): VersionAggregate[] {
-  const byPrompt = new Map<string, { name: string; data: RunJson }[]>();
+  // model + prompt 指纹一起分组：同 prompt 换模型不属于同一次对比
+  const byGroup = new Map<string, { name: string; data: RunJson }[]>();
   for (const f of files) {
-    const key = f.data.promptHash ?? "legacy(无指纹)";
-    const list = byPrompt.get(key) ?? [];
+    const model = f.data.model ?? "(unknown)";
+    const promptHash = f.data.promptHash ?? "legacy(无指纹)";
+    const key = `${model}\u0000${promptHash}`;
+    const list = byGroup.get(key) ?? [];
     list.push(f);
-    byPrompt.set(key, list);
+    byGroup.set(key, list);
   }
-  return [...byPrompt.entries()].map(([promptHash, list]) => {
+  return [...byGroup.entries()].map(([key, list]) => {
+    const [model, promptHash] = key.split("\u0000");
     const ordered = [...list].sort((a, b) => a.data.startedAt.localeCompare(b.data.startedAt));
     // 能力评估口径：dogfood 排除（与 run.ts 一致）
     const capScores = ordered
@@ -86,7 +91,7 @@ export function aggregateRuns(files: { name: string; data: RunJson }[]): Version
         const r = lookup(f);
         if (!r) return "缺";
         if (r.error || !r.score) return "err";
-        return `${r.score.hits}/${r.score.verdicts.length}`;
+        return r.score.hits === r.score.verdicts.length ? "✓" : `${r.score.hits}/${r.score.verdicts.length}`;
       });
       const allFull = ordered.every((f) => {
         const r = lookup(f);
@@ -110,7 +115,8 @@ export function aggregateRuns(files: { name: string; data: RunJson }[]): Version
     });
     return {
       promptHash,
-      files: ordered.map((f) => f.name.replace(/^.*\//, "")),
+      model,
+      files: ordered.map((f) => f.name),
       micro: microM,
       groups,
       unstable,
@@ -127,12 +133,21 @@ async function main() {
     process.exitCode = 1;
     return;
   }
-  const files = paths.map((p) => ({ name: p, data: JSON.parse(readFileSync(p, "utf8")) as RunJson }));
+  const files = paths.map((p) => {
+    let data: RunJson;
+    try {
+      data = JSON.parse(readFileSync(p, "utf8")) as RunJson;
+    } catch (e) {
+      throw new Error(`run 文件不可读或非 JSON：${p}（${String(e).slice(0, 120)}）`);
+    }
+    if (!Array.isArray(data?.runs)) throw new Error(`run 文件结构不对（缺 runs 数组）：${p}`);
+    return { name: p, data };
+  });
   const models = [...new Set(files.map((f) => f.data.model))];
   console.log(`# eval 对比：${files.length} 轮，模型 ${models.join(", ")}\n`);
   // 按 prompt 首次出现顺序输出（命令行顺序即时间顺序）
   for (const agg of aggregateRuns(files)) {
-    console.log(`## prompt \`${agg.promptHash}\`（${agg.files.length} 轮：${agg.files.join(", ")}）\n`);
+    console.log(`## ${agg.model} · prompt \`${agg.promptHash}\`（${agg.files.length} 轮：${agg.files.join(", ")}）\n`);
     console.log(`| 组 | recall（微平均） | precision（微平均） |`);
     console.log(`|---|---|---|`);
     for (const [src, m] of Object.entries(agg.groups)) {
@@ -144,7 +159,8 @@ async function main() {
       console.log(`| case | source | ${agg.files.map((_, i) => `轮${i + 1}`).join(" | ")} | 未命中期望定位 |`);
       console.log(`|---|---|${agg.files.map(() => "---").join("|")}|---|`);
       for (const u of agg.unstable) {
-        console.log(`| ${u.caseId} | ${u.source} | ${u.perRun.map((s) => (s === "1/1" ? "✓" : s)).join(" | ")} | ${u.missAt.join("、")} |`);
+        const miss = u.missAt.length ? u.missAt.join("、") : "(仅错误/缺失轮，无未命中定位)";
+        console.log(`| ${u.caseId} | ${u.source} | ${u.perRun.join(" | ")} | ${miss} |`);
       }
     } else {
       console.log(`\n（全部用例跨轮全命中）`);
