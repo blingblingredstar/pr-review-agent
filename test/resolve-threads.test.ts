@@ -34,3 +34,12 @@ test("parseArgs：无参数时全默认（列表模式）", () => {
   assert.equal(p.only.size, 0);
   assert.equal(p.replies.size, 0);
 });
+
+test("parseArgs：多个 --only 合并，第二个的值位同样被消费", () => {
+  const p = parseArgs(["acme/repo#1", "--only", "441", "--only", "442", "--yes"]);
+  assert.deepEqual([...p.only].sort((a, b) => a - b), [441, 442]);
+  assert.equal(p.yes, true);
+  const p2 = parseArgs(["acme/repo#1", "--only", "441", "--only", "--yes"]);
+  assert.equal(p2.yes, false, "第二个 --only 的值位被消费后，--yes 不再是开关");
+  assert.ok([...p2.only].some((n) => Number.isNaN(n)), "非 id 值解析为 NaN，后续存在性校验会拦截");
+});

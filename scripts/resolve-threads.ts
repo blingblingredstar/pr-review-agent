@@ -18,21 +18,24 @@ export type ParsedArgs = {
 export function parseArgs(argv: string[]): ParsedArgs {
   const [ref = "", ...args] = argv;
   const consumed = new Set<number>();
-  let onlyArg: string | null = null;
-  const onlyIdx = args.indexOf("--only");
-  if (onlyIdx >= 0) {
-    consumed.add(onlyIdx);
-    onlyArg = args[onlyIdx + 1] ?? "";
-    consumed.add(onlyIdx + 1);
-  }
-  if (onlyArg !== null && !onlyArg.trim()) {
-    // 传了 --only 没传值会静默退回列表模式，用户以为执行了闭环实际什么都没做
-    throw new Error("--only 需要逗号分隔的线程 databaseId，如 --only 4414932445,4414932456");
-  }
-  const only = new Set<number>(onlyArg ? onlyArg.split(",").filter(Boolean).map(Number) : []);
-  if (onlyArg !== null && only.size === 0) {
-    // "--only ," 这类只含分隔符的值会得到空集合，被当成未指定后可能反向触发全量 resolve
-    throw new Error(`--only 的值 "${onlyArg}" 没有解析出任何线程 id`);
+  const only = new Set<number>();
+  // 循环处理所有 --only 出现位置（与 --reply 一致）：第二个 --only 的值位不被消费的话，
+  // 值恰为 "--yes" 时仍会被误判成开关
+  for (let i = 0; i < args.length; i++) {
+    if (consumed.has(i) || args[i] !== "--only") continue;
+    consumed.add(i);
+    consumed.add(i + 1);
+    const v = args[i + 1] ?? "";
+    if (!v.trim()) {
+      // 传了 --only 没传值会静默退回列表模式，用户以为执行了闭环实际什么都没做
+      throw new Error("--only 需要逗号分隔的线程 databaseId，如 --only 4414932445,4414932456");
+    }
+    const ids = v.split(",").filter(Boolean).map(Number);
+    if (ids.length === 0) {
+      // "--only ," 这类只含分隔符的值会得到空集合，被当成未指定后可能反向触发全量 resolve
+      throw new Error(`--only 的值 "${v}" 没有解析出任何线程 id`);
+    }
+    for (const id of ids) only.add(id);
   }
   // --reply <id=文本>，可多次；resolve 前先发回复，回应必须留痕后才关线程
   const replies = new Map<number, string>();
