@@ -118,16 +118,6 @@ export async function postReview(
   // 实际落点计数：422 回落全量降级后 inline=0——日志与 pr-review status 必须反映真实落点
   // （行内意味着可闭环线程，降级意味着需人工看 body），不能沿用预定位切分
   let posted = { inline: inline.length, degraded: degraded.length };
-  const postReviewRequest = (event: "COMMENT" | "REQUEST_CHANGES", reviewBody: string) =>
-    client.rest.pulls.createReview({
-      owner,
-      repo,
-      pull_number: pullNumber,
-      commit_id: commitId,
-      event,
-      body: reviewBody,
-      comments,
-    });
   // 统一提交通道：REQUEST_CHANGES 被 403（无写权限）/ 422（自家 PR 不能 request changes on own pull request）拒绝时
   // 回退 COMMENT——意见不丢，只降级为不 block。dogfood（bot = PR 作者）场景恒走回退，多仓产品化时原生生效
   const createReviewWithFallback = async (event: "COMMENT" | "REQUEST_CHANGES", reviewBody: string, withComments: boolean) => {
@@ -144,9 +134,10 @@ export async function postReview(
       await client.rest.pulls.createReview(payload);
       return;
     } catch (err) {
-      const ownPr = isStatus(err, 422) && /own pull request/i.test(String((err as Error).message ?? err));
-      if (event === "REQUEST_CHANGES" && (isStatus(err, 403) || ownPr)) {
-        console.warn(`[github] REQUEST_CHANGES 被拒（\${ownPr ? "自家 PR 不能 request changes" : "403 无写权限"}），回退 COMMENT`);
+      // 403 = 无写权限；REQUEST_CHANGES 的 422 唯一来源是自家 PR 拒绝（行号类 422 由外层全量降级处理）——
+      // 无条件回退 COMMENT：意见不丢，只降级为不 block。dogfood（bot = PR 作者）场景恒走此回退
+      if (event === "REQUEST_CHANGES" && (isStatus(err, 403) || isStatus(err, 422))) {
+        console.warn(`[github] REQUEST_CHANGES 被拒（\${isStatus(err, 403) ? "403 无写权限" : "422 自家 PR"}），回退 COMMENT`);
         await client.rest.pulls.createReview({ ...payload, event: "COMMENT" });
         return;
       }

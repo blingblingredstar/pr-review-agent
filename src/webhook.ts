@@ -100,6 +100,14 @@ async function runReview(ref: PrRef & { headSha: string }): Promise<void> {
       console.error(`[review] ${key} success status 写失败`, statusErr);
     }
   } catch (err) {
+    // failure status 落定独立于任何其他动作成败——永久 pending（「审查在途」的黄灯）比红灯更具误导性
+    const markFailed = async (description: string) => {
+      try {
+        await setReviewStatus(client ?? getOctokit(), { ...ref, sha: ref.headSha }, "failure", description);
+      } catch (statusErr) {
+        console.error(`[review] ${key} failure status 写失败`, statusErr);
+      }
+    };
     if (isTimeoutError(err)) {
       console.error(`[review] ${key} LLM 超时（${llmTimeoutMs()}ms），发降级通知（D011）`);
       try {
@@ -107,19 +115,10 @@ async function runReview(ref: PrRef & { headSha: string }): Promise<void> {
       } catch (postErr) {
         console.error(`[review] ${key} 降级通知发送失败`, postErr);
       }
-      // status 落定独立于通知成败——通知挂了也不能留永久 pending（「审查在途」的黄灯更具误导性）
-      try {
-        await setReviewStatus(client ?? getOctokit(), { ...ref, sha: ref.headSha }, "failure", "审查超时，重推 commit 可重试");
-      } catch (statusErr) {
-        console.error(`[review] ${key} failure status 写失败`, statusErr);
-      }
+      await markFailed("审查超时，重推 commit 可重试");
       return;
     }
-    try {
-      await setReviewStatus(client ?? getOctokit(), { ...ref, sha: ref.headSha }, "failure", "审查失败，见 Vercel 日志");
-    } catch (statusErr) {
-      console.error(`[review] ${key} failure status 写失败`, statusErr);
-    }
+    await markFailed("审查失败，见 Vercel 日志");
     console.error(`[review] ${key} 审查失败`, err);
   }
 }
