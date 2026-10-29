@@ -4,6 +4,8 @@
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
+// 只声明 compare 消费的字段：run.ts 写盘的 summary/groups 等其余结构不在此处复述——
+// 两边各留各的，类型漂移不会有编译期信号，复述反而误导按类型消费 run JSON 的人
 export type RunJson = {
   startedAt: string;
   model: string;
@@ -19,9 +21,6 @@ export type RunJson = {
       truePositives: number;
     } | null;
   }[];
-  summary: {
-    groups: Record<string, { hits: number; expectN: number; tp: number; comments: number }>;
-  };
 };
 
 export type VersionAggregate = {
