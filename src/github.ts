@@ -52,21 +52,29 @@ export function severityLabels(result: ReviewResult): string[] {
   );
 }
 
+// 意见按「行号是否落在 diff 内」拆分：可定位的行内发（进线程、可 resolve 闭环），
+// 其余列进 summary body（Day 2 的全量降级会把可定位意见也拖进无线程的 body，逃出意见闭环）。
+// covered 的 key 是 diff 头解析出的真实路径；模型报的路径做 a/ b/ 变体对照（照抄 diff 头的情况），
+// 不能预先剥前缀——仓库真有顶层 a/ b/ 目录时会误剥导致错误降级
+export function splitByLocatable(
+  result: ReviewResult,
+  diff: string,
+): { inline: ReviewComment[]; degraded: ReviewComment[] } {
+  const covered = diffCoveredLines(diff);
+  const locatable = (c: ReviewComment) => pathVariants(c.file).some((v) => covered.get(v)?.has(c.line));
+  return {
+    inline: result.comments.filter(locatable),
+    degraded: result.comments.filter((c) => !locatable(c)),
+  };
+}
+
 export async function postReview(
   client: Octokit,
   { owner, repo, pullNumber, commitId }: PrRef & { commitId: string },
   result: ReviewResult,
   diff: string,
 ): Promise<void> {
-  // 逐条预定位：行号在 diff 内的行内发（可进线程、可 resolve 闭环），
-  // 其余列进 summary body（Day 2 的全量降级会把可定位意见也拖进无线程的 body，逃出意见闭环）。
-  // covered 的 key 是 diff 头解析出的真实路径；模型报的路径做 a/ b/ 变体对照（照抄 diff 头的情况），
-  // 不能预先剥前缀——仓库真有顶层 a/ b/ 目录时会误剥导致错误降级
-  const covered = diffCoveredLines(diff);
-  const locatable = (c: ReviewComment) =>
-    pathVariants(c.file).some((v) => covered.get(v)?.has(c.line));
-  const inline = result.comments.filter(locatable);
-  const degraded = result.comments.filter((c) => !locatable(c));
+  const { inline, degraded } = splitByLocatable(result, diff);
   const comments = inline.map((c) => ({
     path: c.file,
     line: c.line,

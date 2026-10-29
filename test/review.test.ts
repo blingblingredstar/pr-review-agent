@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { diffCoveredLines, pathVariants, withExtraBody } from "../src/review.ts";
+import { diffCoveredLines, pathVariants, unquoteGitPath, withExtraBody } from "../src/review.ts";
 
 test("withExtraBody：扩展字段合并进 JSON 请求体，显式配置优先", async () => {
   let captured: string | undefined;
@@ -99,4 +99,9 @@ test("pathVariants：原样 + 剥 a/ + 剥 b/ 三种变体", () => {
   assert.deepEqual(pathVariants("src/x.ts"), ["src/x.ts", "src/x.ts", "src/x.ts"]);
   assert.deepEqual(pathVariants("a/src/x.ts"), ["a/src/x.ts", "src/x.ts", "a/src/x.ts"]);
   assert.deepEqual(pathVariants("b/a/x.ts"), ["b/a/x.ts", "b/a/x.ts", "a/x.ts"]);
+});
+
+test("unquoteGitPath：无引号带转义也解码（正则消费引号后的输入形态），无转义原样返回", () => {
+  assert.equal(unquoteGitPath("b/docs/\\344\\270\\255.md"), "b/docs/中.md");
+  assert.equal(unquoteGitPath("plain/path.ts"), "plain/path.ts");
 });
