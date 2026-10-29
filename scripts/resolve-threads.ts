@@ -104,13 +104,14 @@ async function main(): Promise<void> {
     console.error(`--only 里的 id 不在未 resolve 线程中（可能已 resolve 或打错）：${missing.join(",")}`);
     process.exit(1);
   }
-  // --reply 同样校验：id 不存在时回应无处落，静默忽略违背「没有留痕的闭环不算闭环」
-  const missingReply = [...replies.keys()].filter((id) => !openIds.has(id));
+  const targets = only.size > 0 ? open.filter((t) => only.has(t.comments.nodes[0]!.databaseId!)) : open;
+  // --reply 必须落在本次要 resolve 的 targets 上：--only A --reply B 时 B 的回复永远不会被发送，不能静默丢弃
+  const targetIds = new Set(targets.map((t) => t.comments.nodes[0]!.databaseId!));
+  const missingReply = [...replies.keys()].filter((id) => !targetIds.has(id));
   if (missingReply.length > 0) {
-    console.error(`--reply 里的 id 不在未 resolve 线程中（可能已 resolve、打错，或漏配 --only）：${missingReply.join(",")}`);
+    console.error(`--reply 里的 id 不在本次要 resolve 的线程中（未含在 --only 或线程已 resolve）：${missingReply.join(",")}`);
     process.exit(1);
   }
-  const targets = only.size > 0 ? open.filter((t) => only.has(t.comments.nodes[0]!.databaseId!)) : open;
 
   type ResolveResult = { resolveReviewThread: { thread: { isResolved: boolean } } };
   type ThreadNode = (typeof threads.nodes)[number];

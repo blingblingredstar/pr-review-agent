@@ -137,7 +137,7 @@ async function main() {
   const base = `${stamp}-${safeModel}`;
   writeFileSync(
     new URL(`./runs/${base}.json`, import.meta.url),
-    JSON.stringify({ startedAt, model, llmBaseUrl: process.env.LLM_BASE_URL ?? null, runs, summary: { recall, precision, totalExpect, totalHits, totalComments, totalTp, failed } }, null, 2) + "\n",
+    JSON.stringify({ startedAt, model, llmBaseUrl: process.env.LLM_BASE_URL ?? null, capabilityScope: "synthetic+real", runs, summary: { recall, precision, totalExpect, totalHits, totalComments, totalTp, failed } }, null, 2) + "\n",
   );
   writeFileSync(new URL(`./runs/${base}.md`, import.meta.url), report);
 

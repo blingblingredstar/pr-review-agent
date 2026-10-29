@@ -1,6 +1,5 @@
 import type { EvalCase } from "../score.ts";
 
-// 回归集：本仓库 PR #2 真实自审意见（LLM_TIMEOUT_MS 非法值静默回退默认，应告警）。agent 考过的原题，能力评估不计入，防 prompt 退化
 export default {
   id: "dogfood-02-timeout-warn",
   kind: "bug",
