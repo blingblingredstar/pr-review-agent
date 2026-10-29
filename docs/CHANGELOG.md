@@ -119,3 +119,8 @@
 - eval run 元数据带 prompt 指纹（同 prompt 多轮与改版 run 机械可分）；`evals/compare.ts` 多轮聚合对比工具 + 单测
 - v3 迭代负结果在案：放宽「需 diff 外确认」照报 → precision 92.5%→84.7%、双指标劣于 v2，回退；张力结论（指向性 vs 外调 recall）留下批迭代
 - 范围拍板：上下文增强与 synchronize 增量审查延后 v2 路线（D019）
+
+### Added（Day 7 · README 与收尾）
+
+- README 完整版：架构图、六项关键工程决策（异步/幂等/截断/超时降级/预定位/合并闸门）、快速开始、eval 摘要、v2 路线图（验收标准 #4）
+- 社交总结帖草稿 `docs/social-post-draft.md`（发布动作留用户）；PLAN 全部 checkbox 勾选完成，一句话描述更新为 29 用例
