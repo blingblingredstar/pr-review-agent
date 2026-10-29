@@ -24,7 +24,7 @@ jobs:
             const q = `query($owner:String!,$name:String!,$number:Int!){
               repository(owner:$owner,name:$name){
                 pullRequest(number:$number){
-                  reviewThreads(first:100){ nodes{ isResolved } }
+                  reviewThreads(first:100){ nodes{ isResolved } pageInfo{ hasNextPage } }
                 }
               }
             }`;
@@ -33,8 +33,13 @@ jobs:
               name: context.repo.repo,
               number: num,
             });
-            const threads = res.repository.pullRequest.reviewThreads.nodes;
-            const unresolved = threads.filter((t) => !t.isResolved).length;
+            const threads = res.repository.pullRequest.reviewThreads;
+            if (threads.pageInfo.hasNextPage) {
+              // 静默漏报会让闭环形同虚设：超限直接红灯交人工
+              core.setFailed('review 线程超过 100 条，分页未支持——请人工检查后合并');
+              return;
+            }
+            const unresolved = threads.nodes.filter((t) => !t.isResolved).length;
             core.info(`reviewThreads: 共 ${threads.length}，未 resolve ${unresolved}`);
             if (unresolved > 0) {
               core.setFailed(`${unresolved} 条 review 意见未 resolve——先处理（修复/回应）再合并`);
