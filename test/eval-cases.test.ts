@@ -41,6 +41,8 @@ function parseDiff(diff: string): { files: Set<string>; newLineRanges: Map<strin
       const m = line.match(/^diff --git "a\/.+" "b\/(.+)"$/) ?? line.match(/^diff --git a\/\S+ b\/(\S+)$/);
       if (!m) {
         errors.push(`diff --git 行格式异常: ${line}`);
+        // currentFile 置空，防止后续 hunk 的行号范围错误地记到上一个文件名下
+        currentFile = "";
       } else {
         currentFile = m[1];
         files.add(m[1]);
