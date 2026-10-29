@@ -10,10 +10,12 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test test/*.test.ts",
     "review:local": "node --env-file=.env --import tsx scripts/local.ts",
-    "review:pr": "node --env-file=.env --import tsx scripts/review-pr.ts"
+    "review:pr": "node --env-file=.env --import tsx scripts/review-pr.ts",
+    "setup:webhook": "node --env-file=.env --import tsx scripts/setup-webhook.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.104",
+    "@vercel/functions": "^3.10.4",
     "ai": "^7.0.156",
     "octokit": "^5.0.5",
     "zod": "^4.6.7"

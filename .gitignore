@@ -24,3 +24,6 @@ Thumbs.db
 # Editor
 .idea/
 *.swp
+
+# Agent harness 本地状态（skills 在 .agents/skills/ 入库，见 AGENTS.md）
+.zcode/

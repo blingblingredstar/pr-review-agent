@@ -22,6 +22,10 @@ export function loadPrompt(): string {
   return readFileSync(new URL("../prompts/review.md", import.meta.url), "utf8");
 }
 
+export function llmTimeoutMs(): number {
+  return Number(process.env.LLM_TIMEOUT_MS) || 270_000;
+}
+
 export async function reviewDiff(diff: string): Promise<ReviewResult> {
   const { LLM_API_KEY, LLM_BASE_URL, LLM_MODEL } = process.env;
   if (!LLM_API_KEY || !LLM_BASE_URL || !LLM_MODEL) {
@@ -29,12 +33,14 @@ export async function reviewDiff(diff: string): Promise<ReviewResult> {
   }
   const llm = createOpenAI({ apiKey: LLM_API_KEY, baseURL: LLM_BASE_URL });
   // .chat() 强制走 /chat/completions：OpenAI 兼容端点（如 GLM）不实现 Responses API；
-  // ai v7 起 generateObject 已废弃，结构化输出走 generateText + Output
+  // ai v7 起 generateObject 已废弃，结构化输出走 generateText + Output；
+  // 超时预算见 docs/decisions.md D011（Vercel Hobby 函数上限 300s，留回帖余量）
   const { output } = await generateText({
     model: llm.chat(LLM_MODEL),
     output: Output.object({ schema: reviewResultSchema, name: "ReviewResult" }),
     system: loadPrompt(),
     prompt: diff,
+    abortSignal: AbortSignal.timeout(llmTimeoutMs()),
   });
   return output;
 }

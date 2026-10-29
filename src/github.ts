@@ -1,6 +1,7 @@
 // GitHub API 封装：拉 PR diff、发 review。只依赖 octokit，便于 eval 时 mock（见 docs/architecture.md）。
 import { Octokit } from "octokit";
 import type { ReviewResult } from "./review.ts";
+import { reviewMarker } from "./dedupe.ts";
 
 export type PrRef = { owner: string; repo: string; pullNumber: number };
 
@@ -30,14 +31,14 @@ export async function fetchPr(
 
 const SEVERITY_ORDER = ["blocker", "major", "minor", "nit"] as const;
 
-function summaryBody(result: ReviewResult): string {
+function summaryBody(result: ReviewResult, headSha: string): string {
   const bySeverity = SEVERITY_ORDER.map((s) => `${s}×${result.comments.filter((c) => c.severity === s).length}`)
     .filter((s) => !s.endsWith("×0"))
     .join(" / ");
   return [
     `🤖 pr-review-agent 审查意见（共 ${result.comments.length} 条${bySeverity ? `：${bySeverity}` : ""}）`,
     "",
-    "<!-- pr-review-agent -->",
+    reviewMarker(headSha),
   ].join("\n");
 }
 
@@ -52,7 +53,7 @@ export async function postReview(
     side: "RIGHT" as const,
     body: `**[${c.severity}]** ${c.body}`,
   }));
-  const summary = summaryBody(result);
+  const summary = summaryBody(result, commitId);
   try {
     await client.rest.pulls.createReview({
       owner,
@@ -85,4 +86,19 @@ export async function postReview(
 
 function isStatus(err: unknown, status: number): boolean {
   return typeof err === "object" && err !== null && "status" in err && (err as { status?: unknown }).status === status;
+}
+
+// 超时降级（docs/decisions.md D011）：LLM 超时后发 issue comment 告知，不带 sha 标记——
+// dedupe 只认 review，同 SHA 重投 delivery 仍会重新审查，保留重试余地。
+export async function postTimeoutNotice(
+  client: Octokit,
+  { owner, repo, pullNumber }: PrRef,
+  timeoutMs: number,
+): Promise<void> {
+  await client.rest.issues.createComment({
+    owner,
+    repo,
+    issue_number: pullNumber,
+    body: `🤖 pr-review-agent 审查超时：LLM 端点 ${Math.round(timeoutMs / 1000)}s 未返回，本次跳过。重推 commit 或重投 webhook 可重试。`,
+  });
 }
