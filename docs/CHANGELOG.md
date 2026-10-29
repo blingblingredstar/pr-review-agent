@@ -26,3 +26,9 @@
 
 - skills 目录迁移：`.zcode/skills/` → `.agents/skills/`（git mv，删除空 `.zcode/`），去特定工具目录依赖，ZCode / dsh 双端原生识别（D013）
 - 决策记录瘦身为纯技术决策（D001–D008）：skills 选装与目录约定移入 AGENTS.md 工程约定，原 D009/D012/D013 不再立条
+
+### Added（Day 1）
+
+- 核心链路「diff 文本 → 结构化审查意见」：`src/review.ts`（`generateObject` + zod schema，prompt 从 `prompts/review.md` 读取）、`prompts/review.md` 审查提示词
+- `npm run review:local`：hardcode 样例 diff 的冒烟脚本（`scripts/local.ts`），需 `.env` 配好 `LLM_*` 三变量
+- schema 单元测试（`npm test`）、`.env.example`；依赖：`ai` v7 / `@ai-sdk/openai` / `zod`，dev：`typescript` / `tsx` / `@types/node`

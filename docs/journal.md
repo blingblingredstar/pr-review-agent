@@ -68,3 +68,18 @@
   - 追加：决策记录进一步瘦身为纯技术决策（D001–D008），skills 选装与目录约定移入 AGENTS.md 工程约定（原 D009 不再立条）
 - **发现 / 坑**：rebase 跳过的提交会把同期追加的 journal/CHANGELOG 条目一起丢掉——重写历史后需从原 tip 补回
 - **下一步**：不变——PLAN Day 1：npm init + Vercel AI SDK 接 OpenAI 兼容端点，跑通核心链路
+
+## 2026-10-29 · 会话 7：PLAN Day 1——核心链路代码就绪
+
+- **目标**：npm init + Vercel AI SDK 接 OpenAI 兼容端点，跑通「diff 文本 → 结构化审查意见」。
+- **完成**：
+  - 工程底座：`package.json`（type: module，engines node>=22）、`tsconfig.json`（strict + NodeNext + allowImportingTsExtensions）；依赖 `ai@7` / `@ai-sdk/openai` / `zod@4`，dev 加 `typescript` / `tsx` / `@types/node`
+  - `src/review.ts`：`reviewDiff(diff)` → `generateObject` 强约束 schema（与 architecture.md 契约一致）；env 缺失时明确报错；`loadPrompt()` 从 `prompts/review.md` 读 system 提示词
+  - `prompts/review.md`：审查规则（severity 四级定义、只审新增代码、宁缺毋滥、body 中文）
+  - `scripts/local.ts`：hardcode 越界 bug 样例 diff 的冒烟入口，`npm run review:local`
+  - `test/schema.test.ts` 2 例（`npm test` 通过）；`npx tsc --noEmit` 通过；`.env.example` 提供 GLM 端点配置模板
+- **发现 / 坑**：
+  - `ai` 已到 v7，`generateObject({ model, schema, system, prompt }) → result.object` 的形状与 v5 一致，直接可用
+  - 机器 node 走 nvm（v24 本地开发，engines 声明 >=22）；ZCode shell 不加载 zshrc，命令里需手动 export PATH
+  - 本机 keychain 无 bigmodel/GLM 凭证，key 需用户手动填 `.env`（已备 `.env.example`）
+- **下一步**：用户在 `.env` 填 `LLM_API_KEY` 后跑 `npm run review:local` 验证真链路；随后 PLAN Day 2——`src/github.ts`（octokit 拉真 PR diff + 回帖），顺带定 D008（App vs PAT）
