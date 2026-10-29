@@ -223,15 +223,17 @@ async function main(): Promise<void> {
   // 竞态防护：bot 复审有延迟，全部线程 resolve ≠ 最新 commit 的复审已提交。
   // PR #9 的三条降级意见就是在合并瞬间才落地（无线程、闭环对它不可见），合并前无从核对。
   // 翻页遍历：长生命周期 PR 的 review 数可超单页（PR #9 已 17 条）
+  let reviewed = false;
   for (let page = 1; page <= 5; page++) {
     const reviews = await client.rest.pulls.listReviews({ owner, repo, pull_number: pullNumber, per_page: 100, page });
     if (reviews.data.some((r) => r.commit_id === pr.data.head.sha)) {
+      reviewed = true;
       break;
     }
-    if (reviews.data.length < 100) {
-      console.log("⚠ 最新 head SHA 还没有任何 review 提交——bot 复审可能在途（PR #9 教训）。建议等复审落地、核对无降级意见后再合并");
-      break;
-    }
+    if (reviews.data.length < 100) break;
+  }
+  if (!reviewed) {
+    console.log("⚠ 最新 head SHA 还没有任何 review 提交——bot 复审可能在途（PR #9 教训）。建议等复审落地、核对无降级意见后再合并");
   }
 }
 

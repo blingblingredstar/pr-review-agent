@@ -103,9 +103,14 @@ async function runReview(ref: PrRef & { headSha: string }): Promise<void> {
       console.error(`[review] ${key} LLM 超时（${llmTimeoutMs()}ms），发降级通知（D011）`);
       try {
         await postTimeoutNotice(getOctokit(), ref, llmTimeoutMs());
-        await setReviewStatus(getOctokit(), { ...ref, sha: ref.headSha }, "failure", "审查超时，重推 commit 可重试");
       } catch (postErr) {
         console.error(`[review] ${key} 降级通知发送失败`, postErr);
+      }
+      // status 落定独立于通知成败——通知挂了也不能留永久 pending（「审查在途」的黄灯更具误导性）
+      try {
+        await setReviewStatus(getOctokit(), { ...ref, sha: ref.headSha }, "failure", "审查超时，重推 commit 可重试");
+      } catch (statusErr) {
+        console.error(`[review] ${key} failure status 写失败`, statusErr);
       }
       return;
     }

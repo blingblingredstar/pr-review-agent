@@ -114,16 +114,29 @@ export async function postReview(
         ...degraded.map((c) => `- \`${c.file}:${c.line}\` **[${c.severity}]** ${c.body}`),
       ].join("\n")
     : summary;
-  try {
-    await client.rest.pulls.createReview({
+  const reviewEvent = result.comments.length > 0 ? "REQUEST_CHANGES" : "COMMENT";
+  const postReviewRequest = (event: "COMMENT" | "REQUEST_CHANGES", reviewBody: string) =>
+    client.rest.pulls.createReview({
       owner,
       repo,
       pull_number: pullNumber,
       commit_id: commitId,
-      event: result.comments.length > 0 ? "REQUEST_CHANGES" : "COMMENT",
-      body,
+      event,
+      body: reviewBody,
       comments,
     });
+  try {
+    try {
+      await postReviewRequest(reviewEvent, body);
+    } catch (err) {
+      // REQUEST_CHANGES 需要写权限：403 时回退 COMMENT 保住意见本身（降级为不 block，也不丢意见）
+      if (isStatus(err, 403) && reviewEvent === "REQUEST_CHANGES") {
+        console.warn("[github] REQUEST_CHANGES 发送 403（token 无写权限？），回退 COMMENT 重发");
+        await postReviewRequest("COMMENT", body);
+      } else {
+        throw err;
+      }
+    }
   } catch (err) {
     // 预定位仍有漏网（或 422 的其他原因）→ 整体降级为全部意见写进 review body，保证不丢意见
     if (!isStatus(err, 422)) throw err;
