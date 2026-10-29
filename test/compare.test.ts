@@ -1,0 +1,96 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { aggregateRuns, type RunJson } from "../evals/compare.ts";
+
+function runJson({ runs, ...rest }: Partial<RunJson> & { runs: RunJson["runs"] }): RunJson {
+  return {
+    startedAt: "2026-10-30T00:00:00Z",
+    model: "test-model",
+    promptHash: "aaa",
+    summary: { groups: {} },
+    ...rest,
+    runs,
+  } as RunJson;
+}
+
+const score = (hits: number, verdicts: number, comments: number, tp: number) => ({
+  hits,
+  verdicts: Array.from({ length: verdicts }, (_, i) => ({ hit: i < hits, expect: { file: "a.ts", line: 1 } })),
+  agentComments: comments,
+  truePositives: tp,
+});
+
+test("aggregateRuns：跨轮微平均与分组指标", () => {
+  const f1 = runJson({
+    runs: [
+      { caseId: "s-01", source: "synthetic", error: null, score: score(1, 1, 3, 2) },
+      { caseId: "r-01", source: "real", error: null, score: score(0, 1, 1, 0) },
+      { caseId: "d-01", source: "dogfood", error: null, score: score(1, 1, 5, 5) },
+    ],
+  });
+  const f2 = runJson({
+    runs: [
+      { caseId: "s-01", source: "synthetic", error: null, score: score(1, 1, 1, 1) },
+      { caseId: "r-01", source: "real", error: null, score: score(1, 1, 1, 1) },
+      { caseId: "d-01", source: "dogfood", error: null, score: score(0, 1, 2, 0) },
+    ],
+  });
+  const [agg] = aggregateRuns([{ name: "a.json", data: f1 }, { name: "b.json", data: f2 }]);
+  // 合计（synthetic+real）：recall 3/4，precision 4/6；dogfood 不进
+  assert.equal(agg.promptHash, "aaa");
+  assert.equal(agg.micro.recall, 0.75);
+  assert.ok(Math.abs(agg.micro.precision! - 4 / 6) < 1e-9);
+  assert.equal(agg.groups.synthetic.recall, 1);
+  assert.ok(Math.abs(agg.groups.synthetic.precision! - 3 / 4) < 1e-9);
+  assert.equal(agg.groups.real.recall, 0.5);
+  assert.ok(!("dogfood" in agg.groups));
+});
+
+test("aggregateRuns：旧 run 无指纹归 legacy 组；未全命中用例进短板矩阵并去重定位", () => {
+  const legacy = runJson({
+    promptHash: undefined,
+    runs: [
+      { caseId: "s-01", source: "synthetic", error: null, score: score(0, 1, 1, 0) },
+    ],
+  });
+  const newer = runJson({
+    promptHash: "bbb",
+    runs: [
+      { caseId: "s-01", source: "synthetic", error: null, score: score(1, 1, 1, 1) },
+      {
+        caseId: "r-01",
+        source: "real",
+        error: null,
+        score: {
+          hits: 0,
+          verdicts: [
+            { hit: false, expect: { file: ["src/x.ts", "src/y.ts"], line: 42 } },
+            { hit: false, expect: { file: "src/z.ts", line: null } },
+          ],
+          agentComments: 2,
+          truePositives: 0,
+        },
+      },
+    ],
+  });
+  const aggs = aggregateRuns([{ name: "old.json", data: legacy }, { name: "new1.json", data: newer }, { name: "new2.json", data: newer }]);
+  assert.deepEqual(aggs.map((a) => a.promptHash), ["legacy(无指纹)", "bbb"]);
+  const bbb = aggs[1]!;
+  // r-01 两轮都未全命中：定位取首候选文件、跨轮去重；s-01 第二轮全命中（第一份 run 基准里它存在但 new 里两轮全命中——矩阵只列未全命中）
+  const r01 = bbb.unstable.find((u) => u.caseId === "r-01")!;
+  assert.deepEqual(r01.missAt, ["src/x.ts:42", "src/z.ts:*"]);
+  assert.deepEqual(r01.perRun, ["0/2", "0/2"]);
+  assert.ok(!bbb.unstable.some((u) => u.caseId === "s-01"));
+});
+
+test("aggregateRuns：失败用例不进指标，perRun 标 err", () => {
+  const f = runJson({
+    runs: [
+      { caseId: "s-01", source: "synthetic", error: "boom", score: null },
+      { caseId: "r-01", source: "real", error: null, score: score(1, 1, 1, 1) },
+    ],
+  });
+  const [agg] = aggregateRuns([{ name: "a.json", data: f }]);
+  assert.equal(agg.micro.recall, 1);
+  assert.ok(agg.unstable.some((u) => u.caseId === "s-01" && u.perRun[0] === "err"));
+});
