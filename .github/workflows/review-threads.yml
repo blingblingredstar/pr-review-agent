@@ -40,7 +40,7 @@ jobs:
               return;
             }
             const unresolved = threads.nodes.filter((t) => !t.isResolved).length;
-            core.info(`reviewThreads: 共 ${threads.length}，未 resolve ${unresolved}`);
+            core.info(`reviewThreads: 共 ${threads.nodes.length}，未 resolve ${unresolved}`);
             if (unresolved > 0) {
               core.setFailed(`${unresolved} 条 review 意见未 resolve——先处理（修复/回应）再合并`);
             }

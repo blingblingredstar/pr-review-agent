@@ -35,13 +35,19 @@ async function main(): Promise<void> {
   }
   const open = threads.nodes.filter((t) => !t.isResolved);
   console.log(`未 resolve 线程：${open.length}`);
-  await Promise.all(
+  const results = await Promise.allSettled(
     open.map((t) =>
       client.graphql(`mutation($id:ID!){ resolveReviewThread(input:{threadId:$id}){ thread{ isResolved } } }`, {
         id: t.id,
       }).then(() => console.log(`resolved: ${t.id.slice(0, 20)}…`)),
     ),
   );
+  const failed = results.filter((r) => r.status === "rejected");
+  if (failed.length > 0) {
+    // 逐条报告：部分成功时必须能看出哪些漏了
+    console.error(`${failed.length} 条 resolve 失败：`, failed.map((r) => (r as PromiseRejectedResult).reason));
+    process.exit(1);
+  }
 }
 
 main().catch((err) => {
