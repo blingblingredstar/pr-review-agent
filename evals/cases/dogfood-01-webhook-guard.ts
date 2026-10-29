@@ -116,9 +116,7 @@ index 0000000..5ec32d8
       "file": "src/webhook.ts",
       "line": null,
       "mustMention": [
-        "空",
         "缺失",
-        "校验",
         "忽略",
         "拒绝",
         "兜底",

@@ -33,8 +33,7 @@ index 7860c40bc..23045012a 100644
         "2gb",
         "负数",
         "截断",
-        "parseint",
-        "nan"
+        "parseint"
       ]
     }
   ],

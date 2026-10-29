@@ -21,6 +21,11 @@ async function main(): Promise<void> {
     }
   }
   const only = new Set<number>(onlyArg ? onlyArg.split(",").filter(Boolean).map(Number) : []);
+  if (onlyArg && only.size === 0) {
+    // "--only ," 这类只含分隔符的值会得到空集合，被当成未指定后可能反向触发全量 resolve
+    console.error(`--only 的值 "${onlyArg}" 没有解析出任何线程 id`);
+    process.exit(1);
+  }
   // --reply <id=文本>，可多次（与 --only 一致的分离式参数）；resolve 前先发回复，回应必须留痕后才关线程
   const replies = new Map<number, string>();
   for (let i = 0; i < args.length; i++) {
