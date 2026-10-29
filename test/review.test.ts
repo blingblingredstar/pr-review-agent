@@ -208,10 +208,25 @@ test("truncateDiff：装不下最大的就跳过继续试更小的（continue �
   assert.ok(out.includes("省略 h.ts"), "huge 应被省略");
 });
 
-test("truncateDiff：全部块都超预算时返回纯省略列表", () => {
+test("truncateDiff：全部块都超预算时压缩为汇总（无条件核对，单文件也一样）", () => {
   const a = ["diff --git a/a.ts b/a.ts", "@@ -1,1 +1,2 @@", " ctx", "+" + "x".repeat(50)].join("\n") + "\n";
   const out = truncateDiff(a, 10);
-  assert.equal(out, "[diff 截断] 省略 a.ts (+1/-0)");
+  assert.equal(out, "[diff 截断] 省略 1 个文件（超出 10 字符预算，合计 +1/-0）");
+});
+
+test("truncateDiff：GIT binary patch 数据行不计入增删", () => {
+  const a = [
+    "diff --git a/img.png b/img.png",
+    "index 1..2 100644",
+    "GIT binary patch",
+    "literal 10",
+    "+cmVtb3ZlZC1iYXNlNjQ=",
+    "-c2Fk",
+  ].join("\n") + "\n";
+  const out = truncateDiff(a, 10);
+  // binary 标记行之后的 +/- 数据行不计：合计 +0/-0
+  assert.ok(out.includes("省略 1 个文件"), `实际输出: ${out}`);
+  assert.ok(out.includes("合计 +0/-0"), `实际输出: ${out}`);
 });
 
 test("truncateDiff：省略行自身超预算时压缩为汇总行", () => {
@@ -232,6 +247,8 @@ test("diffMaxChars：未配置默认 300000，非法值告警回退，合法值�
     process.env.DIFF_MAX_CHARS = "abc";
     assert.equal(diffMaxChars(), 300_000);
     process.env.DIFF_MAX_CHARS = "0";
+    assert.equal(diffMaxChars(), 300_000);
+    process.env.DIFF_MAX_CHARS = "0.5";
     assert.equal(diffMaxChars(), 300_000);
     process.env.DIFF_MAX_CHARS = "1234";
     assert.equal(diffMaxChars(), 1234);

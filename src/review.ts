@@ -123,8 +123,9 @@ export function diffMaxChars(): number {
   const raw = process.env.DIFF_MAX_CHARS;
   if (!raw) return 300_000;
   const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    console.warn(`DIFF_MAX_CHARS="${raw}" 不是正数，回退默认 300000`);
+  // 小数（如 0.5）会得到所有块都装不下的预算、返回纯省略列表——与非法值一并回退
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) {
+    console.warn(`DIFF_MAX_CHARS="${raw}" 不是正整数，回退默认 300000`);
     return 300_000;
   }
   return parsed;
@@ -135,19 +136,23 @@ export function diffMaxChars(): number {
 // 字节级重组，丢弃文件附省略行让模型知道看到的不是全量。
 export function truncateDiff(diff: string, budget: number = diffMaxChars()): string {
   if (diff.length <= budget) return diff;
-  const blocks: { lines: string[]; path: string; adds: number; dels: number; size: number }[] = [];
+  const blocks: { lines: string[]; path: string; adds: number; dels: number; size: number; binary: boolean }[] = [];
   let cur: (typeof blocks)[number] | null = null;
   for (const line of diff.split("\n")) {
     if (line.startsWith("diff --git ")) {
-      cur = { lines: [line], path: diffHeaderPath(line) ?? "(未知文件)", adds: 0, dels: 0, size: 0 };
+      cur = { lines: [line], path: diffHeaderPath(line) ?? "(无法解析路径的文件)", adds: 0, dels: 0, size: 0, binary: false };
       blocks.push(cur);
     } else if (!cur) {
-      cur = { lines: [line], path: "(diff 头之前的内容)", adds: 0, dels: 0, size: 0 };
+      cur = { lines: [line], path: "(diff 头之前的内容，非文件)", adds: 0, dels: 0, size: 0, binary: false };
       blocks.push(cur);
     } else {
       cur.lines.push(line);
-      if (line.startsWith("+") && !line.startsWith("+++")) cur.adds++;
-      else if (line.startsWith("-") && !line.startsWith("---")) cur.dels++;
+      // 二进制负载行（GIT binary patch 的 base64 / Binary files 摘要之后）可能以 +/- 开头，停止计数
+      if (line === "GIT binary patch" || line.startsWith("Binary files ")) cur.binary = true;
+      else if (!cur.binary) {
+        if (line.startsWith("+") && !line.startsWith("+++")) cur.adds++;
+        else if (line.startsWith("-") && !line.startsWith("---")) cur.dels++;
+      }
     }
   }
   // 块大小为近似值：join 长度 + 1 个块间换行分隔符（末块无尾换行时多记 1 字符）；预算是软约束，不追求精确
@@ -166,8 +171,8 @@ export function truncateDiff(diff: string, budget: number = diffMaxChars()): str
   const droppedList = blocks.filter((_, i) => !keep.has(i));
   const out = kept.flatMap((b) => b.lines);
   const omitLines = droppedList.map((b) => `[diff 截断] 省略 ${b.path} (+${b.adds}/-${b.dels})`);
-  // 省略行自身也占输出：丢弃文件极多时会反噬预算——超了就压缩成一行汇总（总量有界）
-  if (omitLines.length > 1 && used + omitLines.join("\n").length + 1 > budget) {
+  // 省略行自身也占输出：丢弃文件极多时会反噬预算——超了就压缩成一行汇总（总量有界，无条件核对）
+  if (used + omitLines.join("\n").length + 1 > budget) {
     const adds = droppedList.reduce((s, b) => s + b.adds, 0);
     const dels = droppedList.reduce((s, b) => s + b.dels, 0);
     out.push(`[diff 截断] 省略 ${droppedList.length} 个文件（超出 ${budget} 字符预算，合计 +${adds}/-${dels}）`);
