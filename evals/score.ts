@@ -52,6 +52,9 @@ export type CaseScore = {
 export function scoreCase(c: EvalCase, comments: ReviewComment[]): CaseScore {
   const verdicts = c.expect.map((expect) => ({ expect, hit: comments.some((cm) => matchesExpectation(expect, cm)) }));
   const hits = verdicts.filter((v) => v.hit).length;
+  // 口径注意：recall 分子按期望条目计数，truePositives 按「命中至少一个期望」的意见数计数——
+  // 一条意见同时命中两个期望时 recall 记 2、TP 只记 1，多期望用例的 precision 会被低估。
+  // 当前 20 用例均为单期望不触发；扩多期望用例时需在报告里注明或统一口径。
   const truePositives = comments.filter((cm) => c.expect.some((e) => matchesExpectation(e, cm))).length;
   return {
     caseId: c.id,
