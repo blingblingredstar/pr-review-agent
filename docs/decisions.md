@@ -107,3 +107,13 @@
   - 外部队列异步化（QStash + worker）——解决重试语义但不突破单次调用 300s 上限，且引入外部服务，与 D010 零基建取向相悖；
   - 直接换非 thinking 小模型——等价于改 `LLM_MODEL`，与本法不互斥，但质量对比交给 Day 6 eval 拿数据。
 - **后果**：单次审查延迟回落到 300s 内；thinking 开关成为配置项，eval 可量化其对质量的影响（正是 eval 集的用途）。`LLM_EXTRA_BODY` 同时是任何端点私有参数的通用入口，不绑定厂商。
+
+## D013 — 合并前意见闭环：Actions check 软约束，public 后升级 branch protection
+
+- **状态**：已接受（2026-10-29，PR #2 意见未处理即合并的教训）
+- **背景**：GitHub 唯一能硬性阻止合并的机制是 branch protection（Require conversation resolution / required checks），但该能力在 private 仓库需 Team/Enterprise 付费计划，免费计划仅 public 仓库可用。
+- **决策**：`.github/workflows/review-threads.yml`——GraphQL 查 `reviewThreads`，存在未 resolve 线程即 fail 的 check（PR 事件与 review 提交时重跑），作为每次 PR 可见的软约束；`npm run resolve:threads -- owner/repo#N` 作为合并仪式收尾。仓库转 public 后启用 branch protection 硬闸门取代本条软约束。
+- **备选**：
+  - 付费计划解锁 branch protection——单人项目成本不成比例；
+  - 纯 AGENTS.md 约定——PR #2 已证明会被跳过。
+- **后果**：check 红灯技术上仍可合并，但未决意见在每次 PR 上显式暴露；合并流程多一步 resolve，换来闭环可核查。

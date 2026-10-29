@@ -1,0 +1,41 @@
+# 检查 PR 是否还有未 resolve 的 review 线程——「合并前意见闭环」的机制保障（D013）。
+# 注意：private 仓库免费计划没有 branch protection，本 check 是软约束（红灯可见但可越过）；
+# 仓库转 public 后建议启用 branch protection 的 Require conversation resolution 升级为硬约束。
+name: review-threads
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  unresolved-threads:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const num = context.payload.pull_request?.number;
+            if (!num) { core.setFailed('无法确定 PR 编号'); return; }
+            const q = `query($owner:String!,$name:String!,$number:Int!){
+              repository(owner:$owner,name:$name){
+                pullRequest(number:$number){
+                  reviewThreads(first:100){ nodes{ isResolved } }
+                }
+              }
+            }`;
+            const res = await github.graphql(q, {
+              owner: context.repo.owner,
+              name: context.repo.repo,
+              number: num,
+            });
+            const threads = res.repository.pullRequest.reviewThreads.nodes;
+            const unresolved = threads.filter((t) => !t.isResolved).length;
+            core.info(`reviewThreads: 共 ${threads.length}，未 resolve ${unresolved}`);
+            if (unresolved > 0) {
+              core.setFailed(`${unresolved} 条 review 意见未 resolve——先处理（修复/回应）再合并`);
+            }
