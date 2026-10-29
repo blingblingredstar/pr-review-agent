@@ -9,11 +9,15 @@ async function main(): Promise<void> {
   // 仓库名含 . - _ 之外字符极罕见，[\w.-]+ 已覆盖常规场景；不匹配时按用法错误退出
   const ref = process.argv[2] ?? "";
   const args = process.argv.slice(3);
-  const yes = args.includes("--yes");
-  const onlyIdx = args.indexOf("--only");
+  // 带值 flag（--only/--reply）消费掉自己的值位；开关判断只看未被消费的位置，
+  // 否则回复文本/值里恰好出现 "--yes"（shell 引号漏掉时的合法 argv）会被误当开关
+  const consumed = new Set<number>();
   let onlyArg: string | null = null;
+  const onlyIdx = args.indexOf("--only");
   if (onlyIdx >= 0) {
+    consumed.add(onlyIdx);
     onlyArg = args[onlyIdx + 1] ?? "";
+    consumed.add(onlyIdx + 1);
     if (!onlyArg.trim()) {
       // 传了 --only 没传值会静默退回列表模式，用户以为执行了闭环实际什么都没做
       console.error("--only 需要逗号分隔的线程 databaseId，如 --only 4414932445,4414932456");
@@ -29,7 +33,9 @@ async function main(): Promise<void> {
   // --reply <id=文本>，可多次（与 --only 一致的分离式参数）；resolve 前先发回复，回应必须留痕后才关线程
   const replies = new Map<number, string>();
   for (let i = 0; i < args.length; i++) {
-    if (args[i] !== "--reply") continue;
+    if (consumed.has(i) || args[i] !== "--reply") continue;
+    consumed.add(i);
+    consumed.add(i + 1);
     const spec = args[i + 1] ?? "";
     const eq = spec.indexOf("=");
     if (eq <= 0 || !spec.slice(eq + 1).trim()) {
@@ -39,6 +45,7 @@ async function main(): Promise<void> {
     }
     replies.set(Number(spec.slice(0, eq)), spec.slice(eq + 1));
   }
+  const yes = args.some((a, i) => a === "--yes" && !consumed.has(i));
   const m = ref.match(/^([\w.-]+)\/([\w.-]+)#(\d+)$/);
   if (!m) {
     console.error("用法：npm run resolve:threads -- owner/repo#N [--only id1,id2] [--reply id=文本 ...] [--yes]");

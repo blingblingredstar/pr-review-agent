@@ -18,6 +18,50 @@ export const reviewResultSchema = z.object({
 export type ReviewComment = z.infer<typeof reviewResultSchema>["comments"][number];
 export type ReviewResult = z.infer<typeof reviewResultSchema>;
 
+// 模型可能带 git 的 a/ b/ 前缀，规范化后再比（行内定位判定用）
+export function normalizePath(file: string): string {
+  return file.replace(/^a\//, "").replace(/^b\//, "");
+}
+
+// 解析 unified diff，返回每个文件被 hunk 覆盖的新侧行号集合。
+// 用于行内评论的预定位：只有行号落在 diff 内的意见才能行内发（GitHub 对 hunk 外行号返回 422）。
+export function diffCoveredLines(diff: string): Map<string, Set<number>> {
+  const covered = new Map<string, Set<number>>();
+  let file = "";
+  let inHunk = false;
+  let line = 0;
+  const mark = () => {
+    if (!file) return;
+    let set = covered.get(file);
+    if (!set) covered.set(file, (set = new Set()));
+    set.add(line);
+  };
+  for (const raw of diff.split("\n")) {
+    if (raw.startsWith("diff --git ")) {
+      file = /^diff --git \S+ b\/(.+)$/.exec(raw)?.[1] ?? "";
+      inHunk = false;
+      continue;
+    }
+    const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)/.exec(raw);
+    if (hunk) {
+      inHunk = true;
+      line = Number(hunk[1]);
+      continue;
+    }
+    if (!inHunk || raw.startsWith("\\")) continue;
+    if (raw.startsWith("+")) {
+      mark();
+      line++;
+    } else if (raw.startsWith("-")) {
+      // 旧侧删除行不计新行号
+    } else {
+      mark();
+      line++;
+    }
+  }
+  return covered;
+}
+
 export function loadPrompt(): string {
   return readFileSync(new URL("../prompts/review.md", import.meta.url), "utf8");
 }

@@ -32,6 +32,7 @@ Harness 的核心纪律：**每一步都可回放**。文档只追加、少改�
 - 阶段性计划与规格（specs）统一归档 `docs/plans/`，后续新计划也放这个目录
 - 对外表述按真实项目定位，不出现个人背景相关措辞
 - 开 PR 后先看 agent 自审意见，逐条处理（修复 / 回应不修的理由 / 标记误报），处理一条闭环一条：`npm run resolve:threads -- owner/repo#N --only <id> --reply <id>="回应文本"` 回复并 resolve（回应留痕在 PR 线程里，bot 复审翻旧账时结论可见）；全部处理完 `npm run resolve:threads -- owner/repo#N --yes` 收尾，`review-threads` 状态变绿后才合并（D013；红灯走 commit status 而非 workflow 失败，避免失败邮件轰炸）
+- 拉自审意见必须同时看两处：行内线程（`GET /pulls/N/comments`，可 resolve）和 review summary body 的「行号不在 diff 内」降级列表（`GET /pulls/N/reviews`）——降级意见没有线程、resolve 脚本对它不可见，PR #8 曾带着两条未处理降级意见合并；行内定位已改为逐条判定，降级只剩真定位不了的意见，仍须人工核对处理
 - 开 PR 时按标题前缀打类型标签（feat/fix/docs/ci/chore/refactor/test）；bot 回帖时自动打 `has-blocker` / `has-major`（minor/nit 不打，避免噪音）
 
 ## 提交规范

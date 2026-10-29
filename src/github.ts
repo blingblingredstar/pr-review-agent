@@ -1,6 +1,7 @@
 // GitHub API 封装：拉 PR diff、发 review。只依赖 octokit，便于 eval 时 mock（见 docs/architecture.md）。
 import { Octokit } from "octokit";
-import type { ReviewResult } from "./review.ts";
+import type { ReviewComment, ReviewResult } from "./review.ts";
+import { diffCoveredLines, normalizePath } from "./review.ts";
 import { reviewMarker } from "./dedupe.ts";
 
 export type PrRef = { owner: string; repo: string; pullNumber: number };
@@ -55,14 +56,29 @@ export async function postReview(
   client: Octokit,
   { owner, repo, pullNumber, commitId }: PrRef & { commitId: string },
   result: ReviewResult,
+  diff: string,
 ): Promise<void> {
-  const comments = result.comments.map((c) => ({
+  // 逐条预定位：行号在 diff 内的行内发（可进线程、可 resolve 闭环），
+  // 其余列进 summary body（Day 2 的全量降级会把可定位意见也拖进无线程的 body，逃出意见闭环）
+  const covered = diffCoveredLines(diff);
+  const locatable = (c: ReviewComment) => covered.get(normalizePath(c.file))?.has(c.line) ?? false;
+  const inline = result.comments.filter(locatable);
+  const degraded = result.comments.filter((c) => !locatable(c));
+  const comments = inline.map((c) => ({
     path: c.file,
     line: c.line,
     side: "RIGHT" as const,
     body: `**[${c.severity}]** ${c.body}`,
   }));
   const summary = summaryBody(result, commitId);
+  const body = degraded.length
+    ? [
+        summary,
+        "",
+        "> 以下意见的行号不在 diff 内，无法行内定位（无法进入意见闭环线程），处理时请对照文件：",
+        ...degraded.map((c) => `- \`${c.file}:${c.line}\` **[${c.severity}]** ${c.body}`),
+      ].join("\n")
+    : summary;
   try {
     await client.rest.pulls.createReview({
       owner,
@@ -70,11 +86,11 @@ export async function postReview(
       pull_number: pullNumber,
       commit_id: commitId,
       event: "COMMENT",
-      body: summary,
+      body,
       comments,
     });
   } catch (err) {
-    // 模型给的 (file, line) 可能不在 diff 内 → GitHub 返回 422。降级为全部意见写进 review body。
+    // 预定位仍有漏网（或 422 的其他原因）→ 整体降级为全部意见写进 review body，保证不丢意见
     if (!isStatus(err, 422)) throw err;
     const fallback = [
       summary,
