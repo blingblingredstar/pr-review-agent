@@ -6,6 +6,25 @@ import { reviewMarker } from "./dedupe.ts";
 
 export type PrRef = { owner: string; repo: string; pullNumber: number };
 
+// 审查生命周期 status（D017）：审查中 pending、完成 success、失败 failure。
+// 与 review-threads.yml 的线程状态（context: review-threads）分离，二者共同构成合并闸门——
+// pending 补上「review 尚未发布」的窗口期（PR #9 合并瞬间意见落地的竞态）；转 public 后作为 required check 硬闸门
+export async function setReviewStatus(
+  client: Octokit,
+  { owner, repo, sha }: PrRef & { sha: string },
+  state: "pending" | "success" | "failure",
+  description: string,
+): Promise<void> {
+  await client.rest.repos.createCommitStatus({
+    owner,
+    repo,
+    sha,
+    state,
+    context: "pr-review",
+    description: description.slice(0, 140),
+  });
+}
+
 export function getOctokit(): Octokit {
   const { GITHUB_TOKEN } = process.env;
   if (!GITHUB_TOKEN) {
@@ -78,7 +97,7 @@ export async function postReview(
   { owner, repo, pullNumber, commitId }: PrRef & { commitId: string },
   result: ReviewResult,
   diff: string,
-): Promise<void> {
+): Promise<{ inline: number; degraded: number }> {
   const { inline, degraded } = splitByLocatable(result, diff);
   const comments = inline.map(({ comment: c, path }) => ({
     path,
@@ -95,16 +114,38 @@ export async function postReview(
         ...degraded.map((c) => `- \`${c.file}:${c.line}\` **[${c.severity}]** ${c.body}`),
       ].join("\n")
     : summary;
-  try {
-    await client.rest.pulls.createReview({
+  const reviewEvent = result.comments.length > 0 ? "REQUEST_CHANGES" : "COMMENT";
+  // 实际落点计数：422 回落全量降级后 inline=0——日志与 pr-review status 必须反映真实落点
+  // （行内意味着可闭环线程，降级意味着需人工看 body），不能沿用预定位切分
+  let posted = { inline: inline.length, degraded: degraded.length };
+  // 统一提交通道：REQUEST_CHANGES 被 403（无写权限）/ 422（自家 PR 不能 request changes on own pull request）拒绝时
+  // 回退 COMMENT——意见不丢，只降级为不 block。dogfood（bot = PR 作者）场景恒走回退，多仓产品化时原生生效
+  const createReviewWithFallback = async (event: "COMMENT" | "REQUEST_CHANGES", reviewBody: string, withComments: boolean) => {
+    const payload = {
       owner,
       repo,
       pull_number: pullNumber,
       commit_id: commitId,
-      event: "COMMENT",
-      body,
-      comments,
-    });
+      event,
+      body: reviewBody,
+      comments: withComments ? comments : [],
+    };
+    try {
+      await client.rest.pulls.createReview(payload);
+      return;
+    } catch (err) {
+      // 403 = 无写权限；REQUEST_CHANGES 的 422 唯一来源是自家 PR 拒绝（行号类 422 由外层全量降级处理）——
+      // 无条件回退 COMMENT：意见不丢，只降级为不 block。dogfood（bot = PR 作者）场景恒走此回退
+      if (event === "REQUEST_CHANGES" && (isStatus(err, 403) || isStatus(err, 422))) {
+        console.warn(`[github] REQUEST_CHANGES 被拒（\${isStatus(err, 403) ? "403 无写权限" : "422 自家 PR"}），回退 COMMENT`);
+        await client.rest.pulls.createReview({ ...payload, event: "COMMENT" });
+        return;
+      }
+      throw err;
+    }
+  };
+  try {
+    await createReviewWithFallback(reviewEvent, body, true);
   } catch (err) {
     // 预定位仍有漏网（或 422 的其他原因）→ 整体降级为全部意见写进 review body，保证不丢意见
     if (!isStatus(err, 422)) throw err;
@@ -114,14 +155,9 @@ export async function postReview(
       "> 部分意见的行号不在 diff 内，无法行内定位，全部列在下面：",
       ...result.comments.map((c) => `- \`${c.file}:${c.line}\` **[${c.severity}]** ${c.body}`),
     ].join("\n");
-    await client.rest.pulls.createReview({
-      owner,
-      repo,
-      pull_number: pullNumber,
-      commit_id: commitId,
-      event: "COMMENT",
-      body: fallback,
-    });
+    // 降级只改意见落点（全部进 body），block 语义不变：有意见仍 REQUEST_CHANGES
+    await createReviewWithFallback(reviewEvent, fallback, false);
+    posted = { inline: 0, degraded: result.comments.length };
   }
   const labels = severityLabels(result);
   if (labels.length > 0) {
@@ -132,6 +168,7 @@ export async function postReview(
       console.warn(`[github] PR#${pullNumber} 打标签失败（${labels.join(",")}）`, err);
     }
   }
+  return posted;
 }
 
 function isStatus(err: unknown, status: number): boolean {

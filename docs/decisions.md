@@ -156,3 +156,15 @@
   - 维持全量降级 + 人工核对——PR #8 已证明会漏；
   - 降级意见逐条发 issue comment——同样无线程，只是换个地方盲。
 - **后果**：行内意见占比最大化，闭环覆盖随之最大化；残余盲区收敛到「模型定位本身错误」的意见——这类意见质量存疑，人工核对后修 prompt（Day 6 靶子）比机械闭环更有价值。
+
+## D017 — 合并闸门双层强化：REQUEST_CHANGES 原生 block + pr-review status 生命周期
+
+- **状态**：已接受（2026-10-30，用户提出「review 进行中应 block 合并」；PR #9 合并瞬间意见落地的竞态为直接诱因）
+- **背景**：review-threads check 只覆盖「线程清零」，两个窗口不受控——（a）bot 复审尚未发布的窗口期，意见可能在合并瞬间落地且无线程无法闭环（PR #8/#9 两次踩中）；（b）check 是软约束，红灯仍可强合并。
+- **决策**：
+  1. `postReview` 的 review event 按意见有无动态选择：有意见 → `REQUEST_CHANGES`（GitHub 原生禁用合并按钮，**不需要 branch protection**），无意见 → `COMMENT`。修复 push 后 bot 重审，无意见时自动解除 block——闭环自洽；
+  2. webhook 审查生命周期写 commit status（context: `pr-review`，与线程状态的 `review-threads` 分离）：开始 pending「审查进行中」、完成 success（附意见分布）、失败 failure——补上窗口期 (a) 的可见信号；转 public 后两个 context 一起配 required check 成硬闸门。
+- **备选**：
+  - 仅 branch protection required check——private 仓库需付费（D013），且覆盖不了窗口期 (a) 的 pending 语义；
+  - 外部锁服务——过度工程。
+- **后果**：私有仓库期间，有意见 = 合并按钮物理禁用（强于软约束），审查中 = status 黄色可见；合并前流程新增「确认 REQUEST_CHANGES 已解除」核对点。代价：REQUEST_CHANGES 由 bot 同账号发出，作者不能 dismiss 别人的 review——解除路径只有 bot 重审无意见（或 resolve 后 bot 复审 COMMENT），与意见闭环方向一致。
