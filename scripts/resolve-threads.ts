@@ -3,6 +3,7 @@
 import { getOctokit } from "../src/github.ts";
 
 async function main(): Promise<void> {
+  // 仓库名含 . - _ 之外字符极罕见，[\w.-]+ 已覆盖常规场景；不匹配时按用法错误退出
   const ref = process.argv[2] ?? "";
   const m = ref.match(/^([\w.-]+)\/([\w.-]+)#(\d+)$/);
   if (!m) {
@@ -35,18 +36,48 @@ async function main(): Promise<void> {
   }
   const open = threads.nodes.filter((t) => !t.isResolved);
   console.log(`未 resolve 线程：${open.length}`);
+  type ResolveResult = { resolveReviewThread: { thread: { isResolved: boolean } } };
   const results = await Promise.allSettled(
     open.map((t) =>
-      client.graphql(`mutation($id:ID!){ resolveReviewThread(input:{threadId:$id}){ thread{ isResolved } } }`, {
-        id: t.id,
-      }).then(() => console.log(`resolved: ${t.id.slice(0, 20)}…`)),
+      client
+        .graphql<ResolveResult>(
+          `mutation($id:ID!){ resolveReviewThread(input:{threadId:$id}){ thread{ isResolved } } }`,
+          { id: t.id },
+        )
+        .then((res) => {
+          // GraphQL 不抛错的边缘场景（如线程刚被删除）也要算失败
+          if (!res.resolveReviewThread.thread.isResolved) {
+            throw new Error(`线程 ${t.id.slice(0, 20)}… resolve 后仍为未解决`);
+          }
+          console.log(`resolved: ${t.id.slice(0, 20)}…`);
+        }),
     ),
   );
   const failed = results.filter((r) => r.status === "rejected");
   if (failed.length > 0) {
     // 逐条报告：部分成功时必须能看出哪些漏了
-    console.error(`${failed.length} 条 resolve 失败：`, failed.map((r) => (r as PromiseRejectedResult).reason));
+    console.error(
+      `${failed.length} 条 resolve 失败：`,
+      failed.map((r) => (r as PromiseRejectedResult).reason?.message ?? (r as PromiseRejectedResult).reason),
+    );
     process.exit(1);
+  }
+
+  // resolve 动作不触发 pull_request / pull_request_review 事件，check 不会自动重跑——主动触发，闭合「绿了才合并」
+  const pr = await client.rest.pulls.get({ owner, repo, pull_number: Number(num) });
+  const runs = await client.rest.actions.listWorkflowRuns({
+    owner,
+    repo,
+    workflow_id: "review-threads.yml",
+    branch: pr.data.head.ref,
+    per_page: 1,
+  });
+  const run = runs.data.workflow_runs[0];
+  if (run) {
+    await client.rest.actions.reRunWorkflow({ owner, repo, run_id: run.id });
+    console.log(`已重跑 review-threads check（run ${run.id}），变绿后即可合并`);
+  } else {
+    console.log("未找到可重跑的 check run（可能尚未触发过），请人工确认线程已全部 resolve 再合并");
   }
 }
 
