@@ -25,3 +25,4 @@
 ### Changed（续）
 
 - skills 目录迁移：`.zcode/skills/` → `.agents/skills/`（git mv，删除空 `.zcode/`），去特定工具目录依赖，ZCode / dsh 双端原生识别（D013）
+- 决策记录瘦身为纯技术决策（D001–D008）：skills 选装与目录约定移入 AGENTS.md 工程约定，原 D009/D012/D013 不再立条

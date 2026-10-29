@@ -3,8 +3,9 @@
 > Append-only。每条决策一个编号，定稿后不改写——推翻旧决策时新增一条并标注取代关系。
 > 格式参考 ADR（Architecture Decision Record）：背景 → 决策 → 备选 → 后果。
 >
-> 2026-10-29 去噪合并（项目早期条目过细，按主题收敛，编号沿用幸存条目）：
-> 原 D011 并入 D002；原 D010 并入 D007；原 D012/D013 并入 D009。
+> 2026-10-29 去噪：决策记录只保留关键技术决策（有真实备选、且结论难以从仓库本身看出的）。
+> 原 D011 并入 D002、原 D010 并入 D007；原 D009/D012/D013（skills 选装与目录）不立条——
+> 相关约定移入 AGENTS.md 工程约定，动作与过程记录见 CHANGELOG 与 journal。
 
 ---
 
@@ -68,12 +69,3 @@
 - **背景**：回帖身份与权限粒度取决于用 GitHub App 还是 PAT。
 - **候选**：PAT（简单、快）；GitHub App（身份独立、权限收敛、更像产品）。
 - **决策**：待 Day 2 实测后补记。
-
-## D009 — 项目级 skills 选装与目录约定
-
-- **状态**：已接受（2026-10-29，原 D009/D012/D013 合并）
-- **背景**：项目级 skill 需随仓库版本化，任何 harness 打开即得同一套工作规则。skill 的发现目录各工具不同：ZCode 扫 `.zcode/skills/` 与 `.agents/skills/`（同层级前者优先），DeepSeek Harness（dsh）扫 `.dsh/skills/` 与 `.agents/skills/`，裸 `.skills/` 无主流工具识别。
-- **决策**：装 9 个自包含 skill，统一放 `.agents/skills/`（跨工具交集位）：
-  - **ponytail ×6**（[DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail)）：lazy senior dev 纪律（ponytail / review / audit / debt / gain / help）；
-  - **mattpocock ×3**（[mattpocock/skills](https://github.com/mattpocock/skills)）：`code-review` / `tdd` / `diagnosing-bugs`，只装与现有 harness 互补的；grill 系、ticket 工作流不装（与决策记录、PLAN checkbox + journal 体系重叠，单人项目引入团队级流程不划算）。
-- **后果**：升级 = shallow clone 覆盖复制对应目录；勿在 `.zcode/skills/` 再放同名副本（ZCode 中会遮蔽 `.agents` 版，排障费劲）；后续工作块变大时再评估 ticket 工作流走 GitHub Issues。

@@ -26,6 +26,7 @@ Harness 的核心纪律：**每一步都可回放**。文档只追加、少改�
 - 提示词只放 `prompts/*.md`，代码引用文件，不在代码里内联 prompt
 - eval 相关改动必须保持 `npm run eval` 可回归（`evals/` 目录自包含）
 - 遵循 lazy senior dev 原则（本仓库装有 ponytail skill，见 `.agents/skills/`）：最小完整改动，不加没人要的抽象
+- 项目级 skill 统一放 `.agents/skills/`（跨 harness 约定位，勿在 `.zcode/skills/` 放同名副本）；只装与现有体系互补的第三方 skill，升级用 shallow clone 覆盖复制
 - 密钥只走环境变量，任何 key 不入库
 - LLM 接入按 OpenAI 兼容端点抽象（`LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`），代码与文档不绑定具体厂商
 - 阶段性计划与规格（specs）统一归档 `docs/plans/`，后续新计划也放这个目录

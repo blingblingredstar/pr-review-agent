@@ -65,5 +65,6 @@
 - **完成**：
   - decisions.md 13 条 → 9 条：D011 并入 D002、D010 并入 D007、D012/D013 并入 D009；顺带去掉 D001 备选里的个人背景措辞
   - 提交历史 7 → 6：skills 三提交（ponytail 安装 / mattpocock 选装 / .zcode→.agents 迁移）压成一个，skills 从初始提交就落在 `.agents/skills/`；重写前历史保留在 `backup/pre-cleanup` 分支，确认无误后删除
+  - 追加：决策记录进一步瘦身为纯技术决策（D001–D008），skills 选装与目录约定移入 AGENTS.md 工程约定（原 D009 不再立条）
 - **发现 / 坑**：rebase 跳过的提交会把同期追加的 journal/CHANGELOG 条目一起丢掉——重写历史后需从原 tip 补回
 - **下一步**：不变——PLAN Day 1：npm init + Vercel AI SDK 接 OpenAI 兼容端点，跑通核心链路
