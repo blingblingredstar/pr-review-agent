@@ -131,8 +131,13 @@
 - `.agents/skills/README.md`：第三方 skill 来源与许可归属（ponytail 系与 mattpocock 系均为 MIT，原始 LICENSE 文本存 `licenses/`），AGENTS.md 加指引
 - git 身份切换为 GitHub noreply 邮箱（`43870278+blingblingredstar@users.noreply.github.com`）——历史提交的 QQ 邮箱保持原样（重写会使 14 个 PR 的评论线程与 SHA 脱钩，不值），今后提交不再暴露 QQ 邮箱
 
+### Added（部署指南与域名脱敏）
+
+- `docs/deployment.md` 部署指南：本地验证 → webhook secret 生成 → Vercel 部署（环境变量表）→ webhook 配置 → 全链路验证 → 安全模型（谁能消耗 LLM 额度）→ 排障分层与实测坑；README 部署段与文档导航同步挂链接
+- `docs/journal.md` 会话 10 条目移除真实部署域名（仓库已 public，URL 类运行时信息不再写入公开文档；git 历史中的旧值保留不回写）
+
 ### Added（截断前置生成物过滤，D020）
 
-- `truncateDiff` 生成物前置过滤，三层识别：lock/生成物名单（约 20 个文件名 + `node_modules`/`dist` 等目录段 + `.min.js`/`.map` 等后缀）、新建文件头部 `@generated` 横幅、长行占优（压缩/混淆产物的跨生态结构信号）——命中块不进预算竞争、省略行标注「生成物」，预算让给真实代码，新建大源码文件不再与 lock 拿同一排序信号出局
+- `truncateDiff` 生成物前置过滤，三层识别：lock/生成物名单（约 20 个文件名 + 目录段——通用名 `dist`/`build`/`out`/`target` 只认顶层、`node_modules` 等约定名任意层级 + `.min.js`/`.map` 等后缀）、新建文件头部 `@generated` 横幅、长行占优（压缩/混淆产物的跨生态结构信号）——命中块不进预算竞争、省略行标注「生成物」，预算让给真实代码，新建大源码文件不再与 lock 拿同一排序信号出局
 - 省略行标注「新建文件」：被预算丢弃的新建文件显式标记审查盲区；过滤只在超预算路径生效，预算内 diff 字节级原样
 - 运行时 LLM 按文件名打标方案否决在案（D020）：名单即离线打标产物，运行时调用徒增延迟与非确定性

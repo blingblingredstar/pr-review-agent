@@ -116,7 +116,7 @@
 - **完成**：
   - 前置：PR #1（Day 2）确认合并进 main（bc34262）
   - 代码：`src/webhook.ts`（HMAC-SHA256 验签 + opened/synchronize 分发 + `waitUntil` 异步审查）、`api/webhook.ts` Vercel 薄壳、`src/dedupe.ts`（D010 查 GitHub review 标记）、`LLM_TIMEOUT_MS` 硬超时 + 超时评论降级（D011）、`scripts/setup-webhook.ts`（PAT 一键建 webhook）、`vercel.json`（maxDuration 300 + `includeFiles: prompts/**`）
-  - 单测 8 → 10 例全过；Vercel Hobby 生产部署 `pr-review-agent-mauve.vercel.app`（6 个环境变量）；webhook id 704670191 指向生产
+  - 单测 8 → 10 例全过；Vercel Hobby 生产部署（域名 2026-10-30 起从公开文档移除，见 Vercel 项目 `pr-review-agent`；6 个环境变量）；webhook id 704670191 指向生产
   - **dogfood PR #2 全链路验证通过**：opened → thinking 全开 270s 超时 → 超时评论降级（D011 首跑即触发）→ 同 SHA 重投自动重试 → 定位根因后关 thinking（D012）→ synchronize 约 20s 出 3 条行内评论（minor×2 / nit×1，定位全中）→ 同 SHA 再重投幂等跳过、无重复评论（D010 验证）。验收标准 #1「1 分钟内留评」达成
 - **发现 / 坑**：
   - **Vercel Hobby 函数上限是 300s**（Fluid compute 默认开启；「10s/60s」是 Fluid 之前的过时数据），差点据此过度设计超时方案
@@ -325,3 +325,15 @@
   - 8 个新单测 + 既有 52 个全绿（60 pass / 0 fail），typecheck 过；README / architecture / CHANGELOG / decisions 同步
 - **发现 / 坑**：truncateDiff 的期望串要算「被丢弃块是否末块」——diff 尾部空串元素属于末块，末块被丢则保留文本后无空行，三处测试预算/期望一起修才绿
 - **下一步**：开 PR 过 bot 自审与双硬闸门；超预算大文件的完整解法（拆两环节绕 Vercel 300s 单函数墙钟：主审查照旧 + 超预算有价值文件分发补审，环节 2 只补行内意见不动 status，免建状态机）是架构扩展，与增量审查同属 PLAN §七 路线，另立计划再议
+
+## 2026-10-30 · 会话 22：生产域名脱敏 + 部署指南
+
+- **目标**：用户问 webhook 端点公网可达是否会被陌生人消耗 LLM 额度；确认闸门后按用户要求移除公开文档中的真实域名，并补部署文档。
+- **完成**：
+  - 安全面复核：`src/webhook.ts` HMAC 验签在任何解析/GitHub API/LLM 调用之前（401 零 token）；`WEBHOOK_SECRET` randomBytes(32) 只存 `.env` 与 GitHub webhook 配置；`api/` 仅 webhook 一个入口；第三方仓库配同 URL 因 secret 不同验签不过；同 SHA 重放被 D010 幂等吸收——陌生人消耗不了 token
+  - `docs/journal.md` 会话 10 条目域名替换为占位说明（git 历史旧值保留不回写：重写历史代价远大于收益，搜索引擎索引对象是当前文件）
+  - 新增 `docs/deployment.md`：五步部署（本地验证 → secret 生成 → Vercel 环境变量 → webhook 配置 → 全链路验证）+ 安全模型 + 排障分层，收拢 journal 分散的实测坑（includeFiles、关 thinking、/attempts 后缀）；README 部署段与文档导航挂链接
+- **发现 / 坑**：
+  - 会话 20 的 public 化审计清单漏了「URL 类运行时信息」——域名+验签闸门不构成实际风险，但 public 仓库宜默认占位化
+  - **切分支翻车**：从并行会话未推送的分支 tip（HEAD）切了新分支，把未过审的 D020 提交裹进本 PR diff，bot 抓出双「会话 21」撞号——worktree rebase 回 origin/main 重开为纯文档改动，本条按先到序让出编号改为「会话 22」（D020 条目保留 21）。并行共享工作区时，切分支必须显式基于 origin/main
+- **下一步**：PR 过硬闸门合并；社交帖发布（用户动作）
