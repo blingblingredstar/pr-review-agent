@@ -45,6 +45,7 @@ Git 集成（Vercel 控制台导入仓库，push main 自动部署）或 CLI（`
 | `LLM_TIMEOUT_MS` | 可选 | 默认 270000，Hobby 300s 上限留回帖余量（D011） |
 | `LLM_EXTRA_BODY` | 可选 | 端点扩展参数 JSON；GLM 等 thinking 模型建议 `{"thinking":{"type":"disabled"}}` 控延迟（D012） |
 | `DIFF_MAX_CHARS` | 可选 | diff 截断预算，默认 300000（D018） |
+| `REVIEW_TRIGGER_USERS` | 可选 | 触发白名单：逗号分隔 GitHub 用户名，仅名单内 PR 作者触发审查；未设置 = 所有人，`*` 全放行（D021）。单人自用建议设为自己的用户名，他人 PR / fork 贡献不再消耗 LLM 额度 |
 
 `vercel.json` 已内置两个关键配置，无需手动改：
 
@@ -74,8 +75,9 @@ webhook URL 公网可达，但审查只可能被合法事件触发：
 - 伪造签名需要 `WEBHOOK_SECRET`（32 字节随机数，只存于你的 `.env` 与 GitHub webhook 配置）
 - 第三方仓库把自己的 webhook 指向这个 URL 无效：它们的 secret 与你的不同，验签不过
 - 同 SHA 重放被幂等去重吸收（D010），不产生第二次审查
+- 触发白名单（D021）：`REVIEW_TRIGGER_USERS` 配置后，名单外作者（含 fork 贡献者、Dependabot 等机器人）的 PR 事件在调度前即被忽略——零 GitHub API、零 LLM token
 
-陌生人扫到的最大代价是 Vercel 函数调用次数（免费额度内可忽略），LLM key 不出服务端。
+陌生人扫到的最大代价是 Vercel 函数调用次数（免费额度内可忽略），LLM key 不出服务端；配置白名单后，合法 GitHub 事件也要名单内作者才会触发审查。残余风险：名单内用户自己高频推 commit 仍会逐次调用（无频次限额），兜底靠 LLM 端点控制台的消费告警。
 
 ## 排障分层
 
