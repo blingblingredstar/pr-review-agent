@@ -289,3 +289,15 @@
   - compare 工具在 8 轮自审里被打磨出完整的容错语义（缺用例/空期望/失败轮/legacy 指纹/多候选定位）——bot 审查对「边界输入」的嗅觉比自测广
 - **遗留（用户动作）**：社交帖草稿待发布（`docs/social-post-draft.md`，发完回填链接）；转 public 时启用 branch protection 硬闸门（D013/D017 兑换点）
 - **下一步**：项目按 PLAN 收官；后续迭代靶子见 README 路线图 / D019（上下文增强、增量审查、多模型对比、v3 张力的分层规则）
+
+## 2026-10-30 · 会话 20：public 化审计与执行——LICENSE / skills 归属 / 邮箱切换 / 硬闸门
+
+- **目标**：用户问能否转 public；全库审计后处理三个遗留点，再执行转 public + branch protection。
+- **审计结论**：密钥干净（112 跟踪文件 + 107 提交历史零命中，`.env` 从未入库）；无求职措辞；workflow 最小权限；real 用例带上游来源标注。三个待处理点：无 LICENSE、第三方 skill 无归属标注、QQ 邮箱随历史公开。
+- **完成**：
+  - 上游许可确认：[DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) 与 mattpocock/skills 均 MIT → 根目录 MIT LICENSE + `.agents/skills/README.md` 归属表（原始 LICENSE 文本存 `licenses/`）+ AGENTS.md 指引
+  - git 身份切 GitHub noreply（`43870278+blingblingredstar@users.noreply.github.com`，仓库级）——历史 QQ 邮箱保留（重写会让 14 个 PR 线程与 SHA 脱钩，不值），本提交起生效
+  - README 路线图与 AGENTS.md 闸门表述同步（「转 public 后」→ 既成事实）
+- **后续动作**（本 PR 合并后执行）：API 转 public → branch protection：`review-threads` + `pr-review` 设 required status check、require conversation resolution、enforce_admins（硬闸门含管理员）→ 验证生效。
+- **发现 / 坑**：转 public 前审计要走 git 历史（`git log --all -p` 扫密钥模式 + `--diff-filter=A` 查敏感文件名），只扫工作区会漏历史污染——本次历史干净，机制留档。
+- **下一步**：执行转 public 与硬闸门，结果回填本文件

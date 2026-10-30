@@ -67,7 +67,7 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 - 增量审查（synchronize 只审新 commit）与按 severity 分层的报告门槛细化
 - 多模型对比（同一 eval 集跑第二家端点）
 - 必须长 thinking 时真正异步化（QStash / Vercel Workflows 突破 300s）
-- 多仓产品化：GitHub App 身份（权限收敛）+ branch protection 硬闸门（转 public 后）
+- 多仓产品化：GitHub App 身份（权限收敛）；branch protection 硬闸门已启用（`review-threads` / `pr-review` required check + 会话必须 resolve）
 
 ## 文档导航
 
