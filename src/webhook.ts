@@ -15,6 +15,18 @@ export function verifySignature(secret: string, rawBody: string, signature: stri
 
 export type Dispatch = { status: number; note: string };
 
+// 触发白名单（D021）：REVIEW_TRIGGER_USERS 逗号分隔的 GitHub 用户名，限定哪些 PR 作者可触发审查。
+// 未设置/空白 = 所有人（向后兼容）；含 "*" = 显式全放行；名单启用但 payload 缺作者按拒绝处理（成本闸门宁可误拒）
+export function reviewTriggerUsers(): string[] | null {
+  const raw = process.env.REVIEW_TRIGGER_USERS;
+  if (!raw?.trim()) return null;
+  const users = raw
+    .split(",")
+    .map((u) => u.trim().toLowerCase())
+    .filter(Boolean);
+  return users.length === 0 || users.includes("*") ? null : users;
+}
+
 export type WebhookHeaders = Record<string, string | string[] | undefined>;
 
 function header(headers: WebhookHeaders, name: string): string | undefined {
@@ -36,7 +48,7 @@ export function handleWebhook(
   let payload: {
     action?: string;
     repository?: { owner?: { login?: string }; name?: string };
-    pull_request?: { number?: number; head?: { sha?: string } };
+    pull_request?: { number?: number; head?: { sha?: string }; user?: { login?: string } };
   };
   try {
     payload = JSON.parse(rawBody);
@@ -61,6 +73,17 @@ export function handleWebhook(
     return { status: 200, note: "ignored: malformed pull_request payload" };
   }
   const ref: PrRef & { headSha: string } = { owner, repo, pullNumber, headSha };
+  // 白名单判定在调度前用 payload 自带的作者字段完成：零 GitHub API、零 LLM token（D021）
+  const allowedUsers = reviewTriggerUsers();
+  if (allowedUsers) {
+    const author = payload.pull_request?.user?.login?.toLowerCase();
+    if (!author || !allowedUsers.includes(author)) {
+      console.log(
+        `[webhook] ${ref.owner}/${ref.repo}#${ref.pullNumber} 作者 ${author ?? "(payload 缺失)"} 不在 REVIEW_TRIGGER_USERS 名单，跳过审查`,
+      );
+      return { status: 200, note: "ignored: PR author not in REVIEW_TRIGGER_USERS" };
+    }
+  }
   schedule(() => runReview(ref));
   return {
     status: 200,

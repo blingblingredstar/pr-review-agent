@@ -30,6 +30,8 @@ GitHub API 回帖（逐条行内 PR review comment）◄──────┘
 
 **幂等去重不建外部存储。** 以 review body 内嵌的 `(repo, commit SHA)` 标记为键，处理事件前查 PR 已有 review——同 SHA 已审直接跳过。零新基建、天然跨实例持久，代价是每次事件多一个只读 API 调用。
 
+**触发白名单可配置。** `REVIEW_TRIGGER_USERS` 逗号分隔名单限定哪些 PR 作者触发审查（未设置 = 所有人，`*` 全放行，大小写不敏感）；判定在调度前用 webhook payload 自带字段完成，名单外作者的 PR 零 API、零 LLM token（D021）。
+
 **diff 截断按整文件块丢弃。** 总长超 `DIFF_MAX_CHARS`（默认 300k 字符）时以 `diff --git` 行切块，截断前先生成物过滤（D020）：lock/生成物名单（各语言 lock 文件、`node_modules/` 等目录与顶层 `dist/`/`build/` 生成目录、`*.min.js`/`*.map` 等后缀）、`@generated` 文件头、长行占优（压缩/混淆产物的结构信号）三层识别，命中的块不占预算、省略行标注「生成物」；其余按块大小升序贪心保留，保留块字节级重组，被丢弃文件附省略行告知模型非全量（新建文件额外标注，提示审查盲区）。不切 hunk（破坏行号定位）、不分子调用（成本延迟翻倍）。
 
 **超时降级而非静默失败。** `AbortSignal.timeout(LLM_TIMEOUT_MS)`（默认 270s）硬超时，超时发 issue comment 告知并提示重推重试；超时不写去重标记，同 SHA 重投可重试。
@@ -43,7 +45,7 @@ GitHub API 回帖（逐条行内 PR review comment）◄──────┘
 ```bash
 npm install
 cp .env.example .env   # 填 LLM_BASE_URL / LLM_API_KEY / LLM_MODEL / GITHUB_TOKEN
-npm test               # 60 例单测
+npm test               # 63 例单测
 npm run review:local   # hardcode 样例 diff 冒烟
 npm run review:pr -- owner/repo#N [--post]   # 真实 PR 试跑（默认只打印）
 npm run eval           # 29 用例打分表，结果落盘 evals/runs/
@@ -53,7 +55,7 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 
 部署：Vercel（Hobby 免费档即可），事件订阅 `pull_request`（opened / synchronize）。完整步骤（环境变量、webhook 配置、安全模型、排障分层）见 [docs/deployment.md](./docs/deployment.md)。
 
-环境变量：`LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`（OpenAI 兼容端点，换模型只改配置）、`GITHUB_TOKEN`（PAT，拉 diff + 回帖）、`WEBHOOK_SECRET`（验签）、`LLM_TIMEOUT_MS`（默认 270000）、`LLM_EXTRA_BODY`（端点扩展参数 JSON，如 GLM 关 thinking）、`DIFF_MAX_CHARS`（diff 截断预算，默认 300000）。
+环境变量：`LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`（OpenAI 兼容端点，换模型只改配置）、`GITHUB_TOKEN`（PAT，拉 diff + 回帖）、`WEBHOOK_SECRET`（验签）、`LLM_TIMEOUT_MS`（默认 270000）、`LLM_EXTRA_BODY`（端点扩展参数 JSON，如 GLM 关 thinking）、`DIFF_MAX_CHARS`（diff 截断预算，默认 300000）、`REVIEW_TRIGGER_USERS`（触发白名单，逗号分隔 GitHub 用户名，未设置 = 所有人）。
 
 ## eval
 
@@ -76,7 +78,7 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 | [docs/plans/PLAN.md](./docs/plans/PLAN.md) | 项目定位、技术选型、执行计划（交接文档） |
 | [docs/architecture.md](./docs/architecture.md) | 架构：组件、数据流、输出 schema、环境变量 |
 | [docs/deployment.md](./docs/deployment.md) | 部署指南：五步上线路径、安全模型、排障分层 |
-| [docs/decisions.md](./docs/decisions.md) | 技术决策记录（append-only，D001–D019） |
+| [docs/decisions.md](./docs/decisions.md) | 技术决策记录（append-only，D001–D021） |
 | [evals/report.md](./evals/report.md) | prompt 迭代对比报告（方法/数据/局限） |
 | [docs/journal.md](./docs/journal.md) | 开发日志（append-only） |
 | [docs/CHANGELOG.md](./docs/CHANGELOG.md) | 变更记录 |

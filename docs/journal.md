@@ -337,3 +337,16 @@
   - 会话 20 的 public 化审计清单漏了「URL 类运行时信息」——域名+验签闸门不构成实际风险，但 public 仓库宜默认占位化
   - **切分支翻车**：从并行会话未推送的分支 tip（HEAD）切了新分支，把未过审的 D020 提交裹进本 PR diff，bot 抓出双「会话 21」撞号——worktree rebase 回 origin/main 重开为纯文档改动，本条按先到序让出编号改为「会话 22」（D020 条目保留 21）。并行共享工作区时，切分支必须显式基于 origin/main
 - **下一步**：PR 过硬闸门合并；社交帖发布（用户动作）
+
+## 2026-10-30 · 会话 23：token 消耗盘点 + 触发白名单（D021）
+
+- **目标**：用户四问——token 用量有无记录、单次 CR 消耗多少、有无上限、会不会账单爆炸；盘点后落地触发人收敛（「只有我触发，可配置」）。
+- **盘点结论**：①无用量记录——`reviewDiff` 解构 `generateText` 只取 output，usage（inputTokens/outputTokens）被丢弃，全仓无计量代码，观测只能靠 GLM 控制台；②单次消耗推算——system prompt 1.7KB（~0.5k token）+ diff 硬上限 300k 字符（典型 PR 1 万-4 万 token，极端 ~10 万）+ 输出 JSON ~0.5k-2k token；③上限——输入有 `DIFF_MAX_CHARS` 硬闸，输出无 `maxOutputTokens`（仅 270s 超时兜底）；④爆炸风险——单次有界、次数无上限：HMAC 挡陌生人（401 零 token）、D010 挡同 SHA 重放，但名单外任何人 push 新 commit 都触发一次，无频次限额、无用量日志，异常只能事后靠端点账单发现。
+- **用户决定**：usage 日志记为待办暂不执行；触发收敛立即做。
+- **完成**（D021，走 PR 过闸门）：
+  - `REVIEW_TRIGGER_USERS`（逗号分隔，大小写不敏感）：未设置 = 所有人（向后兼容）、`*` 显式全放行、名单启用仅名单内 PR 作者调度；判定在 `handleWebhook` 调度前用 payload 自带 `pull_request.user.login` 完成（零 GitHub API / 零 LLM token）；名单启用但 payload 缺作者 fail-closed（成本闸门宁可误拒）
+  - 设计取舍：按作者字段而非 sender（opened/synchronize 中稳定、「只审这些人的 PR」可预期，sender 只多挡协作者代推边界）；仓库白名单不做（webhook 挂载即信任）；频次限额否决（需持久计数器、名单收敛后触发源只剩自己，量级不成比例）
+  - 单测 +3（63 全绿）；.env.example / README / architecture / deployment / CHANGELOG / decisions 同步
+- **发现 / 坑**：盘点顺手发现 README 文档导航决策区间漂移（D020 落地时漏更，仍写 D001–D019），本次一并修为 D001–D021
+- **遗留待办（明确「可改、暂不执行」）**：`reviewDiff` 打 usage 日志（一行解构 `usage` 打 inputTokens/outputTokens，落点 `src/review.ts`）；配套可选项 `maxOutputTokens` 硬上限、GLM 控制台消费告警
+- **下一步**：PR 过 bot 自审与双硬闸门合并；合并后在 Vercel 配 `REVIEW_TRIGGER_USERS=blingblingredstar` 生效

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { test } from "node:test";
-import { handleWebhook, verifySignature } from "../src/webhook.ts";
+import { handleWebhook, reviewTriggerUsers, verifySignature } from "../src/webhook.ts";
 import { hasReviewed, reviewMarker } from "../src/dedupe.ts";
 
 const SECRET = "test-secret";
@@ -15,11 +15,15 @@ function signedHeaders(event: string, body: string): Record<string, string> {
   };
 }
 
-const prPayload = (action: string) =>
+const prPayload = (action: string, author?: string) =>
   JSON.stringify({
     action,
     repository: { owner: { login: "acme" }, name: "demo" },
-    pull_request: { number: 7, head: { sha: "abc123def4567890" } },
+    pull_request: {
+      number: 7,
+      head: { sha: "abc123def4567890" },
+      ...(author ? { user: { login: author } } : {}),
+    },
   });
 
 test("verifySignature：合法签名通过", () => {
@@ -75,6 +79,59 @@ test("分发：签名不符返回 401 且不调度", () => {
   const outcome = handleWebhook(headers, body, (t) => scheduled.push(t));
   assert.equal(outcome.status, 401);
   assert.equal(scheduled.length, 0);
+});
+
+test("触发白名单：名单内作者调度（大小写不敏感），名单外 / 缺作者 200 忽略不调度", () => {
+  const scheduled: Array<() => Promise<void>> = [];
+  const noop = (t: () => Promise<void>) => scheduled.push(t);
+  process.env.REVIEW_TRIGGER_USERS = "blingblingredstar, Reviewer2";
+  try {
+    const inList = prPayload("opened", "BlingBlingRedStar");
+    assert.equal(handleWebhook(signedHeaders("pull_request", inList), inList, noop).status, 200);
+    assert.equal(scheduled.length, 1, "名单内作者应调度（大小写不敏感）");
+    scheduled.length = 0;
+    const outList = prPayload("synchronize", "stranger");
+    assert.equal(handleWebhook(signedHeaders("pull_request", outList), outList, noop).status, 200);
+    assert.equal(scheduled.length, 0, "名单外作者不应调度");
+    const noAuthor = prPayload("opened");
+    assert.equal(handleWebhook(signedHeaders("pull_request", noAuthor), noAuthor, noop).status, 200);
+    assert.equal(scheduled.length, 0, "名单启用但 payload 缺作者应按拒绝处理（D021 fail-closed）");
+  } finally {
+    delete process.env.REVIEW_TRIGGER_USERS;
+  }
+});
+
+test("触发白名单：* 全放行；未配置保持现行为（所有人可触发）", () => {
+  const scheduled: Array<() => Promise<void>> = [];
+  const noop = (t: () => Promise<void>) => scheduled.push(t);
+  process.env.REVIEW_TRIGGER_USERS = "*";
+  try {
+    const body = prPayload("opened", "anyone");
+    handleWebhook(signedHeaders("pull_request", body), body, noop);
+    assert.equal(scheduled.length, 1, "* 应显式全放行");
+  } finally {
+    delete process.env.REVIEW_TRIGGER_USERS;
+  }
+  scheduled.length = 0;
+  const body = prPayload("synchronize", "stranger");
+  handleWebhook(signedHeaders("pull_request", body), body, noop);
+  assert.equal(scheduled.length, 1, "未配置 = 所有人可触发（向后兼容）");
+});
+
+test("reviewTriggerUsers 解析：空白 / 纯逗号视同未配置", () => {
+  process.env.REVIEW_TRIGGER_USERS = " , ";
+  try {
+    assert.equal(reviewTriggerUsers(), null);
+  } finally {
+    delete process.env.REVIEW_TRIGGER_USERS;
+  }
+  assert.equal(reviewTriggerUsers(), null);
+  process.env.REVIEW_TRIGGER_USERS = "a, b,c";
+  try {
+    assert.deepEqual(reviewTriggerUsers(), ["a", "b", "c"]);
+  } finally {
+    delete process.env.REVIEW_TRIGGER_USERS;
+  }
 });
 
 test("reviewMarker / hasReviewed：按 body 内嵌 sha 标记判定", async () => {
