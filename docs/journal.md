@@ -350,3 +350,8 @@
 - **发现 / 坑**：盘点顺手发现 README 文档导航决策区间漂移（D020 落地时漏更，仍写 D001–D019），本次一并修为 D001–D021
 - **遗留待办（明确「可改、暂不执行」）**：`reviewDiff` 打 usage 日志（一行解构 `usage` 打 inputTokens/outputTokens，落点 `src/review.ts`）；配套可选项 `maxOutputTokens` 硬上限、GLM 控制台消费告警
 - **下一步**：PR 过 bot 自审与双硬闸门合并；合并后在 Vercel 配 `REVIEW_TRIGGER_USERS=blingblingredstar` 生效
+
+### 会话 23 续：Vercel 配置完成，白名单已生效
+
+- **执行结果**（PR #19 合并 d9c5b3a 后）：本机 Vercel CLI 登录态可用（项目已 link），`printf 值 | npx vercel env add REVIEW_TRIGGER_USERS production` 写入；`npx vercel --prod` 重新部署（本地 main 与 origin/main 同步后部署），新生产部署 fevd8bqfw Ready；`env ls` 确认变量注册，生产域名 POST 无签名 401 冒烟正常——名单逻辑本身由单测覆盖，端到端拒绝需非名单作者的真实 PR 才能验
+- **坑**：`vercel env add` 默认存为 Hidden Secret（dashboard 不可见、不可 pull）——对本变量无所谓，但后续想存可读配置要 `--type config`
