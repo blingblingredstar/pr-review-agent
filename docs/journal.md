@@ -301,3 +301,13 @@
 - **后续动作**（本 PR 合并后执行）：API 转 public → branch protection：`review-threads` + `pr-review` 设 required status check、require conversation resolution、enforce_admins（硬闸门含管理员）→ 验证生效。
 - **发现 / 坑**：转 public 前审计要走 git 历史（`git log --all -p` 扫密钥模式 + `--diff-filter=A` 查敏感文件名），只扫工作区会漏历史污染——本次历史干净，机制留档。
 - **下一步**：执行转 public 与硬闸门，结果回填本文件
+
+## 2026-10-30 · 会话 20 续：转 public 完成，硬闸门启用
+
+- **执行结果**（PR #15 合并 72f39c1 后）：
+  - `PATCH /repos {private:false}` → 仓库公开，匿名 API 确认 visibility=public、license=MIT
+  - branch protection 启用：`review-threads` + `pr-review` required status check、require conversation resolution、**enforce_admins**（管理员同样不可越过）——D013/D017 的「转 public 升硬闸门」兑换完成
+  - 生产 webhook 冒烟 401（无签名拒绝）符合预期；Vercel 集成不受影响
+- **流程变化（重要）**：required check 启用后 main 禁止直接 push——此后任何改动（含本条 journal）必须走 PR 过闸门；本条即第一次硬闸门 dogfood
+- **发现 / 坑**：branch protection 的 contexts 按 commit status 的 context 名匹配（GitHub 自动关联了 app_id），无需额外注册
+- **下一步**：社交帖发布（用户动作，`docs/social-post-draft.md`）；后续迭代靶子见 README 路线图
