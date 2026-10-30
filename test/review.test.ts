@@ -251,6 +251,13 @@ test("truncateDiff：压缩汇总行保留生成物/新建文件计数（PR #18 
   assert.ok(out.includes("其中生成物 1、新建文件 1"), `标注计数应进汇总行: ${out.slice(-120)}`);
 });
 
+test("truncateDiff：通用目录名只认顶层，嵌套同名词目录不误伤（PR #18 自审意见）", () => {
+  const top = "diff --git a/build/lib/manifest.json b/build/lib/manifest.json\n@@ -1,1 +1,2 @@\n ctx\n+" + "x".repeat(60) + "\n";
+  const nested = "diff --git a/src/build/steps.ts b/src/build/steps.ts\n@@ -1,1 +1,2 @@\n ctx\n+" + "y".repeat(60) + "\n";
+  const out = truncateDiff(top + nested, nested.length + 60);
+  assert.equal(out, nested + "\n[diff 截断] 省略 build/lib/manifest.json（生成物） (+1/-0)");
+});
+
 test("truncateDiff：diff 头之前的散落内容被丢弃时不产出伪路径省略行", () => {
   const junk = "not a diff line\n";
   const a = "diff --git a/a.ts b/a.ts\n@@ -1,1 +1,2 @@\n ctx\n+kk\n";

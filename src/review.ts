@@ -139,8 +139,11 @@ const NOISE_FILENAMES = new Set([
   "Gemfile.lock", "composer.lock", "go.sum", "mix.lock", "gradle.lockfile",
   "packages.lock.json", "Paket.lock", "conan.lock", "flake.lock",
 ]);
-// 目录段按段整配：outbox/ 不撞 out/，dist-utils/ 不撞 dist/
-const NOISE_SEGMENTS = new Set(["node_modules", "vendor", "dist", "build", "out", "target", "coverage", ".next"]);
+// 目录段分两类（PR #18 自审意见）：通用名（dist/build/out/target）只认顶层首段——src/build/、
+// infra/out/ 这类嵌套同名词多是真实源码，误标「生成物」是带误导标签的静默排除而非软失败；
+// 约定成俗的（node_modules/vendor/coverage/.next）任意层级都认（monorepo 里 node_modules 必然嵌套）
+const NOISE_TOP_SEGMENTS = new Set(["dist", "build", "out", "target"]);
+const NOISE_SEGMENTS = new Set(["node_modules", "vendor", "coverage", ".next"]);
 const NOISE_SUFFIXES = [".min.js", ".min.css", ".map", ".snap"];
 
 function isNoisePath(path: string): boolean {
@@ -148,7 +151,7 @@ function isNoisePath(path: string): boolean {
   const base = segments[segments.length - 1]!;
   if (NOISE_FILENAMES.has(base)) return true;
   if (NOISE_SUFFIXES.some((s) => base.endsWith(s))) return true;
-  return segments.slice(0, -1).some((s) => NOISE_SEGMENTS.has(s));
+  return segments.slice(0, -1).some((s) => NOISE_SEGMENTS.has(s)) || (segments.length > 1 && NOISE_TOP_SEGMENTS.has(segments[0]!));
 }
 
 // 超预算时整文件块丢弃（D018）：切 hunk 破坏行号定位、分批多次调用翻倍延迟，都不取——
