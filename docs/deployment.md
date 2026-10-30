@@ -63,7 +63,7 @@ npm run setup:webhook -- owner/repo https://<your-app>.vercel.app/api/webhook
 
 1. 在配置了 webhook 的仓库开一个 PR
 2. PR 的 commit 上先出现 `pr-review` status（pending「审查进行中」）
-3. 约 20 秒级后出结果：无意见 → status success；有意见 → 行内评论 + `REQUEST_CHANGES`（合并按钮原生禁用，处理完重审自动解除，D017）
+3. 端点已关 thinking（见第三步 `LLM_EXTRA_BODY` 建议）时典型 20 秒级出结果——thinking 模型不关则首跑等来的可能是 270s 超时降级通知（D011）而非审查结果：无意见 → status success；有意见 → 行内评论 + `REQUEST_CHANGES`（合并按钮原生禁用，处理完重审自动解除，D017）
 4. 同一 commit 重复触发（webhook 重投）幂等跳过、不产生重复评论（D010）
 
 ## 安全模型：谁能消耗你的 LLM 额度
