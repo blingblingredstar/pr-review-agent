@@ -239,6 +239,18 @@ test("truncateDiff：省略行自身超预算时压缩为汇总行", () => {
   assert.ok(out.includes("省略 30 个文件"), `实际输出末尾: ${out.slice(-120)}`);
 });
 
+test("truncateDiff：压缩汇总行保留生成物/新建文件计数（PR #18 自审意见）", () => {
+  const kept = "diff --git a/k.ts b/k.ts\n@@ -1,1 +1,2 @@\n ctx\n+kk\n";
+  let diff = kept;
+  diff += `diff --git a/package-lock.json b/package-lock.json\n@@ -1,1 +1,2 @@\n ctx\n+${"x".repeat(80)}\n`;
+  diff += `diff --git a/src/n.ts b/src/n.ts\nnew file mode 100644\n@@ -0,0 +1,1 @@\n+${"x".repeat(80)}\n`;
+  for (let i = 0; i < 28; i++) diff += `diff --git a/d${i}.ts b/d${i}.ts\n@@ -1,1 +1,2 @@\n ctx\n+${"x".repeat(80)}\n`;
+  const out = truncateDiff(diff, kept.length + 40);
+  assert.equal((out.match(/\[diff 截断\]/g) ?? []).length, 1);
+  assert.ok(out.includes("省略 30 个文件"), `实际输出末尾: ${out.slice(-120)}`);
+  assert.ok(out.includes("其中生成物 1、新建文件 1"), `标注计数应进汇总行: ${out.slice(-120)}`);
+});
+
 test("truncateDiff：diff 头之前的散落内容被丢弃时不产出伪路径省略行", () => {
   const junk = "not a diff line\n";
   const a = "diff --git a/a.ts b/a.ts\n@@ -1,1 +1,2 @@\n ctx\n+kk\n";

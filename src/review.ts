@@ -217,11 +217,18 @@ export function truncateDiff(diff: string, budget: number = diffMaxChars()): str
     const tag = b.noise ? "生成物" : b.isNew ? "新建文件" : "";
     return `[diff 截断] 省略 ${b.path}${tag ? `（${tag}）` : ""} (+${b.adds}/-${b.dels})`;
   });
-  // 省略行自身也占输出：丢弃文件极多时会反噬预算——超了就压缩成一行汇总（总量有界，无条件核对）
+  // 省略行自身也占输出：丢弃文件极多时会反噬预算——超了就压缩成一行汇总（总量有界，无条件核对）。
+  // 压缩会让逐条标注消失，汇总行带各类计数把「生成物/新建文件」信号保留给模型（PR #18 自审意见）
   if (used + omitLines.join("\n").length + 1 > budget) {
     const adds = omitTargets.reduce((s, b) => s + b.adds, 0);
     const dels = omitTargets.reduce((s, b) => s + b.dels, 0);
-    out.push(`[diff 截断] 省略 ${omitTargets.length} 个文件（超出 ${budget} 字符预算，合计 +${adds}/-${dels}）`);
+    const noise = omitTargets.filter((b) => b.noise).length;
+    const fresh = omitTargets.filter((b) => !b.noise && b.isNew).length;
+    out.push(
+      `[diff 截断] 省略 ${omitTargets.length} 个文件（超出 ${budget} 字符预算，合计 +${adds}/-${dels}` +
+        (noise + fresh > 0 ? `，其中生成物 ${noise}、新建文件 ${fresh}` : "") +
+        `）`,
+    );
   } else {
     out.push(...omitLines);
   }
