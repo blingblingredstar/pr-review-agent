@@ -124,3 +124,9 @@
 
 - README 完整版：架构图、六项关键工程决策（异步/幂等/截断/超时降级/预定位/合并闸门）、快速开始、eval 摘要、v2 路线图（验收标准 #4）
 - 社交总结帖草稿 `docs/social-post-draft.md`（发布动作留用户）；PLAN 全部 checkbox 勾选完成，一句话描述更新为 29 用例
+
+### Added（转 public 准备）
+
+- 根目录 MIT LICENSE（此前无许可证，public 后默认「保留所有权利」与 README 教人复用矛盾）
+- `.agents/skills/README.md`：第三方 skill 来源与许可归属（ponytail 系与 mattpocock 系均为 MIT，原始 LICENSE 文本存 `licenses/`），AGENTS.md 加指引
+- git 身份切换为 GitHub noreply 邮箱（`43870278+blingblingredstar@users.noreply.github.com`）——历史提交的 QQ 邮箱保持原样（重写会使 14 个 PR 的评论线程与 SHA 脱钩，不值），今后提交不再暴露 QQ 邮箱
