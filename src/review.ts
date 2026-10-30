@@ -131,36 +131,79 @@ export function diffMaxChars(): number {
   return parsed;
 }
 
+// 生成物识别名单（D020）：故意短而高精度——漏判只是让该文件回退 D018 的大小贪心（软失败），不比现状差。
+// 直接清单（package.json / requirements.txt）不进名单：体积小贪心本来保留，且依赖版本变动正是要人审的内容
+const NOISE_FILENAMES = new Set([
+  "package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml", "bun.lock", "bun.lockb",
+  "Cargo.lock", "poetry.lock", "uv.lock", "pdm.lock", "Pipfile.lock",
+  "Gemfile.lock", "composer.lock", "go.sum", "mix.lock", "gradle.lockfile",
+  "packages.lock.json", "Paket.lock", "conan.lock", "flake.lock",
+]);
+// 目录段分两类（PR #18 自审意见）：通用名（dist/build/out/target）只认顶层首段——src/build/、
+// infra/out/ 这类嵌套同名词多是真实源码，误标「生成物」是带误导标签的静默排除而非软失败；
+// 约定成俗的（node_modules/vendor/coverage/.next）任意层级都认（monorepo 里 node_modules 必然嵌套）
+const NOISE_TOP_SEGMENTS = new Set(["dist", "build", "out", "target"]);
+const NOISE_SEGMENTS = new Set(["node_modules", "vendor", "coverage", ".next"]);
+const NOISE_SUFFIXES = [".min.js", ".min.css", ".map", ".snap"];
+
+function isNoisePath(path: string): boolean {
+  const segments = path.split("/");
+  const base = segments[segments.length - 1]!;
+  if (NOISE_FILENAMES.has(base)) return true;
+  if (NOISE_SUFFIXES.some((s) => base.endsWith(s))) return true;
+  return segments.slice(0, -1).some((s) => NOISE_SEGMENTS.has(s)) || (segments.length > 1 && NOISE_TOP_SEGMENTS.has(segments[0]!));
+}
+
 // 超预算时整文件块丢弃（D018）：切 hunk 破坏行号定位、分批多次调用翻倍延迟，都不取——
-// 按块大小升序贪心保留（大文件多为 lock/生成物噪声，正是 PR #1 印证的取舍），保留块按原顺序
-// 字节级重组，丢弃文件附省略行让模型知道看到的不是全量。
+// 按块大小升序贪心保留，保留块按原顺序字节级重组，丢弃文件附省略行让模型知道看到的不是全量。
+// 生成物前置过滤（D020）：名单/横幅/长行占优命中的块不进预算竞争、恒省略并标注，预算让给真实代码；
+// 省略行标注「新建文件」——D018 把「大」当噪声信号，新建大源码文件是最值得审却被最先丢的内容。
 export function truncateDiff(diff: string, budget: number = diffMaxChars()): string {
   if (diff.length <= budget) return diff;
-  const blocks: { lines: string[]; path: string; adds: number; dels: number; size: number; binary: boolean; pseudo?: true }[] = [];
+  const blocks: {
+    lines: string[]; path: string; adds: number; dels: number; size: number; binary: boolean; pseudo?: true;
+    isNew: boolean; generated: boolean; contentChars: number; longChars: number; noise: boolean;
+  }[] = [];
   let cur: (typeof blocks)[number] | null = null;
   for (const line of diff.split("\n")) {
     if (line.startsWith("diff --git ")) {
-      cur = { lines: [line], path: diffHeaderPath(line) ?? "(无法解析路径的文件)", adds: 0, dels: 0, size: 0, binary: false };
+      cur = {
+        lines: [line], path: diffHeaderPath(line) ?? "(无法解析路径的文件)", adds: 0, dels: 0, size: 0, binary: false,
+        isNew: false, generated: false, contentChars: 0, longChars: 0, noise: false,
+      };
       blocks.push(cur);
     } else if (!cur) {
       // 畸形 diff 首个文件头之前的散落内容：不是文件，被丢弃时不产出省略行（伪路径会误导模型）
-      cur = { lines: [line], path: "(diff 头之前的内容)", adds: 0, dels: 0, size: 0, binary: false, pseudo: true };
+      cur = {
+        lines: [line], path: "(diff 头之前的内容)", adds: 0, dels: 0, size: 0, binary: false, pseudo: true,
+        isNew: false, generated: false, contentChars: 0, longChars: 0, noise: false,
+      };
       blocks.push(cur);
     } else {
       cur.lines.push(line);
+      cur.contentChars += line.length;
+      if (line.length >= 500) cur.longChars += line.length;
+      if (line.startsWith("new file mode ")) cur.isNew = true;
       // 二进制负载行（GIT binary patch 的 base64 / Binary files 摘要之后）可能以 +/- 开头，停止计数；
       // 标记置位后不重置——git 输出中二进制段后不再有文本 hunk，手工拼接的混合 diff 会漏记（输入来源仅 GitHub 标准 diff，接受）
       if (line === "GIT binary patch" || line.startsWith("Binary files ")) cur.binary = true;
       else if (!cur.binary) {
-        if (line.startsWith("+") && !line.startsWith("+++")) cur.adds++;
-        else if (line.startsWith("-") && !line.startsWith("---")) cur.dels++;
+        if (line.startsWith("+") && !line.startsWith("+++")) {
+          cur.adds++;
+          // 生成物横幅只认文件头部（前 10 个新增行）：中后段的 do not edit 多是普通注释，全块扫会误伤
+          if (cur.adds <= 10 && /@generated|do not edit/i.test(line)) cur.generated = true;
+        } else if (line.startsWith("-") && !line.startsWith("---")) cur.dels++;
       }
     }
   }
   // 块大小为近似值：join 长度 + 1 个块间换行分隔符（末块无尾换行时多记 1 字符）；预算是软约束，不追求精确
   for (const b of blocks) b.size = b.lines.join("\n").length + 1;
-  // 装不下就跳过继续试更小的（continue 而非 break），保留集按原顺序输出
-  const order = blocks.map((_, i) => i).sort((a, b) => blocks[a].size - blocks[b].size);
+  // 长行占优是压缩/混淆产物的跨生态结构信号，不依赖文件名；500/4000 阈值容忍源码里偶发的长字符串行
+  for (const b of blocks) {
+    b.noise = !b.pseudo && (isNoisePath(b.path) || b.generated || (b.longChars > 4000 && b.longChars * 2 > b.contentChars));
+  }
+  // 装不下就跳过继续试更小的（continue 而非 break），保留集按原顺序输出；生成物块不参与竞争
+  const order = blocks.map((_, i) => i).filter((i) => !blocks[i].noise).sort((a, b) => blocks[a].size - blocks[b].size);
   const keep = new Set<number>();
   let used = 0;
   for (const i of order) {
@@ -172,17 +215,30 @@ export function truncateDiff(diff: string, budget: number = diffMaxChars()): str
   // 非文件的 pseudo 块被丢弃时不产出省略行、不进汇总计数
   const omitTargets = blocks.filter((b, i) => !keep.has(i) && !b.pseudo);
   const out = kept.flatMap((b) => b.lines);
-  const omitLines = omitTargets.map((b) => `[diff 截断] 省略 ${b.path} (+${b.adds}/-${b.dels})`);
-  // 省略行自身也占输出：丢弃文件极多时会反噬预算——超了就压缩成一行汇总（总量有界，无条件核对）
+  const omitLines = omitTargets.map((b) => {
+    // 标注让模型分清「预算丢的普通文件」「规则跳过的生成物」「没看到内容的新建文件」——最后者是审查盲区，最值得人工补看
+    const tag = b.noise ? "生成物" : b.isNew ? "新建文件" : "";
+    return `[diff 截断] 省略 ${b.path}${tag ? `（${tag}）` : ""} (+${b.adds}/-${b.dels})`;
+  });
+  // 省略行自身也占输出：丢弃文件极多时会反噬预算——超了就压缩成一行汇总（总量有界，无条件核对）。
+  // 压缩会让逐条标注消失，汇总行带各类计数把「生成物/新建文件」信号保留给模型（PR #18 自审意见）
   if (used + omitLines.join("\n").length + 1 > budget) {
     const adds = omitTargets.reduce((s, b) => s + b.adds, 0);
     const dels = omitTargets.reduce((s, b) => s + b.dels, 0);
-    out.push(`[diff 截断] 省略 ${omitTargets.length} 个文件（超出 ${budget} 字符预算，合计 +${adds}/-${dels}）`);
+    const noise = omitTargets.filter((b) => b.noise).length;
+    const fresh = omitTargets.filter((b) => !b.noise && b.isNew).length;
+    out.push(
+      `[diff 截断] 省略 ${omitTargets.length} 个文件（超出 ${budget} 字符预算，合计 +${adds}/-${dels}` +
+        (noise + fresh > 0 ? `，其中生成物 ${noise}、新建文件 ${fresh}` : "") +
+        `）`,
+    );
   } else {
     out.push(...omitLines);
   }
+  const noiseCount = blocks.filter((b) => b.noise).length;
   console.log(
-    `[truncateDiff] 预算 ${budget} 字符：${blocks.length} 个文件块保留 ${kept.length} 个、省略 ${blocks.length - kept.length} 个`,
+    `[truncateDiff] 预算 ${budget} 字符：${blocks.length} 个文件块保留 ${kept.length} 个、省略 ${blocks.length - kept.length} 个` +
+      (noiseCount > 0 ? `，其中生成物按规则跳过 ${noiseCount} 个` : ""),
   );
   return out.join("\n");
 }
