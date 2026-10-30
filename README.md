@@ -51,7 +51,7 @@ npm run setup:webhook -- owner/repo <url>    # 一键创建 webhook（secret 自
 npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 ```
 
-部署：Vercel（`vercel.json` 含 `maxDuration: 300` 与 `includeFiles: prompts/**`），webhook URL 指向 `https://<app>.vercel.app/api/webhook`，事件订阅 `pull_request`（opened / synchronize）。
+部署：Vercel（Hobby 免费档即可），事件订阅 `pull_request`（opened / synchronize）。完整步骤（环境变量、webhook 配置、安全模型、排障分层）见 [docs/deployment.md](./docs/deployment.md)。
 
 环境变量：`LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`（OpenAI 兼容端点，换模型只改配置）、`GITHUB_TOKEN`（PAT，拉 diff + 回帖）、`WEBHOOK_SECRET`（验签）、`LLM_TIMEOUT_MS`（默认 270000）、`LLM_EXTRA_BODY`（端点扩展参数 JSON，如 GLM 关 thinking）、`DIFF_MAX_CHARS`（diff 截断预算，默认 300000）。
 
@@ -75,6 +75,7 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 |---|---|
 | [docs/plans/PLAN.md](./docs/plans/PLAN.md) | 项目定位、技术选型、执行计划（交接文档） |
 | [docs/architecture.md](./docs/architecture.md) | 架构：组件、数据流、输出 schema、环境变量 |
+| [docs/deployment.md](./docs/deployment.md) | 部署指南：五步上线路径、安全模型、排障分层 |
 | [docs/decisions.md](./docs/decisions.md) | 技术决策记录（append-only，D001–D019） |
 | [evals/report.md](./evals/report.md) | prompt 迭代对比报告（方法/数据/局限） |
 | [docs/journal.md](./docs/journal.md) | 开发日志（append-only） |

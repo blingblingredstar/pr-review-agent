@@ -116,7 +116,7 @@
 - **完成**：
   - 前置：PR #1（Day 2）确认合并进 main（bc34262）
   - 代码：`src/webhook.ts`（HMAC-SHA256 验签 + opened/synchronize 分发 + `waitUntil` 异步审查）、`api/webhook.ts` Vercel 薄壳、`src/dedupe.ts`（D010 查 GitHub review 标记）、`LLM_TIMEOUT_MS` 硬超时 + 超时评论降级（D011）、`scripts/setup-webhook.ts`（PAT 一键建 webhook）、`vercel.json`（maxDuration 300 + `includeFiles: prompts/**`）
-  - 单测 8 → 10 例全过；Vercel Hobby 生产部署 `pr-review-agent-mauve.vercel.app`（6 个环境变量）；webhook id 704670191 指向生产
+  - 单测 8 → 10 例全过；Vercel Hobby 生产部署（域名 2026-10-30 起从公开文档移除，见 Vercel 项目 `pr-review-agent`；6 个环境变量）；webhook id 704670191 指向生产
   - **dogfood PR #2 全链路验证通过**：opened → thinking 全开 270s 超时 → 超时评论降级（D011 首跑即触发）→ 同 SHA 重投自动重试 → 定位根因后关 thinking（D012）→ synchronize 约 20s 出 3 条行内评论（minor×2 / nit×1，定位全中）→ 同 SHA 再重投幂等跳过、无重复评论（D010 验证）。验收标准 #1「1 分钟内留评」达成
 - **发现 / 坑**：
   - **Vercel Hobby 函数上限是 300s**（Fluid compute 默认开启；「10s/60s」是 Fluid 之前的过时数据），差点据此过度设计超时方案
