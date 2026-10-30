@@ -35,6 +35,8 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 
 Git 集成（Vercel 控制台导入仓库，push main 自动部署）或 CLI（`npx vercel link && npx vercel env add <VAR> production` 逐个配置后 `npx vercel --prod`）均可。环境变量（项目 Settings → Environment Variables）：
 
+**注意：环境变量只在新部署时生效**——后补/修改变量（含控制台改值）必须触发一次新部署（CLI `npx vercel --prod`，或控制台 Deployments → Redeploy）。另：`vercel env add` 默认存为 Hidden Secret（dashboard 不可见、不可 `env pull`），想存可读配置加 `--type config`。
+
 | 变量 | 必填 | 说明 |
 |---|---|---|
 | `LLM_BASE_URL` | ✅ | OpenAI 兼容端点地址 |
@@ -66,6 +68,7 @@ npm run setup:webhook -- owner/repo https://<your-app>.vercel.app/api/webhook
 2. PR 的 commit 上先出现 `pr-review` status（pending「审查进行中」）
 3. 端点已关 thinking（见第三步 `LLM_EXTRA_BODY` 建议）时典型 20 秒级出结果——thinking 模型不关则首跑等来的可能是 270s 超时降级通知（D011）而非审查结果：无意见 → status success；有意见 → 行内评论 + `REQUEST_CHANGES`（合并按钮原生禁用，处理完重审自动解除，D017）
 4. 同一 commit 重复触发（webhook 重投）幂等跳过、不产生重复评论（D010）
+5. 配置了 `REVIEW_TRIGGER_USERS` 时，用名单外作者的 PR 验证：事件返回 200、函数日志（`npx vercel logs`）见「不在 REVIEW_TRIGGER_USERS 名单，跳过审查」，不产生 `pr-review` status、不消耗 LLM token（需一个名单外的真实账号，如小号；Dependabot 等 bot 的 PR 同样可当负样本）
 
 ## 安全模型：谁能消耗你的 LLM 额度
 
