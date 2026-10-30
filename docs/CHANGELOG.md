@@ -130,3 +130,9 @@
 - 根目录 MIT LICENSE（此前无许可证，public 后默认「保留所有权利」与 README 教人复用矛盾）
 - `.agents/skills/README.md`：第三方 skill 来源与许可归属（ponytail 系与 mattpocock 系均为 MIT，原始 LICENSE 文本存 `licenses/`），AGENTS.md 加指引
 - git 身份切换为 GitHub noreply 邮箱（`43870278+blingblingredstar@users.noreply.github.com`）——历史提交的 QQ 邮箱保持原样（重写会使 14 个 PR 的评论线程与 SHA 脱钩，不值），今后提交不再暴露 QQ 邮箱
+
+### Added（截断前置生成物过滤，D020）
+
+- `truncateDiff` 生成物前置过滤，三层识别：lock/生成物名单（约 20 个文件名 + `node_modules`/`dist` 等目录段 + `.min.js`/`.map` 等后缀）、新建文件头部 `@generated` 横幅、长行占优（压缩/混淆产物的跨生态结构信号）——命中块不进预算竞争、省略行标注「生成物」，预算让给真实代码，新建大源码文件不再与 lock 拿同一排序信号出局
+- 省略行标注「新建文件」：被预算丢弃的新建文件显式标记审查盲区；过滤只在超预算路径生效，预算内 diff 字节级原样
+- 运行时 LLM 按文件名打标方案否决在案（D020）：名单即离线打标产物，运行时调用徒增延迟与非确定性
