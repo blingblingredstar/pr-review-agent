@@ -69,7 +69,7 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 
 按优先级排序。现状口径已有量化基线：质量看 eval 报告，成本看 run 落盘的 token 用量（2026-11-01 基线）。
 
-1. **证据可溯**：意见 schema 加 `evidenceSnippet` + 后置校验（须能在 diff 中匹配，容忍空白/行号漂移），不匹配的降级不行内发；eval 报告新增「evidence 拦截率/降级率」指标——D016 的行内定位失败已是幻觉的代理指标，此条把它做成显式契约
+1. **证据可溯**（暂缓，D022 否决）：`evidenceSnippet` 契约经 12 轮对照实测 recall 微平均 96.3% → 87.7–91.4%——「字段存在」即抑制推断型发现（必填/可选/措辞均不可救），且 370 条意见真幻觉拦截为 0，成本确定、收益为理论值。重启候选形态：旁路观测不进生成侧。数据见 [evals/report.md](./evals/report.md)
 2. **注入抗性 canary 组**：新增 eval 分组——注入藏于 PR 描述/代码注释/文件名的 fixture，断言注入内容不回显进意见、真实 findings 不被抑制（本 agent 无 approve 路径，review 只会 REQUEST_CHANGES / COMMENT）；README 加 threat model 章节：diff 是不可信输入 + PAT 最小权限盘点
 3. **决策模型路由 + 消融表**：两段式调用（便宜档先做内容路由，贵档只做评审），环境变量开关，`compare.ts` 扩展 token 对比列出消融表；前置 = 超时预算按阶段拆分（多跳串行共享 300s 墙钟）；红线 = recall 不回退，对照组 = 2026-11-01 基线 run
 4. **上下文增强**：拉相关文件/搜引用喂 prompt（当前只看 diff，diff 外引用靠 hunk 上下文覆盖）；路由是它的第一阶段；引入工具循环时工具 allowlist 是前置条件
@@ -86,7 +86,7 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 | [docs/plans/PLAN.md](./docs/plans/PLAN.md) | 项目定位、技术选型、执行计划（交接文档） |
 | [docs/architecture.md](./docs/architecture.md) | 架构：组件、数据流、输出 schema、环境变量 |
 | [docs/deployment.md](./docs/deployment.md) | 部署指南：五步上线路径、安全模型、排障分层 |
-| [docs/decisions.md](./docs/decisions.md) | 技术决策记录（append-only，D001–D021） |
+| [docs/decisions.md](./docs/decisions.md) | 技术决策记录（append-only，D001–D022） |
 | [evals/report.md](./evals/report.md) | prompt 迭代对比报告（方法/数据/局限） |
 | [docs/journal.md](./docs/journal.md) | 开发日志（append-only） |
 | [docs/CHANGELOG.md](./docs/CHANGELOG.md) | 变更记录 |
