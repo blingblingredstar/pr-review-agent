@@ -67,11 +67,17 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 
 ## 路线图（v2 候选）
 
-- 上下文增强（拉相关文件/搜引用喂 prompt——当前只看 diff，diff 外引用靠 hunk 上下文覆盖）
-- 增量审查（synchronize 只审新 commit）与按 severity 分层的报告门槛细化
-- 多模型对比（同一 eval 集跑第二家端点）
-- 必须长 thinking 时真正异步化（QStash / Vercel Workflows 突破 300s）
-- 多仓产品化：GitHub App 身份（权限收敛）；branch protection 硬闸门已启用（`review-threads` / `pr-review` required check + 会话必须 resolve）
+按优先级排序。现状口径已有量化基线：质量看 eval 报告，成本看 run 落盘的 token 用量（2026-11-01 基线）。
+
+1. **证据可溯**：意见 schema 加 `evidenceSnippet` + 后置校验（须能在 diff 中匹配，容忍空白/行号漂移），不匹配的降级不行内发；eval 报告新增「evidence 拦截率/降级率」指标——D016 的行内定位失败已是幻觉的代理指标，此条把它做成显式契约
+2. **注入抗性 canary 组**：新增 eval 分组——注入藏于 PR 描述/代码注释/文件名的 fixture，断言注入内容不回显进意见、真实 findings 不被抑制（本 agent 无 approve 路径，review 只会 REQUEST_CHANGES / COMMENT）；README 加 threat model 章节：diff 是不可信输入 + PAT 最小权限盘点
+3. **决策模型路由 + 消融表**：两段式调用（便宜档先做内容路由，贵档只做评审），环境变量开关，`compare.ts` 扩展 token 对比列出消融表；前置 = 超时预算按阶段拆分（多跳串行共享 300s 墙钟）；红线 = recall 不回退，对照组 = 2026-11-01 基线 run
+4. **上下文增强**：拉相关文件/搜引用喂 prompt（当前只看 diff，diff 外引用靠 hunk 上下文覆盖）；路由是它的第一阶段；引入工具循环时工具 allowlist 是前置条件
+5. **对抗性关联 fixture 扩充**：5 例「表面优化、实际引洞」类关联问题，优先 fix 反转/真实配对构造（手写用例会高估能力，D015），关联命中率在报告单列
+6. **增量审查**（synchronize 只审新 commit）与按 severity 分层的报告门槛细化
+7. **多模型对比**（同一 eval 集跑第二家端点）
+8. **必须长 thinking 时真正异步化**（QStash / Vercel Workflows 突破 300s）——质量触发立项：thinking 关闭后实测单次审查 20 秒级，270s 预算余量约 10 倍，其余路线项均不需此前置，设计约束是「串行深度有界、预算按阶段拆分」
+9. **多仓产品化**：GitHub App 身份（权限收敛）+ 多租户上下文隔离前置；branch protection 硬闸门已启用（`review-threads` / `pr-review` required check + 会话必须 resolve）
 
 ## 文档导航
 
