@@ -283,7 +283,30 @@ export function llmTimeoutMs(): number {
   return parsed;
 }
 
-export async function reviewDiff(diff: string): Promise<ReviewResult> {
+// token 用量（D021 盘点的待办）：部分端点不返回 usage，字段为 null——聚合时按非 null 求和，不虚构 0
+export type TokenUsage = {
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+};
+
+// reviewDiff 的完整返回：LLM 结构化输出 + 本次调用用量（eval 聚合进 run 落盘，生产走 console 日志）
+export type ReviewOutcome = ReviewResult & { usage: TokenUsage };
+
+// 多次调用求和：字段独立判空——端点只回部分字段时不被其他 null 拖成全空
+export function sumUsage(usages: TokenUsage[]): TokenUsage {
+  const sum = (pick: (u: TokenUsage) => number | null): number | null => {
+    const vals = usages.map(pick).filter((v): v is number => typeof v === "number");
+    return vals.length ? vals.reduce((a, b) => a + b, 0) : null;
+  };
+  return {
+    inputTokens: sum((u) => u.inputTokens),
+    outputTokens: sum((u) => u.outputTokens),
+    totalTokens: sum((u) => u.totalTokens),
+  };
+}
+
+export async function reviewDiff(diff: string): Promise<ReviewOutcome> {
   const { LLM_API_KEY, LLM_BASE_URL, LLM_MODEL } = process.env;
   if (!LLM_API_KEY || !LLM_BASE_URL || !LLM_MODEL) {
     throw new Error("缺少环境变量 LLM_BASE_URL / LLM_API_KEY / LLM_MODEL（参照 .env.example 配置 .env）");
@@ -292,12 +315,21 @@ export async function reviewDiff(diff: string): Promise<ReviewResult> {
   // .chat() 强制走 /chat/completions：OpenAI 兼容端点（如 GLM）不实现 Responses API；
   // ai v7 起 generateObject 已废弃，结构化输出走 generateText + Output；
   // 超时预算见 docs/decisions.md D011（Vercel Hobby 函数上限 300s，留回帖余量）
-  const { output } = await generateText({
+  const { output, usage } = await generateText({
     model: llm.chat(LLM_MODEL),
     output: Output.object({ schema: reviewResultSchema, name: "ReviewResult" }),
     system: loadPrompt(),
     prompt: truncateDiff(diff),
     abortSignal: AbortSignal.timeout(llmTimeoutMs()),
   });
-  return output;
+  const tokenUsage: TokenUsage = {
+    inputTokens: usage?.inputTokens ?? null,
+    outputTokens: usage?.outputTokens ?? null,
+    totalTokens: usage?.totalTokens ?? null,
+  };
+  console.log(
+    `[reviewDiff] tokens: in ${tokenUsage.inputTokens ?? "?"} / out ${tokenUsage.outputTokens ?? "?"}` +
+      ` / total ${tokenUsage.totalTokens ?? "?"}`,
+  );
+  return { ...output, usage: tokenUsage };
 }

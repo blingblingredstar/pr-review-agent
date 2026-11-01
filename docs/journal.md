@@ -355,3 +355,22 @@
 
 - **执行结果**（PR #19 合并 d9c5b3a 后）：本机 Vercel CLI 登录态可用（项目已 link），`printf 值 | npx vercel env add REVIEW_TRIGGER_USERS production` 写入；`npx vercel --prod` 重新部署（本地 main 与 origin/main 同步后部署），新生产部署 fevd8bqfw Ready；`env ls` 确认变量注册，生产域名 POST 无签名 401 冒烟正常——名单逻辑本身由单测覆盖，端到端拒绝需非名单作者的真实 PR 才能验
 - **坑**：`vercel env add` 默认存为 Hidden Secret（dashboard 不可见、不可 pull）——对本变量无所谓，但后续想存可读配置要 `--type config`
+
+## 2026-11-01 · 会话 24：token 用量计量落地（D021 待办兑现），成本基线就位
+
+- **目标**：用户提出参照 Memdoor（-74% token）给 agent 加「决策模型」预处理——便宜档 GLM 做工具路由与上下文过滤，前后 token 消耗写进 README；并问是否与「必须长 thinking 时真正异步化」（D012 v2 候选）捆绑实现。
+- **方案讨论结论（先于代码）**：
+  - 不捆绑，拆开排序：耦合点在「异步化解除 300s 墙钟后，预处理多一跳串行调用才有预算空间」（D020 否决理由之一），所以预处理若做必须在异步化之后，而非同时
+  - 「工具路由」目前没有靶子——管线是单次 generateText 无工具循环，路由成立的前提是上下文增强（D019 延后路线），该提案的正确身份是上下文增强第一阶段
+  - 「上下文过滤」撞 D020 另外两条否决理由，异步化解不掉：非确定性（撞 eval 可回归与 synchronize 重审一致性）、静默漏审（误标源码为噪声无告警）；-74% 是 Memdoor 语境（工具输出浪费型基线）不可平移到「上下文 = diff 本身 + D020 确定性过滤已就位」的本项目
+  - README 三卖点校准：安全（D021+HMAC+D010）与评测（29 用例+report）已齐，成本最便宜的补法是 usage 计量 + 真实数字，不是两模型子系统；异步化的触发条件应是质量需求（开 thinking、超大 PR 分批补审），不是成本
+  - 顺序定为：① usage 计量（D021 已拍板「可改」的待办，本会话）→ ② 异步化单独立项 → ③ 决策模型预处理 = 上下文增强第一阶段，红线 recall 不回退，以本 run usage 为对照组
+- **完成**（走 PR 过闸门）：
+  - `reviewDiff` usage 落日志（console 一行，Vercel 可查）并随返回值返回 `ReviewOutcome = ReviewResult & { usage: TokenUsage }`——端点不返回的字段为 null 不虚构 0；`comments` 契约不变，webhook/scripts 零改动
+  - `npm run eval` 逐用例记录 tokens 入/出（表格加列），报告与 `runs/*.json` summary 带合计（`sumUsage` 字段独立判空，失败用例不计入）；单测 +1（64 全绿）
+  - eval 基线一轮（29 例，glm-5.3-flash，prompt 指纹 d399f9d4ed17 不变）：recall 96.3%（26/27）、precision 87.1%（27/31，单轮）、tokens 合计入 19,246 / 出 5,179 / 总 24,425，典型单例 ~0.6k/0.2k，全程 2.6 分钟；run 落盘 `evals/runs/2026-11-01T04-27-42-glm-5.3-flash.{json,md}`
+  - README「关键工程决策」加 token 用量段（真实数字）；CHANGELOG / architecture 同步
+- **发现 / 坑**：
+  - real-02 本轮沉默（0 意见）——D019 已记录的「间歇沉默」类（v2 下曾三轮全命中，单轮波动），prompt 未动非本次引入；precision 87.1% 对 Day 6 三轮微平均 94.2% 同为单轮波动口径，README 不引用单轮 precision 做卖点
+  - eval 用例是小 diff（单例输入 ~0.6k token），生产真实 PR 输入由 diff 主导（1 万-10 万 token 量级，D021 推算）——README 里两组数字分开表述，不拿 eval 合计冒充生产成本
+- **下一步**：PR 过 bot 自审与双硬闸门合并；决策模型预处理若启动按讨论结论排序走（异步化先行、eval 集保护、usage 对照）
