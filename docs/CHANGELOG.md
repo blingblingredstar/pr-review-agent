@@ -151,3 +151,8 @@
 
 - `reviewDiff` 返回值带 `usage`（inputTokens / outputTokens / totalTokens，端点不返回的字段为 null）：生产路径 console 打一行（Vercel 日志可查，D021 盘点的「无用量落日志」缺口关闭）；返回类型扩展为 `ReviewOutcome = ReviewResult & { usage }`，`comments` 契约不变
 - `npm run eval` 逐用例记录 tokens 入/出（表格加列），报告与 `runs/*.json` summary 带合计（失败用例不计入）——成本基线就位，后续任何成本优化以 eval run 的 usage 合计为前后对照
+
+### Changed（v2 路线图按优先级重排）
+
+- README 路线图重排为九项优先级序，新增四项：①证据可溯（schema 加 `evidenceSnippet` + 后置校验，幻觉代理指标显式化——口径为「拦截率/降级率」，不写「幻觉率归零」式过滤器构造数字）；②注入抗性 canary eval 组 + README threat model 章节（断言按本架构重定义：无 approve 路径，注入不回显、findings 不被抑制）；③决策模型路由 + 消融表（`compare.ts` 扩 token 对比列，前置为超时预算按阶段拆分）；④对抗性关联 fixture 扩充（优先 fix 反转构造，D015 教训）
+- 异步化条目标注定位：质量触发立项、非其余路线项前置（thinking 关闭后 270s 预算实测余量约 10 倍，约束改为「串行深度有界、预算按阶段拆分」）；多仓产品化并入多租户隔离前置注记；工具 allowlist 移至上下文增强引入工具循环时的前置条件（当前管线无工具）
