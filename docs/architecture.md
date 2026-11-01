@@ -23,11 +23,11 @@ GitHub API 回帖（逐条 PR review comment）◄──────────
 |---|---|---|
 | `api/webhook.ts` | Vercel function 薄壳 | 读 raw body（不能碰 `req.body`，惰性解析会消费流破坏验签）+ 响应；`maxDuration: 300`（Hobby 上限） |
 | `src/webhook.ts` | 验签、事件分发、后台审查编排 | HMAC-SHA256 + `timingSafeEqual`，失败 401；只处理 `opened` / `synchronize`（其余含 `ping` 200 忽略）；触发白名单（D021）在调度前按 payload 自带作者过滤，零 GitHub API / 零 LLM token；立即 200 + `waitUntil`（`@vercel/functions`）执行 `runReview`；后台任务失败只记日志不抛出 |
-| `src/review.ts` | 拉 diff → 构造 prompt → LLM 审查 → 结构化输出 | prompt 从 `prompts/review.md` 读取；prompt 构造前 `truncateDiff()` 整文件块预算截断 + 生成物前置过滤（D018/D020）；`generateText` + `Output.object` 强约束 schema；`llm.chat()` 显式走 chat/completions（兼容端点无 Responses API）；`AbortSignal.timeout(LLM_TIMEOUT_MS)` 默认 270s（D011）；`LLM_EXTRA_BODY` 合并进请求体控制 thinking 等端点参数（D012） |
+| `src/review.ts` | 拉 diff → 构造 prompt → LLM 审查 → 结构化输出 | prompt 从 `prompts/review.md` 读取；prompt 构造前 `truncateDiff()` 整文件块预算截断 + 生成物前置过滤（D018/D020）；`generateText` + `Output.object` 强约束 schema；`llm.chat()` 显式走 chat/completions（兼容端点无 Responses API）；`AbortSignal.timeout(LLM_TIMEOUT_MS)` 默认 270s（D011）；`LLM_EXTRA_BODY` 合并进请求体控制 thinking 等端点参数（D012）；usage（token 用量）console 落日志并随返回值返回（`ReviewOutcome = ReviewResult & { usage: TokenUsage }`，端点不返回的字段为 null，D021 待办兑现） |
 | `src/github.ts` | GitHub API 封装：拉 PR diff、发 review comment（有意见 REQUEST_CHANGES，D017）、审查生命周期 status、超时通知、打 severity 标签 | 只依赖 octokit；便于 eval 时 mock；review summary 内嵌 sha 标记（D010）；`postReview` 后自动打 `has-blocker`/`has-major` 标签（minor/nit 不打，Day 6 eval 可当按时间的质量数据） |
 | `src/dedupe.ts` | 同一 commit SHA 只审一次 | 查 PR 已有 review 的 `<!-- pr-review-agent sha:<SHA> -->` 标记（D010） |
 | `prompts/review.md` | 审查提示词（迭代对象） | prompt 与代码分离，方便 diff 和 eval 对比；`vercel.json` `includeFiles` 保证随函数打包 |
-| `evals/` | eval 用例集 + 跑分脚本 | `cases/` 29 个自包含 diff 用例（D015 三级 source：synthetic 20 手写教学 / real 7 真实仓库 fix 反转与配对 / dogfood 2 回归集；格式见 D014）；`score.ts` 打分纯函数（命中 = file + 行 ±3 + mustMention 任一关键词）；`run.ts` 入口（`npm run eval`，串行 + 失败重试，按 source 分组统计，结果带 `promptHash` 指纹落盘 `runs/`）；`compare.ts` 多轮 run 按 prompt 指纹聚合对比（Day 6 报告的数据出口，`evals/report.md`）；用例结构校验在 `test/eval-cases.test.ts` |
+| `evals/` | eval 用例集 + 跑分脚本 | `cases/` 29 个自包含 diff 用例（D015 三级 source：synthetic 20 手写教学 / real 7 真实仓库 fix 反转与配对 / dogfood 2 回归集；格式见 D014）；`score.ts` 打分纯函数（命中 = file + 行 ±3 + mustMention 任一关键词）；`run.ts` 入口（`npm run eval`，串行 + 失败重试，按 source 分组统计，结果带 `promptHash` 指纹落盘 `runs/`，逐用例 tokens 入/出与合计随 run 落盘——成本基线）；`compare.ts` 多轮 run 按 prompt 指纹聚合对比（Day 6 报告的数据出口，`evals/report.md`）；用例结构校验在 `test/eval-cases.test.ts` |
 
 ## 结构化输出 schema
 
@@ -45,6 +45,8 @@ type ReviewResult = { comments: ReviewComment[] };
 ```
 
 schema 变更属于破坏性改动：必须同步改 `evals/run.ts` 的打分逻辑，并在 CHANGELOG 里标记。
+
+`reviewDiff` 的实际返回是 `ReviewOutcome = ReviewResult & { usage: TokenUsage }`：`usage` 为本次调用 token 用量（inputTokens / outputTokens / totalTokens，端点不返回时字段为 null），不属于 LLM 输出 schema 契约——生产落 console 日志，eval 聚合进 run 落盘。
 
 ## 关键工程机制
 

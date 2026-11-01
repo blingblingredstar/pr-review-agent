@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { loadCases } from "./cases/index.ts";
 import { isCapabilitySource, scoreCase, sourceOf, type CaseScore } from "./score.ts";
-import { loadPrompt, reviewDiff, type ReviewResult } from "../src/review.ts";
+import { loadPrompt, reviewDiff, sumUsage, type ReviewOutcome, type ReviewResult, type TokenUsage } from "../src/review.ts";
 
 const CASE_GAP_MS = 2_000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -15,12 +15,14 @@ type CaseRun = {
   source: "synthetic" | "real" | "dogfood";
   error: string | null;
   comments: ReviewResult["comments"];
+  // 成功用例的本次调用用量；失败用例为 null（重试成功也只计成功那次）
+  usage: TokenUsage | null;
   durationMs: number;
   // 失败用例为 null：空 comments 的 0% recall 是 API 抖动伪影，不能进 JSON 误导下游报告
   score: CaseScore | null;
 };
 
-async function reviewWithRetry(diff: string): Promise<ReviewResult> {
+async function reviewWithRetry(diff: string): Promise<ReviewOutcome> {
   let firstError: unknown = null;
   try {
     return await reviewDiff(diff);
@@ -41,6 +43,9 @@ function percent(n: number): string {
   return `${(n * 100).toFixed(1)}%`;
 }
 
+const fmtTok = (v: number | null): string => (v === null ? "—" : String(v));
+const fmtInOut = (u: TokenUsage | null): string => (u ? `${fmtTok(u.inputTokens)}/${fmtTok(u.outputTokens)}` : "—");
+
 type OkRun = CaseRun & { score: CaseScore };
 
 async function main() {
@@ -57,16 +62,19 @@ async function main() {
     const started = Date.now();
     let error: string | null = null;
     let comments: ReviewResult["comments"] = [];
+    let usage: TokenUsage | null = null;
     try {
-      comments = (await reviewWithRetry(c.diff)).comments;
+      const outcome = await reviewWithRetry(c.diff);
+      comments = outcome.comments;
+      usage = outcome.usage;
     } catch (e) {
       error = String(e);
     }
     const durationMs = Date.now() - started;
     const score = error ? null : scoreCase(c, comments);
-    runs.push({ caseId: c.id, kind: c.kind, source: sourceOf(c), error, comments, durationMs, score });
+    runs.push({ caseId: c.id, kind: c.kind, source: sourceOf(c), error, comments, usage, durationMs, score });
     const mark = error ? `✗ 出错` : `命中 ${score!.hits}/${score!.verdicts.length}`;
-    console.log(`${mark}，${comments.length} 条意见，${(durationMs / 1000).toFixed(1)}s`);
+    console.log(`${mark}，${comments.length} 条意见，tokens ${fmtInOut(usage)}，${(durationMs / 1000).toFixed(1)}s`);
     if (i < cases.length - 1) await sleep(CASE_GAP_MS);
   }
 
@@ -104,6 +112,9 @@ async function main() {
   // 全部失败 / 零意见时 precision 无意义，置 null 报告显示 —（与单用例语义一致）
   const precision = overall.precision;
   const failed = runs.length - okRuns.length;
+  // token 用量只对成功用例求和；端点全不返回时 sums 为 null，报告显示「—」
+  const usageTotal = sumUsage(okRuns.map((r) => r.usage).filter((u): u is TokenUsage => u !== null));
+  const usageKnown = usageTotal.inputTokens !== null || usageTotal.outputTokens !== null;
 
   const groupLines = (["synthetic", "real", "dogfood"] as const)
     .map((src) => {
@@ -116,20 +127,20 @@ async function main() {
     .filter((x): x is string => x !== null);
 
   const tableLines = [
-    `| case | source | kind | 期望命中 | recall | 意见数 | TP | precision | 耗时s |`,
-    `|---|---|---|---|---|---|---|---|---|`,
+    `| case | source | kind | 期望命中 | recall | 意见数 | TP | precision | tokens 入/出 | 耗时s |`,
+    `|---|---|---|---|---|---|---|---|---|---|`,
     ...runs.map((r) => {
       if (r.error) {
         // error 文本可能含 |、换行、反引号，破坏 markdown 表格结构
         const reason = r.error.slice(0, 60).replace(/[|`\\\n]/g, " ");
-        return `| ${r.caseId} ✗ ${reason} | ${r.source} | ${r.kind} | — | — | — | — | — | ${(r.durationMs / 1000).toFixed(1)} |`;
+        return `| ${r.caseId} ✗ ${reason} | ${r.source} | ${r.kind} | — | — | — | — | — | — | ${(r.durationMs / 1000).toFixed(1)} |`;
       }
       const s = r.score!;
       const rec = s.hits === s.verdicts.length ? `${s.hits}/${s.verdicts.length}` : `**${s.hits}/${s.verdicts.length}**`;
       const prec = s.precision === null ? "—" : s.precision.toFixed(2);
-      return `| ${r.caseId} | ${r.source} | ${r.kind} | ${rec} | ${percent(s.recall)} | ${s.agentComments} | ${s.truePositives} | ${prec} | ${(r.durationMs / 1000).toFixed(1)} |`;
+      return `| ${r.caseId} | ${r.source} | ${r.kind} | ${rec} | ${percent(s.recall)} | ${s.agentComments} | ${s.truePositives} | ${prec} | ${fmtInOut(r.usage)} | ${(r.durationMs / 1000).toFixed(1)} |`;
     }),
-    `| **汇总**（能力评估；${failed > 0 ? `排除 ${failed} 个失败用例、` : ""}dogfood 回归集单独统计） | | | **${totalHits}/${totalExpect}** | **${percent(recall)}** | ${totalComments} | ${totalTp} | **${precision === null ? "—" : percent(precision)}** | ${(totalMs / 1000).toFixed(0)} |`,
+    `| **汇总**（能力评估；${failed > 0 ? `排除 ${failed} 个失败用例、` : ""}dogfood 回归集单独统计） | | | **${totalHits}/${totalExpect}** | **${percent(recall)}** | ${totalComments} | ${totalTp} | **${precision === null ? "—" : percent(precision)}** | ${usageKnown ? `${fmtTok(usageTotal.inputTokens)}/${fmtTok(usageTotal.outputTokens)}` : "—"} | ${(totalMs / 1000).toFixed(0)} |`,
   ];
 
   const report = [
@@ -139,6 +150,7 @@ async function main() {
     + (process.env.LLM_BASE_URL ? `（${process.env.LLM_BASE_URL}）` : ""),
     `- prompt 指纹：\`${promptHash}\``,
     `- 汇总（能力评估 = synthetic + real）：recall ${percent(recall)}（${totalHits}/${totalExpect}），precision ${precision === null ? "—" : percent(precision)}（${totalTp}/${totalComments}），失败用例 ${failed}（不计入指标），总耗时 ${(totalMs / 1000 / 60).toFixed(1)} 分钟`,
+    `- token 用量（成功用例求和${failed > 0 ? `，失败 ${failed} 例未计量` : ""}）：${usageKnown ? `输入 ${fmtTok(usageTotal.inputTokens)} / 输出 ${fmtTok(usageTotal.outputTokens)} / 合计 ${fmtTok(usageTotal.totalTokens)}` : "端点未返回 usage"}`,
     ``,
     ...groupLines,
     ``,
@@ -152,7 +164,7 @@ async function main() {
   const base = `${stamp}-${safeModel}`;
   writeFileSync(
     new URL(`./runs/${base}.json`, import.meta.url),
-    JSON.stringify({ startedAt, model, llmBaseUrl: process.env.LLM_BASE_URL ?? null, promptHash, capabilityScope: "synthetic+real", runs, summary: { recall, precision, totalExpect, totalHits, totalComments, totalTp, failed, groups: groupMetrics } }, null, 2) + "\n",
+    JSON.stringify({ startedAt, model, llmBaseUrl: process.env.LLM_BASE_URL ?? null, promptHash, capabilityScope: "synthetic+real", runs, summary: { recall, precision, totalExpect, totalHits, totalComments, totalTp, failed, usage: usageTotal, groups: groupMetrics } }, null, 2) + "\n",
   );
   writeFileSync(new URL(`./runs/${base}.md`, import.meta.url), report);
 

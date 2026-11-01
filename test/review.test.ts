@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { diffCoveredLines, diffMaxChars, pathVariants, truncateDiff, unquoteGitPath, withExtraBody } from "../src/review.ts";
+import { diffCoveredLines, diffMaxChars, pathVariants, sumUsage, truncateDiff, unquoteGitPath, withExtraBody } from "../src/review.ts";
 
 test("withExtraBody：扩展字段合并进 JSON 请求体，显式配置优先", async () => {
   let captured: string | undefined;
@@ -348,4 +348,21 @@ test("diffMaxChars：未配置默认 300000，非法值告警回退，合法值�
     if (saved === undefined) delete process.env.DIFF_MAX_CHARS;
     else process.env.DIFF_MAX_CHARS = saved;
   }
+});
+
+test("sumUsage：字段独立求和，null 不拖累其他字段、不虚构 0", () => {
+  assert.deepEqual(sumUsage([]), { inputTokens: null, outputTokens: null, totalTokens: null });
+  assert.deepEqual(
+    sumUsage([
+      { inputTokens: 100, outputTokens: 20, totalTokens: 120 },
+      { inputTokens: null, outputTokens: 30, totalTokens: null },
+    ]),
+    { inputTokens: 100, outputTokens: 50, totalTokens: 120 },
+  );
+  // 端点全不返回 usage：保持 null，报告显示「—」而不是 0
+  assert.deepEqual(sumUsage([{ inputTokens: null, outputTokens: null, totalTokens: null }]), {
+    inputTokens: null,
+    outputTokens: null,
+    totalTokens: null,
+  });
 });

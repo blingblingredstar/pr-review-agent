@@ -32,6 +32,8 @@ GitHub API 回帖（逐条行内 PR review comment）◄──────┘
 
 **触发白名单可配置。** `REVIEW_TRIGGER_USERS` 逗号分隔名单限定哪些 PR 作者触发审查（未设置 = 所有人，`*` 全放行，大小写不敏感）；判定在调度前用 webhook payload 自带字段完成，名单外作者的 PR 零 API、零 LLM token（D021）。
 
+**token 用量可观测，单次成本有界。** 每次审查的 usage（输入/输出 token）落生产日志、随 eval run 落盘：eval 全集 29 例实测合计输入 19,246 / 输出 5,179（小 diff 用例，典型单例 ~0.6k/0.2k，真实 PR 输入随 diff 大小增长、被 `DIFF_MAX_CHARS` 硬闸在 300k 字符）。每 PR 单调用、无重试循环，触发面被白名单收敛——后续任何成本优化的前后对比，以 eval run 的 usage 合计为对照基线。
+
 **diff 截断按整文件块丢弃。** 总长超 `DIFF_MAX_CHARS`（默认 300k 字符）时以 `diff --git` 行切块，截断前先生成物过滤（D020）：lock/生成物名单（各语言 lock 文件、`node_modules/` 等目录与顶层 `dist/`/`build/` 生成目录、`*.min.js`/`*.map` 等后缀）、`@generated` 文件头、长行占优（压缩/混淆产物的结构信号）三层识别，命中的块不占预算、省略行标注「生成物」；其余按块大小升序贪心保留，保留块字节级重组，被丢弃文件附省略行告知模型非全量（新建文件额外标注，提示审查盲区）。不切 hunk（破坏行号定位）、不分子调用（成本延迟翻倍）。
 
 **超时降级而非静默失败。** `AbortSignal.timeout(LLM_TIMEOUT_MS)`（默认 270s）硬超时，超时发 issue comment 告知并提示重推重试；超时不写去重标记，同 SHA 重投可重试。
@@ -45,7 +47,7 @@ GitHub API 回帖（逐条行内 PR review comment）◄──────┘
 ```bash
 npm install
 cp .env.example .env   # 填 LLM_BASE_URL / LLM_API_KEY / LLM_MODEL / GITHUB_TOKEN
-npm test               # 63 例单测
+npm test               # 64 例单测
 npm run review:local   # hardcode 样例 diff 冒烟
 npm run review:pr -- owner/repo#N [--post]   # 真实 PR 试跑（默认只打印）
 npm run eval           # 29 用例打分表，结果落盘 evals/runs/

@@ -146,3 +146,8 @@
 
 - `REVIEW_TRIGGER_USERS` 环境变量：逗号分隔 GitHub 用户名（大小写不敏感），仅名单内 PR 作者触发审查；未设置 = 所有人（向后兼容），`*` = 显式全放行；判定在调度前用 webhook payload 自带作者字段完成，零 GitHub API / 零 LLM token；名单启用但 payload 缺作者按拒绝处理
 - token 消耗盘点结论留档（decisions D021 背景）：单次审查成本有界（输入 300k 字符硬上限 + 每 PR 单调用无重试），调用次数无频次限额；`generateText` 的 usage 落日志与输出 `maxOutputTokens` 列为待办，待用量数据证明需要再做
+
+### Added（token 用量计量，D021 待办兑现）
+
+- `reviewDiff` 返回值带 `usage`（inputTokens / outputTokens / totalTokens，端点不返回的字段为 null）：生产路径 console 打一行（Vercel 日志可查，D021 盘点的「无用量落日志」缺口关闭）；返回类型扩展为 `ReviewOutcome = ReviewResult & { usage }`，`comments` 契约不变
+- `npm run eval` 逐用例记录 tokens 入/出（表格加列），报告与 `runs/*.json` summary 带合计（失败用例不计入）——成本基线就位，后续任何成本优化以 eval run 的 usage 合计为前后对照
