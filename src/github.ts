@@ -80,9 +80,10 @@ export function fileToDiffBlock(file: PrFile): string {
   const oldPath = file.previous_filename ?? file.filename;
   const header = `diff --git a/${oldPath} b/${file.filename}`;
   if (!file.patch) {
-    // 头行必须保留：路径仍进 diffTouchedPaths，zipball 上下文（D023）把该文件全文兜进 prompt——
-    // 传输层拉不到的由上下文层补上，不留静默盲区
-    return `${header}\n[diff 截断] 省略 ${file.filename}（files API 未提供 patch，+${file.additions}/-${file.deletions}）`;
+    // 头行必须保留：路径仍进 diffTouchedPaths——非删除文件由 zipball 上下文（D023）兜全文；
+    // 删除文件 head 快照里没有旧内容可兜（需 base 归档，不值得），上下文层会标注「不在 head 快照中」
+    const tag = file.status === "removed" ? "已删除，" : "";
+    return `${header}\n[diff 截断] 省略 ${file.filename}（${tag}files API 未提供 patch，+${file.additions}/-${file.deletions}）`;
   }
   return [
     header,

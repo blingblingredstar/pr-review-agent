@@ -76,6 +76,8 @@ test("fileToDiffBlock：patch 缺失发省略块但保留路径头——路径�
   assert.ok(block.startsWith("diff --git a/big/lock.json b/big/lock.json"), "头行必须保留");
   assert.ok(block.includes("[diff 截断] 省略 big/lock.json"));
   assert.deepEqual(diffTouchedPaths(block), ["big/lock.json"], "zipball 上下文按此清单兜全文");
+  const removedNoPatch = fileToDiffBlock(prFile({ status: "removed", additions: 0, deletions: 3, patch: undefined }));
+  assert.ok(removedNoPatch.includes("省略 src/a.ts（已删除，files API 未提供 patch"), "删除类文件标注已删除——旧内容 head 快照无从兜");
   assert.equal(diffCoveredLines(block).has("big/lock.json"), false, "无 hunk 无覆盖行，不产生行内意见");
 });
 
@@ -87,9 +89,10 @@ const error406 = () => {
 
 const metaPayload = { head: { sha: "abc1234def" }, changed_files: 102, additions: 103, deletions: 0 };
 
-function fakeClient(opts: { diffError?: Error; pages: Parameters<typeof fileToDiffBlock>[0][][] }): Octokit {
+function fakeClient(opts: { diffError?: Error; pages: Parameters<typeof fileToDiffBlock>[0][][] }): Octokit & { diffCalls: () => number } {
   let diffCalls = 0;
   return {
+    diffCalls: () => diffCalls,
     rest: {
       pulls: {
         get: async (params: { mediaType?: { format?: string } }) => {
@@ -103,18 +106,16 @@ function fakeClient(opts: { diffError?: Error; pages: Parameters<typeof fileToDi
         listFiles: async ({ page }: { page: number }) => ({ data: opts.pages[page - 1] ?? [] }),
       },
     },
-  } as unknown as Octokit;
+  } as unknown as Octokit & { diffCalls: () => number };
 }
 
 test("fetchPr：diff 406 切 files 分页拼合；省略块路径仍进触及清单", async () => {
   const page1 = Array.from({ length: 100 }, (_, i) => prFile({ filename: `f${i}.ts`, patch: "@@ -0,0 +1,1 @@\n+x" }));
   const page2 = [prFile({ filename: "tail.ts" }), prFile({ filename: "binary.bin", patch: undefined })];
-  const { diff, headSha } = await fetchPr(fakeClient({ diffError: error406(), pages: [page1, page2] }), {
-    owner: "o",
-    repo: "r",
-    pullNumber: 1,
-  });
+  const client = fakeClient({ diffError: error406(), pages: [page1, page2] });
+  const { diff, headSha } = await fetchPr(client, { owner: "o", repo: "r", pullNumber: 1 });
   assert.equal(headSha, "abc1234def");
+  assert.equal(client.diffCalls(), 1, "406 后切 files 路径，diff 形态只请求一次不重试");
   assert.ok(diff.includes("diff --git a/f0.ts b/f0.ts"), "分页拼合完整");
   assert.ok(diff.includes("diff --git a/binary.bin b/binary.bin") && diff.includes("省略 binary.bin"));
   const touched = diffTouchedPaths(diff);
