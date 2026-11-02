@@ -97,8 +97,19 @@ test("fetchZipballEntries：剥根目录段、跳过目录条目；302 手动跟
 test("fetchZipballEntries：非 2xx 抛错、超体积上限抛错、损坏 zip 抛错", async () => {
   const bad = (async () => new Response(null, { status: 404 })) as unknown as typeof fetch;
   await assert.rejects(fetchZipballEntries("acme/demo", "abc", "t", bad), /HTTP 404/);
+  // 无 content-length：流式累计超限中止（Response 由 Uint8Array 构造，自带 body 流）
   const huge = (async () => new Response(new Uint8Array(MAX_ZIP_BYTES + 1), { status: 200 })) as unknown as typeof fetch;
-  await assert.rejects(fetchZipballEntries("acme/demo", "abc", "t", huge), /超过/);
+  await assert.rejects(fetchZipballEntries("acme/demo", "abc", "t", huge), /流式中止/);
+  // content-length 前置拒绝：声明超限的响应一个字节都不读
+  let bodyRead = false;
+  const declared = (async () => {
+    const res = new Response(null, { status: 200, headers: { "content-length": String(MAX_ZIP_BYTES + 1) } });
+    const orig = res.arrayBuffer.bind(res);
+    res.arrayBuffer = async () => ((bodyRead = true), orig());
+    return res;
+  }) as unknown as typeof fetch;
+  await assert.rejects(fetchZipballEntries("acme/demo", "abc", "t", declared), /content-length.*超过/);
+  assert.equal(bodyRead, false, "声明超限不应读 body");
   const corrupt = (async () => new Response(strToU8("not a zip"), { status: 200 })) as unknown as typeof fetch;
   await assert.rejects(fetchZipballEntries("acme/demo", "abc", "t", corrupt));
 });

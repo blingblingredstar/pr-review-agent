@@ -20,10 +20,38 @@ export function contextMaxChars(): number {
 
 // 下载+解压整体硬上限：失败即跳过，不挤占 LLM 的 270s 预算（D011 的 30s 余量由本步与回帖分摊）
 const CONTEXT_TIMEOUT_MS = 10_000;
-// zipball 压缩体积上限：超大仓库直接跳过上下文——内存解压与同步 CPU 的保护闸，软失败不比现状差
+// zipball 压缩体积上限（流式累计与 content-length 双闸）：超大仓库直接跳过上下文，软失败不比现状差。
+// 防的是「合法但过大」的仓库占内存；解压侧不设上限——归档由挂载即信任的仓库自身产生（D021 同一边界），
+// GitHub 另有单 blob 100MB 推送硬限，对抗性 zip 炸弹不在威胁模型内
 export const MAX_ZIP_BYTES = 25 * 1024 * 1024;
 
 export type ZipballEntries = Map<string, Uint8Array>;
+
+// 流式读取并累计封顶：超限立即中止（reader.cancel），超限响应不完整占内存——
+// PR #25 自审意见的修复；无 body 流（异常响应）时退回整体读，字节检查仍兜底
+async function readCapped(res: Response, max: number): Promise<Uint8Array> {
+  const reader = res.body?.getReader();
+  if (!reader) return new Uint8Array(await res.arrayBuffer());
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > max) {
+      await reader.cancel();
+      throw new Error(`zipball 下载超过 ${Math.round(max / 1024 / 1024)}MB 上限（流式中止）`);
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(total);
+  let off = 0;
+  for (const c of chunks) {
+    out.set(c, off);
+    off += c.byteLength;
+  }
+  return out;
+}
 
 // 下载 head SHA 的 zipball（GET /repos/{repo}/zipball/{sha}）并内存解压，返回 仓库相对路径 → 内容。
 // 手动跟进 302（codeload.github.com）：fetch 跨源重定向会剥 Authorization，私有仓库在 codeload 需要同一凭证
@@ -53,10 +81,12 @@ export async function fetchZipballEntries(
   if (!res.ok) {
     throw new Error(`zipball 下载失败：HTTP ${res.status}（${repoFullName}@${sha.slice(0, 7)}）`);
   }
-  const body = new Uint8Array(await res.arrayBuffer());
-  if (body.byteLength > MAX_ZIP_BYTES) {
-    throw new Error(`zipball ${Math.round(body.byteLength / 1024 / 1024)}MB 超过 ${MAX_ZIP_BYTES / 1024 / 1024}MB 上限`);
+  // content-length 前置拒绝（PR #25 自审意见）：声明超限的响应一个字节都不读
+  const declared = Number(res.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > MAX_ZIP_BYTES) {
+    throw new Error(`zipball content-length ${Math.round(declared / 1024 / 1024)}MB 超过 ${MAX_ZIP_BYTES / 1024 / 1024}MB 上限`);
   }
+  const body = await readCapped(res, MAX_ZIP_BYTES);
   const files = unzipSync(body);
   // GitHub 归档所有路径共享一个根目录段（命名跨 API 版本有差异，按共性剥离，不猜命名）
   const segments = new Set<string>();
