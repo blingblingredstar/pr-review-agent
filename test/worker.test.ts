@@ -153,11 +153,20 @@ test("worker 入口：篡改 body / GitHub 头名代打均 403 不调度（x-wor
   assert.equal(tasks.length, 0);
 });
 
-test("worker 入口：issuedAt 超新鲜窗口 403 不调度；窗口内放行；缺失按过期拒绝", () => {
+test("worker 入口：issuedAt 超新鲜窗口 403 不调度阶段、落 failure status（发送方可能已死，链路断在这）；窗口内放行；缺失按过期拒绝", async () => {
   const stale = JSON.stringify({ ...prepareEnvelope(REF), issuedAt: Date.now() - 10 * 60 * 1000 - 1 });
   const staleTasks: Array<() => Promise<void>> = [];
-  assert.equal(handleWorker(workerHeaders(stale), stale, { schedule: (t) => staleTasks.push(t) }).status, 403);
-  assert.equal(staleTasks.length, 0);
+  const { client: staleClient, calls: staleCalls } = fakeClient();
+  assert.equal(
+    handleWorker(workerHeaders(stale), stale, { schedule: (t) => staleTasks.push(t), client: () => staleClient }).status,
+    403,
+  );
+  assert.equal(staleTasks.length, 1, "仅调度落灯任务，不调度阶段");
+  await staleTasks[0]!();
+  assert.deepEqual(
+    staleCalls.statuses.map((s) => [s.state, s.description]),
+    [["failure", "审查中断"]],
+  );
 
   const fresh = JSON.stringify({ ...prepareEnvelope(REF), issuedAt: Date.now() - 1000 });
   const freshTasks: Array<() => Promise<void>> = [];

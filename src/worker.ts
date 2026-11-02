@@ -117,8 +117,13 @@ export function handleWorker(headers: WebhookHeaders, rawBody: string, deps?: Pa
     return { status: 400, note: "invalid worker envelope" };
   }
   const key = stageKey(envelope.ref);
-  // 新鲜度闸：issuedAt 距今超 10 分钟 403（限重放窗口）；issuedAt 缺失/非数值按过期处理（fail-closed 同 D021 口味）
+  // 新鲜度闸：issuedAt 距今超 10 分钟 403（限重放窗口）；issuedAt 缺失/非数值按过期处理（fail-closed 同 D021 口味）。
+  // 与 hop 闸同样要落 failure status：信封过期意味着链路断在这里（发送方可能已死）——pending 黄灯比红灯误导（D017）。
+  // 落灯安全的前提是已过验签闸（签名合法才可能是内部铸造的合法链路）；上方签名/解析两闸在认证前，
+  // 落灯会给伪造请求开出「用别人的 SHA 写 status」的面，故保持无副作用
   if (!Number.isFinite(envelope.issuedAt) || Date.now() - envelope.issuedAt > ENVELOPE_FRESH_MS) {
+    console.error(`[worker] ${key} 信封过期（issuedAt 超窗），拒绝续链`);
+    d.schedule(() => markFailed(d.client, key, envelope.ref, "审查中断"));
     return { status: 403, note: "stale worker envelope" };
   }
   // hop 封顶闸：403 之外还要落 failure status——链路断在这里时 pending 黄灯比红灯更具误导性（D017）
