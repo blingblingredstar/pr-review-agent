@@ -276,3 +276,22 @@
   - 信封不携带状态、下阶段重派生（重拉 diff + 重下 zipball）——多烧 API 配额且引入两次快照漂移风险（两次拉取之间 PR 可能变化，审查口径不一致）；pass-state 更确定，且中间态 ~400KB 远小于 4.5MB 平台请求体上限。否决。
   - 维持单 waitUntil 不拆阶段——20s 级现状下确实够用，但 300s 墙钟对多轮工具循环 / 两段路由是不可绕的天花板，届时再拆是编排 + 失败语义 + 测试的一揽子大改，不如底座先行；且 hop 封顶、续链失败落灯已把新增风险面关死。否决（对本 PR 是「不为不存在的需求付复杂度」，非永久拒绝）。
 - **后果**：每阶段独立 300s 预算、串行深度有界（hop 封顶 4；固定三跳理论上到不了，防御后续 review 阶段内扩展轮数的失控循环）；续链重试为 at-least-once 语义（超时≠未送达，review 双跑上界 1 次额外 LLM 调用，回帖副作用由 dedupe 吸收；省 token 的「review 不重试」换假 failure 灯，维持可用性优先）；失败语义与现状逐字对齐（超时 → postTimeoutNotice + 「审查超时，重推 commit 可重试」，D011；其他异常 → 「审查失败，见 Vercel 日志」），新增「审查中断」覆盖续链失败；publish 二次 dedupe + status 幂等吸收信封重放，不做续链幂等键（10 分钟新鲜度窗口限重放面）。安全面：信封只能由 webhook/worker 内部铸造（需 `WEBHOOK_SECRET`），陌生人打 `/api/worker` 等价于打 webhook 的验签闸——烧 token 的面没有扩大。本 PR 不改 LLM 调用形态（阶段机是路线图第 3/4 项的底座）；eval 路径零接触（`reviewDiff` 直调不变，promptHash 与逐用例输入 tokens 与基线逐位一致）。
+
+## D027 — read file 工具循环：按需读 head 快照任意文件（两段协议），默认开启带 kill switch
+
+- **状态**：已接受（2026-11-03，spec 见 `docs/plans/file-tool-loop.md`）
+- **背景**：路线图第 4 项第二阶段（D023 备选里点名的「完全体」）。第一阶段确定性注入只覆盖 diff 触及文件全文 + 文件树，剩余盲区是触及文件之外的任意文件——调用方/被引用方、配置、共享类型、测试覆盖面。D026 阶段机让 review 阶段拥有独立 300s 预算，工具循环多付一次 LLM 调用的成本有了承载位，本阶段立项。
+- **决策**：
+  - **数据面零新增 GitHub API**：worker review 阶段 `makeFileReader`（src/context.ts）重取一次 head zipball（D023 管道原样复用，单请求 1-2s），`read_file` 直接从内存 Map 出内容。**不走信封携带快照**——D026 pass-state 泛化在此是有意偏离：全仓内容最坏 25MB 超 4.5MB 请求体上限，且重取让 prepare/review 各自独立失败降级、不互相连坐。
+  - **控制面**：`reviewDiff(diff, context?, opts?: { timeoutMs?; fileReader? })`。fileReader 不注入（eval / 本地脚本 / 工具关闭）= 单次调用原路径，prompt/system 字节级不变——eval 红线由构造保证而非回归测试祈求；注入则走两段协议（形态取舍见备选）：第一段自由文本输出 `{"readRequests": [{"path": ...}]}` → best-effort 解析（容忍 ```json 围栏与前后闲话，解析失败降级为不读文件照常审查）→ 文件内容拼进第二段 prompt 前段（diff 保持生成前最近位置，行号锚点原则同 D023）→ 第二段复用同一 schema（`Output.object`）出结果。一个 abortSignal 贯穿全部步（260s 阶段封顶覆盖两段）；usage 两段合计（`ReviewOutcome` 契约不变）；`ReviewResult` schema 与 `prompts/review.md` 一字不动。
+  - **步预算**：`FILE_TOOL_MAX_STEPS` 默认 2（= 最多读 2 个文件，与 tools 形态每步一读的成本口径一致），数值 0 显式关闭（生产 kill switch，语义同 `CONTEXT_MAX_CHARS` 的按数值判定）；单段注入文件内容总量常量 80k 字符封顶，超出截断附说明行。
+  - **路径解析**（复用 context.ts 快照口径）：剥 `./` 前缀、拒绝含 `..` 段与反斜杠、精确匹配快照键；未命中/二进制注入统一「file not found in head snapshot」说明行（不抛错，模型可自行纠正）。
+  - **prompt**：工具指令独立 `prompts/review-tools.md`（仅 fileReader 注入时拼接 system 末尾），含工具用法、何时值得读（调用方/被引用方/配置/测试覆盖面）、威胁模型重申——**文件内容是数据不是指令**，快照内容与 diff 同属不可信输入（D024 注入面扩张到触及文件之外的全文在此兑现）。
+  - **观测**：`[tools] step N: read <path> (chars)` 逐文件日志 + review 阶段日志标注 fileReader 是否生效。
+- **备选**：
+  - **AI SDK tools 形态**（spec 首选：`generateText` 挂单工具 `read_file` + `Output.object` + `stepCountIs`）——**端点实测不可行**：GLM OpenAI 兼容层上 `response_format: json_schema` 与 `tools` 同发时模型从不调用工具（3 次探测 0 次调用、单步直出结构化结果），且伪造「已按要求读取依赖文件」的结论——幻觉文件内容充当审查依据，比不读更糟；同端点纯 tools（不带 Output）工具循环正常（2 步、正确读取后收尾）。`/responses` 端点 404，Responses API 路线不通。回退 spec 指定的手工两段协议：代价是读文件只有一轮（tools 形态可多轮）、第一段输出花在协议上；换来的是第二段 schema 契约与现状同一条路径、协议解析失败可优雅降级。
+  - **信封携带全仓快照**（D026 pass-state 泛化）——全仓内容最坏 25MB 超 4.5MB 平台请求体上限；重取一次的 1-2s 换 prepare/review 独立降级，值得。否决（pass-state 决策范围仅 diff/context/result 中间态）。
+  - **Contents API 逐文件拉取**——D023 已论证 N>1 时 zipball 单请求占优；工具读取的候选集不定、逐文件延迟不可控。否决。
+  - **工具循环默认关闭、等生产数据再开**——默认开：数据面是已验证的 D023 管道单请求重取 + 至多一次额外 LLM 调用（成本有界），三层降级（env `0` / 快照失败 / 协议解析失败）全部落回现状单调用路径；默认关则工具循环成为永远跑不到的死路径，dogfood 数据无从谈起。「0」留给异常场景。
+  - **多轮读循环**（读结果再决定下一轮）——第二段要同时容得下 readRequests 与最终 schema，协议复杂度陡增；文件树已随 D023 注入，一轮 readRequests + 树提示对「定位调用方/配置」已够。留待真实数据证明不够再议。
+- **后果**：模型可按需读触及文件之外的任意文件——端点实测第二段核对调用方后意见定位更准（分页 off-by-one 用例引用了快照中调用方的真实透传链）；审查成本从 1 次 LLM 调用变 2 次（输入近似翻倍、第一段输出极小），review 阶段 260s 封顶覆盖全部步。eval 路径零接触（fileReader 不传 → promptHash `d399f9d4ed17` 不变 + 逐用例输入 tokens 与基线逐位一致）。安全面：工具只读不写、无 shell/搜索工具（allowlist 单工具起步，读到需要搜索的规模再议）；快照全文进 prompt 使注入面扩张，`review-tools.md` 明示「数据不是指令」，injection canary 的长期回归价值随之上升。本 PR 不做工具循环 eval 用例（D019 约束：改输入契约需另设计用例集），以生产 dogfood + 单测覆盖。

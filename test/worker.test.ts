@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { test } from "node:test";
+import { zipSync, strToU8 } from "fflate";
 import type { Octokit } from "octokit";
 import {
   chainWorker,
@@ -14,13 +15,33 @@ import {
 } from "../src/worker.ts";
 import { handleWebhook } from "../src/webhook.ts";
 import { reviewMarker } from "../src/dedupe.ts";
-import { llmTimeoutMs, type ReviewOutcome } from "../src/review.ts";
+import { llmTimeoutMs, type ReviewDiffOpts, type ReviewOutcome } from "../src/review.ts";
 
 const SECRET = "test-secret";
 process.env.WEBHOOK_SECRET ??= SECRET;
 // prepare 编排不测 zipball 下载路径（context.ts 有独立测试）：预算 0 显式关闭上下文注入（D023），buildRepoContext 直接返回 null
 process.env.CONTEXT_MAX_CHARS ??= "0";
+// worker 接线的工具循环默认开（D027）——除专属接线用例外统一关闭，避免默认路径发 zipball 请求
+process.env.FILE_TOOL_MAX_STEPS ??= "0";
 delete process.env.VERCEL_URL;
+
+// 测试内改环境变量后必须还原，避免污染同进程的其他用例
+async function withEnv(env: Record<string, string | undefined>, fn: () => Promise<void> | void): Promise<void> {
+  const saved: Record<string, string | undefined> = {};
+  for (const k of Object.keys(env)) saved[k] = process.env[k];
+  for (const [k, v] of Object.entries(env)) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
+  try {
+    await fn();
+  } finally {
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+}
 
 const REF = { owner: "acme", repo: "demo", pullNumber: 7, headSha: "abc123def4567890" };
 
@@ -561,4 +582,85 @@ test("过期信封但审查已完成（另一条重试链跑完了）：补落 s
     calls.statuses.map((s) => [s.state, s.description]),
     [["success", "完成（重派路径补落终态）"]],
   );
+});
+
+// D027 接线用例的快照夹具：与 REF 的 headRepo（acme/demo）无关——fetchImpl 直接按序返回 zip，不校验 URL
+const FIXTURE_ZIP = zipSync({
+  "acme-demo-abc1234/": new Uint8Array(0),
+  "acme-demo-abc1234/src/a.ts": strToU8("export const a = 1;\n"),
+});
+
+test("worker review 阶段接线：FILE_TOOL_MAX_STEPS 开启 → 重取快照并注入 deps.review（D027）", async () => {
+  const { client } = fakeClient();
+  const received: ReviewDiffOpts[] = [];
+  let zipFetches = 0;
+  const zipFetch = (async () => {
+    zipFetches++;
+    return new Response(new Uint8Array(FIXTURE_ZIP), { status: 200 });
+  }) as unknown as typeof fetch;
+  await withEnv({ FILE_TOOL_MAX_STEPS: "2", GITHUB_TOKEN: "t" }, async () => {
+    await runStage(
+      fullDeps({
+        client: () => client,
+        fetchImpl: zipFetch,
+        chain: boomChain,
+        review: async (diff, context, opts) => {
+          received.push(opts ?? {});
+          return REVIEW_RESULT;
+        },
+      }),
+      { v: 1, stage: "review", hop: 1, ref: REF, issuedAt: Date.now(), state: { diff: DIFF, context: null } },
+    );
+  });
+  assert.equal(zipFetches, 1, "review 阶段重取一次快照（不走信封携带，D027）");
+  const reader = received[0]!.fileReader;
+  assert.ok(typeof reader === "function", "deps.review 收到 fileReader");
+  assert.equal(reader!("src/a.ts"), "export const a = 1;\n", "reader 从快照出全文");
+  assert.equal(reader!("./src/a.ts"), "export const a = 1;\n", "./ 前缀归一");
+  assert.equal(reader!("../secret"), null, ".. 段拒绝");
+  assert.equal(reader!("missing.ts"), null, "未命中 null");
+});
+
+test("worker review 阶段接线：FILE_TOOL_MAX_STEPS=0 → 不注入 fileReader、不发 zipball 请求（kill switch）", async () => {
+  const { client } = fakeClient();
+  const received: ReviewDiffOpts[] = [];
+  const spy = (async () => {
+    throw new Error("zipball 不应被请求");
+  }) as unknown as typeof fetch;
+  await withEnv({ FILE_TOOL_MAX_STEPS: "0" }, async () => {
+    await runStage(
+      fullDeps({
+        client: () => client,
+        fetchImpl: spy,
+        chain: boomChain,
+        review: async (diff, context, opts) => {
+          received.push(opts ?? {});
+          return REVIEW_RESULT;
+        },
+      }),
+      { v: 1, stage: "review", hop: 1, ref: REF, issuedAt: Date.now(), state: { diff: DIFF } },
+    );
+  });
+  assert.equal(received[0]!.fileReader, undefined, "关闭时不注入 fileReader");
+});
+
+test("worker review 阶段接线：快照重取失败 → fileReader undefined 降级单次调用（best-effort）", async () => {
+  const { client } = fakeClient();
+  const received: ReviewDiffOpts[] = [];
+  const failing = (async () => new Response(null, { status: 500 })) as unknown as typeof fetch;
+  await withEnv({ FILE_TOOL_MAX_STEPS: "2", GITHUB_TOKEN: "t" }, async () => {
+    await runStage(
+      fullDeps({
+        client: () => client,
+        fetchImpl: failing,
+        chain: boomChain,
+        review: async (diff, context, opts) => {
+          received.push(opts ?? {});
+          return REVIEW_RESULT;
+        },
+      }),
+      { v: 1, stage: "review", hop: 1, ref: REF, issuedAt: Date.now(), state: { diff: DIFF } },
+    );
+  });
+  assert.equal(received[0]!.fileReader, undefined, "快照失败返回 undefined → 不注入 → 单次调用原路径");
 });

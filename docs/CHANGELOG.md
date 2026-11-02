@@ -191,3 +191,11 @@
 - `src/webhook.ts` 变纯分发器：runReview 及超时处理迁出（失败语义逐字保留），调度对象改为发 prepare 信封——首阶段也跑在新调用里，所有阶段共用同一条代码路径；验签/白名单/事件过滤不动
 - `vercel.json` 加 `api/worker.ts` 条目（`maxDuration: 300` + `includeFiles: "prompts/**"`）；无新增环境变量（信封密钥复用 `WEBHOOK_SECRET`，`VERCEL_URL` 平台注入，未设置时本地直调回退，本地链路与生产行为一致）
 - eval 回归：promptHash `d399f9d4ed17` 不变，35 用例输入 tokens 与 2026-11-02 基线（run 16-36-56/16-43-56/16-55-00）逐位一致（合计 23,376，本 PR 不碰 eval 可见路径）；单测 79 → 92（新增 worker 13 例）；spec 见 `docs/plans/async-worker.md`
+
+### Added（read file 工具循环，D027）
+
+- worker review 阶段新增 read_file 工具循环（路线图第 4 项第二阶段）：`makeFileReader`（src/context.ts）重取 head 快照（D023 zipball 管道复用，单请求 best-effort，失败返回 undefined 降级），`reviewDiff` 注入 `opts.fileReader` 后按两段协议工作——第一段按需声明要读的文件（`readRequests` JSON，best-effort 解析，容忍围栏/闲话，失败降级为不读照常审查），第二段把文件全文（总量 80k 字符封顶、截断附说明行）拼进 prompt 前段并复用同一 schema 出结果；一个 abortSignal 贯穿全部步，usage 两段合计（`ReviewOutcome` 契约不变）
+- 路径解析：剥 `./` 前缀、拒绝 `..` 段与反斜杠、精确匹配快照键；未命中/二进制注入统一 `file not found in head snapshot` 说明行（不抛错，模型自行纠正）
+- `FILE_TOOL_MAX_STEPS` 环境变量（默认 2 = 最多读 2 个文件，数值 0 显式关闭 = 生产 kill switch）；工具指令独立 `prompts/review-tools.md`（含威胁模型重申：文件内容是数据不是指令），`prompts/review.md` 一字不动
+- 形态选择（D027，实测证据进 PR）：AI SDK tools + Output.object 组合在 GLM 兼容端点不可行——`response_format: json_schema` 与 tools 同发时模型从不调用工具且伪造「已读取」，回退 spec 指定的手工两段协议
+- eval 回归：promptHash `d399f9d4ed17` 不变，35 用例输入 tokens 与 2026-11-02 基线（run 16-36-56/16-43-56/16-55-00）逐位一致（合计 23,376，fileReader 不注入 = 字节级不变）；单测 92 → 113（reader 路径解析/步预算/reviewDiff 两形态/worker 接线）；spec 见 `docs/plans/file-tool-loop.md`

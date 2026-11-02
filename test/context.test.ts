@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { zipSync, strToU8 } from "fflate";
-import { buildContextText, buildRepoContext, contextMaxChars, fetchZipballEntries, MAX_ZIP_BYTES } from "../src/context.ts";
+import {
+  buildContextText,
+  buildRepoContext,
+  contextMaxChars,
+  fetchZipballEntries,
+  fileReaderFromEntries,
+  makeFileReader,
+  MAX_ZIP_BYTES,
+  resolveSnapshotPath,
+} from "../src/context.ts";
 import { diffTouchedPaths } from "../src/review.ts";
 
 // 测试内改环境变量后必须还原，避免污染同进程的其他用例
@@ -195,5 +204,55 @@ test("buildRepoContext：预算 0 不发请求；下载失败返回 null；成�
     const diff = ["diff --git a/src/a.ts b/src/a.ts", "index 1..2 100644", "--- a/src/a.ts", "+++ b/src/a.ts", "@@ -1,1 +1,2 @@", "+x"].join("\n");
     const text = await buildRepoContext({ headRepo: "acme/demo", headSha: "abc1234def", diff }, impl);
     assert.ok(text?.includes("export const a = 1;"));
+  });
+});
+
+test("resolveSnapshotPath：剥 ./ 前缀、拒绝 .. 段与反斜杠、精确匹配快照键（D027）", () => {
+  const entries = new Map<string, Uint8Array>([["src/a.ts", strToU8("x")], ["b.md", strToU8("y")]]);
+  assert.equal(resolveSnapshotPath(entries, "src/a.ts"), "src/a.ts", "命中返回快照键原文");
+  assert.equal(resolveSnapshotPath(entries, "./src/a.ts"), "src/a.ts", "剥单层 ./ 前缀");
+  assert.equal(resolveSnapshotPath(entries, "././src/a.ts"), "src/a.ts", "剥多层 ./ 前缀");
+  assert.equal(resolveSnapshotPath(entries, "  b.md  "), "b.md", "trim 空白");
+  assert.equal(resolveSnapshotPath(entries, "../secret"), null, "含 .. 段拒绝");
+  assert.equal(resolveSnapshotPath(entries, "src/../../etc/passwd"), null, "路径中段 .. 拒绝");
+  assert.equal(resolveSnapshotPath(entries, "src\\a.ts"), null, "反斜杠拒绝");
+  assert.equal(resolveSnapshotPath(entries, ""), null, "空路径拒绝");
+  assert.equal(resolveSnapshotPath(entries, "./"), null, "剥完前缀后为空拒绝");
+  assert.equal(resolveSnapshotPath(entries, "src/missing.ts"), null, "未命中返回 null");
+  assert.equal(resolveSnapshotPath(entries, "/etc/passwd"), null, "绝对路径按精确键匹配自然未命中");
+});
+
+test("fileReaderFromEntries：命中全文、./ 归一、../与未命中与二进制同义 null；同文件不同写法只解一次", () => {
+  const entries = new Map<string, Uint8Array>([
+    ["src/a.ts", strToU8("export const a = 1;\n")],
+    ["img/logo.png", strToU8("P\x00NG")],
+  ]);
+  const reader = fileReaderFromEntries(entries);
+  assert.equal(reader("src/a.ts"), "export const a = 1;\n");
+  assert.equal(reader("./src/a.ts"), "export const a = 1;\n", "./ 前缀归一到同一键");
+  assert.equal(reader("../src/a.ts"), null, ".. 段拒绝");
+  assert.equal(reader("gone.ts"), null, "未命中 null（不抛错，模型凭说明行自行纠正）");
+  assert.equal(reader("img/logo.png"), null, "二进制与未命中同义 null");
+});
+
+test("makeFileReader：快照下载成功返回 reader；失败/缺 token 返回 undefined（best-effort 降级，D027）", async () => {
+  await withEnv({ GITHUB_TOKEN: "t" }, async () => {
+    const { fetch: impl } = fakeZipFetch(FIXTURE_ZIP);
+    const reader = await makeFileReader({ headRepo: "acme/demo", headSha: "abc1234def" }, impl);
+    assert.ok(reader, "成功返回 reader");
+    assert.equal(reader!("src/a.ts"), "export const a = 1;\n");
+    assert.equal(reader!("nope.ts"), null);
+  });
+  await withEnv({ GITHUB_TOKEN: "t" }, async () => {
+    const failing = (async () => new Response(null, { status: 500 })) as unknown as typeof fetch;
+    const reader = await makeFileReader({ headRepo: "acme/demo", headSha: "abc" }, failing);
+    assert.equal(reader, undefined, "失败返回 undefined → reviewDiff 不注入 → 单次调用原路径");
+  });
+  await withEnv({ GITHUB_TOKEN: undefined }, async () => {
+    const boom = (async () => {
+      throw new Error("缺 token 不应发起请求");
+    }) as unknown as typeof fetch;
+    const reader = await makeFileReader({ headRepo: "acme/demo", headSha: "abc" }, boom);
+    assert.equal(reader, undefined, "缺 GITHUB_TOKEN 同样 best-effort 降级");
   });
 });

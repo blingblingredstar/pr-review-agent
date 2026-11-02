@@ -309,6 +309,13 @@ export type TokenUsage = {
 // reviewDiff 的完整返回：LLM 结构化输出 + 本次调用用量（eval 聚合进 run 落盘，生产走 console 日志）
 export type ReviewOutcome = ReviewResult & { usage: TokenUsage };
 
+// reviewDiff 可选项（D027）：fileReader 注入即启用 read_file 工具循环（两段协议）；
+// 不传 = 单次调用原路径，prompt/system 字节级不变——eval 红线由构造保证
+export type ReviewDiffOpts = {
+  timeoutMs?: number;
+  fileReader?: (path: string) => string | null;
+};
+
 // 多次调用求和：字段独立判空——端点只回部分字段时不被其他 null 拖成全空
 export function sumUsage(usages: TokenUsage[]): TokenUsage {
   const sum = (pick: (u: TokenUsage) => number | null): number | null => {
@@ -322,7 +329,7 @@ export function sumUsage(usages: TokenUsage[]): TokenUsage {
   };
 }
 
-export async function reviewDiff(diff: string, context?: string, opts?: { timeoutMs?: number }): Promise<ReviewOutcome> {
+export async function reviewDiff(diff: string, context?: string, opts?: ReviewDiffOpts): Promise<ReviewOutcome> {
   const { LLM_API_KEY, LLM_BASE_URL, LLM_MODEL } = process.env;
   if (!LLM_API_KEY || !LLM_BASE_URL || !LLM_MODEL) {
     throw new Error("缺少环境变量 LLM_BASE_URL / LLM_API_KEY / LLM_MODEL（参照 .env.example 配置 .env）");
@@ -332,6 +339,14 @@ export async function reviewDiff(diff: string, context?: string, opts?: { timeou
   // 上下文（D023，best-effort）放 diff 之前：diff（含截断省略行）保持在生成前最近位置，行号锚点不受影响；
   // eval 不传 context → prompt 字节级不变（promptHash 稳定是回归对照的前提）
   const prompt = context ? `${context}\n\n[diff 开始]\n${diffText}` : diffText;
+  // 一个 abortSignal 贯穿全部步（D027）：调用方 timeoutMs 封顶的是整个工具循环（两段），不只是单次调用；
+  // 不传走 LLM_TIMEOUT_MS（D011）
+  const abortSignal = AbortSignal.timeout(opts?.timeoutMs ?? llmTimeoutMs());
+  if (opts?.fileReader) {
+    // read_file 工具循环（D027）：端点实测 SDK tools + Output 组合不可行（response_format 抑制工具调用），
+    // 走 spec 回退形态「两段协议」，见 reviewDiffWithFileReader
+    return reviewDiffWithFileReader(llm, LLM_MODEL, prompt, opts.fileReader, abortSignal);
+  }
   // .chat() 强制走 /chat/completions：OpenAI 兼容端点（如 GLM）不实现 Responses API；
   // ai v7 起 generateObject 已废弃，结构化输出走 generateText + Output；
   // 超时预算见 docs/decisions.md D011（Vercel Hobby 函数上限 300s，留回帖余量）
@@ -342,7 +357,7 @@ export async function reviewDiff(diff: string, context?: string, opts?: { timeou
     prompt,
     // 超时可被调用方覆写（worker 阶段机 D026：review 阶段按「300s 墙钟 - 续链/落灯预留」封顶，
     // 保证最坏路径「LLM 打满 + 续链失败 + 落灯」整体不超墙钟）；不传走 LLM_TIMEOUT_MS（D011）
-    abortSignal: AbortSignal.timeout(opts?.timeoutMs ?? llmTimeoutMs()),
+    abortSignal,
   });
   const tokenUsage: TokenUsage = {
     inputTokens: usage?.inputTokens ?? null,
@@ -351,6 +366,168 @@ export async function reviewDiff(diff: string, context?: string, opts?: { timeou
   };
   console.log(
     `[reviewDiff] tokens: in ${tokenUsage.inputTokens ?? "?"} / out ${tokenUsage.outputTokens ?? "?"}` +
+      ` / total ${tokenUsage.totalTokens ?? "?"}`,
+  );
+  return { ...output, usage: tokenUsage };
+}
+
+// 工具循环步预算（D027）：FILE_TOOL_MAX_STEPS，默认 2；数值 0 = 显式关闭（生产 kill switch，
+// 与 CONTEXT_MAX_CHARS 同款「按数值判定关闭」语义）；其余非法值告警回退默认。
+// 两段协议里「步」= 文件读取次数（readRequests 条数上限），与 AI SDK tools 形态每步一读的成本口径一致
+export function fileToolMaxSteps(): number {
+  const raw = process.env.FILE_TOOL_MAX_STEPS;
+  if (raw === undefined || raw.trim() === "") return 2;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 0) {
+    console.warn(`FILE_TOOL_MAX_STEPS="${raw}" 不是非负整数，回退默认 2`);
+    return 2;
+  }
+  return parsed;
+}
+
+// worker 侧开关：是否给 review 阶段注入 fileReader（"0" 显式关闭，默认 2 即开启）
+export function fileToolEnabled(): boolean {
+  return fileToolMaxSteps() > 0;
+}
+
+function loadToolsPrompt(): string {
+  return readFileSync(new URL("../prompts/review-tools.md", import.meta.url), "utf8");
+}
+
+// 单步注入的文件内容总量封顶（D027）：防止单段把上下文窗口吃穿；超出截断附说明行
+export const FILE_TOOL_BLOCK_MAX_CHARS = 80_000;
+
+// 首段自由文本里提取 readRequests（best-effort，D027）：容忍 ```json 围栏与前后闲话，取第一个平衡 JSON 对象；
+// 解析失败 / 缺 readRequests / 超预算条数截断——协议违规不炸审查，降级为不读文件照常出结果。
+// readRequests 元素兼容两种形态：字符串路径 或 {path} 对象；去重按轻量归一键（trim + 剥 ./ 前缀），
+// 覆盖同一文件的写法变体，最终合法性仍由 reader 的 resolveSnapshotPath 把关
+export function extractReadRequests(text: string, maxSteps: number): string[] {
+  if (maxSteps <= 0) return [];
+  const parsed = extractBalancedJson(text);
+  const requests = (parsed as { readRequests?: unknown } | null)?.readRequests;
+  if (!Array.isArray(requests)) return [];
+  const paths: string[] = [];
+  for (const item of requests) {
+    if (typeof item === "string") {
+      paths.push(item);
+    } else if (typeof item === "object" && item !== null && typeof (item as { path?: unknown }).path === "string") {
+      paths.push((item as { path: string }).path);
+    }
+  }
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const p of paths) {
+    const key = p.trim().replace(/^(\.\/)+/, "");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(p);
+  }
+  return out.slice(0, maxSteps);
+}
+
+// 从自由文本提取第一个平衡的 {...}（字符串感知，容忍 ```json 围栏 / 前后闲话）；没有或不可解析返回 null
+function extractBalancedJson(text: string): unknown {
+  try {
+    return JSON.parse(text.trim());
+  } catch {
+    // 整段不是纯 JSON：继续扫描第一个平衡对象
+  }
+  const start = text.indexOf("{");
+  if (start < 0) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) {
+        try {
+          return JSON.parse(text.slice(start, i + 1));
+        } catch {
+          return null;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+// 第二段 prompt 的工具结果块（D027）：工具结果在前、diff 保持生成前最近位置（行号锚点原则同 D023 上下文）。
+// 命中 → 全文（超出剩余预算截断附说明行）；未命中/非法路径 → 统一 not found 说明行（不抛错，模型自行纠正）
+export function buildToolBlock(requests: string[], reader: (path: string) => string | null): string {
+  const parts: string[] = ["[read_file 工具结果]"];
+  let used = 0;
+  for (const [i, path] of requests.entries()) {
+    const content = reader(path);
+    if (content === null) {
+      parts.push(`[read_file] ${path}: file not found in head snapshot`);
+      console.log(`[tools] step ${i + 1}: read ${path} (not found)`);
+      continue;
+    }
+    const remaining = FILE_TOOL_BLOCK_MAX_CHARS - used;
+    if (content.length <= remaining) {
+      parts.push(`=== read_file：${path}（全文 ${content.length} 字符）===\n${content}`);
+      used += content.length;
+      console.log(`[tools] step ${i + 1}: read ${path} (${content.length} chars)`);
+    } else if (remaining > 0) {
+      parts.push(
+        `=== read_file：${path}（截断）===\n${content.slice(0, remaining)}` +
+          `\n[read_file] ${path} 超出步预算截断：仅注入前 ${remaining}/${content.length} 字符`,
+      );
+      used += remaining;
+      console.log(`[tools] step ${i + 1}: read ${path} (${remaining}/${content.length} chars, 截断)`);
+    } else {
+      parts.push(`[read_file] ${path} 全文 ${content.length} 字符超出步预算，未纳入`);
+      console.log(`[tools] step ${i + 1}: read ${path} (0/${content.length} chars, 未纳入)`);
+    }
+  }
+  return parts.join("\n");
+}
+
+// D027 两段协议（spec 回退形态；SDK tools + Output 组合端点实测不可行，证据见 D027/PR body）：
+// 第一段（无 response_format 的自由文本）输出 readRequests JSON → 解析 → 文件内容拼进第二段 prompt →
+// 复用同一 schema 出结果。abortSignal 贯穿两段；usage 为两段合计（ReviewOutcome 契约不变）；
+// ReviewResult schema 与 prompts/review.md 都不动，fileReader 不传时整段不生效（eval 字节级不变）
+async function reviewDiffWithFileReader(
+  llm: ReturnType<typeof createOpenAI>,
+  modelId: string,
+  prompt: string,
+  fileReader: (path: string) => string | null,
+  abortSignal: AbortSignal,
+): Promise<ReviewOutcome> {
+  const maxSteps = fileToolMaxSteps();
+  // system 追加指令来自 prompts/review-tools.md（仅 fileReader 注入时拼接）；review.md 一字不动
+  const system = `${loadPrompt()}\n\n${loadToolsPrompt()}`;
+  const probe = await generateText({ model: llm.chat(modelId), system, prompt, abortSignal });
+  const requests = extractReadRequests(probe.text, maxSteps);
+  console.log(`[tools] 第一段 readRequests：${requests.length > 0 ? requests.join(", ") : "无"}（预算 ${maxSteps}）`);
+  const toolBlock = requests.length > 0 ? `${buildToolBlock(requests, fileReader)}\n\n` : "";
+  const { output, usage } = await generateText({
+    model: llm.chat(modelId),
+    output: Output.object({ schema: reviewResultSchema, name: "ReviewResult" }),
+    system,
+    prompt: `${toolBlock}${prompt}`,
+    abortSignal,
+  });
+  const tokenUsage = sumUsage([
+    {
+      inputTokens: probe.usage?.inputTokens ?? null,
+      outputTokens: probe.usage?.outputTokens ?? null,
+      totalTokens: probe.usage?.totalTokens ?? null,
+    },
+    { inputTokens: usage?.inputTokens ?? null, outputTokens: usage?.outputTokens ?? null, totalTokens: usage?.totalTokens ?? null },
+  ]);
+  console.log(
+    `[reviewDiff] tokens（两段合计）: in ${tokenUsage.inputTokens ?? "?"} / out ${tokenUsage.outputTokens ?? "?"}` +
       ` / total ${tokenUsage.totalTokens ?? "?"}`,
   );
   return { ...output, usage: tokenUsage };

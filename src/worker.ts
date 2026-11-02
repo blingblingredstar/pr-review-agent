@@ -10,8 +10,8 @@ import type { Octokit } from "octokit";
 import { verifySignature, header, type WebhookHeaders, type Dispatch } from "./webhook.ts";
 import { fetchPr, getOctokit, postReview, postTimeoutNotice, setReviewStatus, type PrRef } from "./github.ts";
 import { hasReviewed } from "./dedupe.ts";
-import { buildRepoContext } from "./context.ts";
-import { llmTimeoutMs, reviewDiff, type ReviewOutcome } from "./review.ts";
+import { buildRepoContext, makeFileReader } from "./context.ts";
+import { fileToolEnabled, llmTimeoutMs, reviewDiff, type ReviewDiffOpts, type ReviewOutcome } from "./review.ts";
 
 export type WorkerStage = "prepare" | "review" | "publish";
 
@@ -55,7 +55,7 @@ const STATUS_WRITE_TIMEOUT_MS = 10_000;
 export type WorkerDeps = {
   schedule: (task: () => Promise<void>) => void;
   client: () => Octokit;
-  review: (diff: string, context?: string, opts?: { timeoutMs?: number }) => Promise<ReviewOutcome>;
+  review: (diff: string, context?: string, opts?: ReviewDiffOpts) => Promise<ReviewOutcome>;
   chain: (envelope: WorkerEnvelope) => Promise<void>;
   fetchImpl: typeof fetch;
   chainRetryDelayMs: number;
@@ -204,8 +204,18 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
     if (envelope.stage === "review") {
       const state = (envelope.state ?? {}) as { diff?: string; context?: string | null };
       if (typeof state.diff !== "string") throw new Error("review 信封缺 state.diff");
+      // read_file 工具循环（D027）：review 阶段重取 head 快照（不走信封携带——全仓内容最坏 25MB 超
+      // 4.5MB 请求体上限），best-effort 失败返回 undefined → 不注入 → 单次调用原路径，绝不连垮审查
+      const fileReader = fileToolEnabled()
+        ? await makeFileReader(
+            { headRepo: ref.headRepo ?? `${ref.owner}/${ref.repo}`, headSha: ref.headSha },
+            deps.fetchImpl,
+          )
+        : undefined;
+      console.log(`[worker] ${key} review 阶段 fileReader ${fileReader ? "生效（D027 工具循环）" : "未注入（关闭或快照失败降级）"}`);
       const result = await deps.review(state.diff, state.context ?? undefined, {
         timeoutMs: effectiveLlmTimeoutMs,
+        fileReader,
       });
       // state 累积传递：publish 的 postReview 仍需 diff 做行内预定位（splitByLocatable）
       await deps.chain({ v: 1, stage: "publish", hop: envelope.hop + 1, ref, issuedAt: Date.now(), state: { ...state, result } });

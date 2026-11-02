@@ -168,6 +168,55 @@ export function buildContextText(entries: ZipballEntries, touchedPaths: string[]
   return out.length > 0 ? out.join("\n") : null;
 }
 
+// read_file 工具循环（D027）——快照读取属上下文层职责，与注入共用同一份 zipball 管道与口径。
+
+// read_file 入参路径归一化：剥 `./` 前缀、拒绝含 `..` 段与反斜杠、精确匹配快照键。
+// 拒绝与未命中同义返回 null（不给路径探测留预言机）；命中返回快照键原文
+export function resolveSnapshotPath(entries: ZipballEntries, raw: string): string | null {
+  let p = raw.trim();
+  while (p.startsWith("./")) p = p.slice(2);
+  if (!p || p.includes("\\") || p.split("/").includes("..")) return null;
+  return entries.has(p) ? p : null;
+}
+
+// fileReader：path → 文件全文；null = 路径非法/未命中/二进制（不抛错，由调用方决定注入什么说明）
+export type FileReader = (path: string) => string | null;
+
+// 纯函数工厂（可单测）：快照 Map → reader。命中缓存按解析后路径去重——同一文件的不同写法
+// （"./src/a.ts" 与 "src/a.ts"）只注入一次内容；二进制与未命中同义返回 null
+export function fileReaderFromEntries(entries: ZipballEntries): FileReader {
+  const decoder = new TextDecoder("utf-8");
+  const cache = new Map<string, string | null>();
+  return (path: string) => {
+    const p = resolveSnapshotPath(entries, path);
+    if (!p) return null;
+    if (!cache.has(p)) {
+      const data = entries.get(p)!;
+      cache.set(p, data.includes(0) ? null : decoder.decode(data)); // 二进制与未命中同义：不注入内容
+    }
+    return cache.get(p)!;
+  };
+}
+
+// worker review 阶段的 read_file 快照源（D027）：重取一次 head zipball（不走信封携带——全仓内容
+// 最坏 25MB 超 4.5MB 请求体上限，且重取让 prepare/review 各自独立失败降级，不互相连坐）。
+// best-effort：任何失败返回 undefined → reviewDiff 不注入 fileReader → 单次调用原路径
+export async function makeFileReader(
+  { headRepo, headSha }: { headRepo: string; headSha: string },
+  fetchImpl: typeof fetch = fetch,
+): Promise<FileReader | undefined> {
+  try {
+    const token = process.env.GITHUB_TOKEN;
+    if (!token) throw new Error("缺少环境变量 GITHUB_TOKEN");
+    const entries = await fetchZipballEntries(headRepo, headSha, token, fetchImpl);
+    console.log(`[fileReader] 快照就绪：${entries.size} 个文件（D027 read_file 工具循环）`);
+    return fileReaderFromEntries(entries);
+  } catch (err) {
+    console.warn("[fileReader] 快照获取失败，本次审查不注入 read_file 工具（best-effort，D027）", err);
+    return undefined;
+  }
+}
+
 export type RepoContextInput = { headRepo: string; headSha: string; diff: string };
 
 // 生产编排入口：预算关闭（省掉 zipball 请求）/ 任何失败都返回 null——webhook 侧不需要 try/catch
