@@ -609,3 +609,30 @@ test("reviewDiff：fileReader 注入但首段不请求文件（readRequests 空�
     await fake.close();
   }
 });
+
+test("工具循环：prompt 超过 120k 字符闸自动跳过，走单段（防两段延迟撞阶段墙钟，本 PR dogfood 实测）", async () => {
+  const fake = await startFakeLLM(() => ({ content: REVIEW_JSON, usage: { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 } }));
+  try {
+    await withEnv(
+      { LLM_BASE_URL: fake.url, LLM_API_KEY: "test", LLM_MODEL: "fake", LLM_EXTRA_BODY: undefined, LLM_TIMEOUT_MS: undefined, FILE_TOOL_MAX_STEPS: "2" },
+      async () => {
+        // >120k 字符的 diff（<300k 预算，不触发 D018 截断；fileReader 注入但不应产生第二段）
+        const bigDiff = [
+          "diff --git a/big.ts b/big.ts",
+          "index 1111111..2222222 100644",
+          "--- a/big.ts",
+          "+++ b/big.ts",
+          "@@ -1,2 +1,3 @@",
+          " context",
+          "+" + "x".repeat(130_000),
+        ].join("\n");
+        const out = await reviewDiff(bigDiff, undefined, { timeoutMs: 10_000, fileReader: () => "content" });
+        assert.equal(fake.calls.length, 1, "超阈值只走单段，不进两段协议");
+        assert.equal((fake.calls[0]!.body as { response_format?: { type?: string } }).response_format?.type, "json_schema");
+        assert.deepEqual(out.comments, [{ file: "src/a.ts", line: 1, severity: "major", body: "b" }]);
+      },
+    );
+  } finally {
+    await fake.close();
+  }
+});

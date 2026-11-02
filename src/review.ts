@@ -309,6 +309,9 @@ export type TokenUsage = {
 // reviewDiff 的完整返回：LLM 结构化输出 + 本次调用用量（eval 聚合进 run 落盘，生产走 console 日志）
 export type ReviewOutcome = ReviewResult & { usage: TokenUsage };
 
+// 工具循环的 prompt 规模闸（本 PR 自身 dogfood 实测校准，见 reviewDiff 内注释）
+const TOOL_PROMPT_MAX_CHARS = 120_000;
+
 // reviewDiff 可选项（D027）：fileReader 注入即启用 read_file 工具循环（两段协议）；
 // 不传 = 单次调用原路径，prompt/system 字节级不变——eval 红线由构造保证
 export type ReviewDiffOpts = {
@@ -342,7 +345,13 @@ export async function reviewDiff(diff: string, context?: string, opts?: ReviewDi
   // 一个 abortSignal 贯穿全部步（D027）：调用方 timeoutMs 封顶的是整个工具循环（两段），不只是单次调用；
   // 不传走 LLM_TIMEOUT_MS（D011）
   const abortSignal = AbortSignal.timeout(opts?.timeoutMs ?? llmTimeoutMs());
-  if (opts?.fileReader) {
+  // 大 prompt 跳过工具循环（本 PR 生产 dogfood 实测：~220KB prompt 第二段实测 ~240s，两段协议延迟 ≈ 2× 单段，
+  // 叠加 zipball/续链会撞 285s 阶段墙钟，race 落「审查中断」）。120k 字符下第二段经验上界 ~130s，总预算留有余量；
+  // 大 PR 本就靠 D018 截断 + D023 上下文覆盖，工具读取的边际价值最低，跳过不损失能力面
+  if (prompt.length > TOOL_PROMPT_MAX_CHARS && opts?.fileReader) {
+    console.log(`[tools] prompt ${prompt.length} 字符超过 ${TOOL_PROMPT_MAX_CHARS}，跳过工具循环走单段（D027 后果）`);
+  }
+  if (opts?.fileReader && prompt.length <= TOOL_PROMPT_MAX_CHARS) {
     // read_file 工具循环（D027）：端点实测 SDK tools + Output 组合不可行（response_format 抑制工具调用），
     // 走 spec 回退形态「两段协议」，见 reviewDiffWithFileReader
     return reviewDiffWithFileReader(llm, LLM_MODEL, prompt, opts.fileReader, abortSignal);
