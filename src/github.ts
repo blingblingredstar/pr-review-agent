@@ -37,16 +37,76 @@ export async function fetchPr(
   client: Octokit,
   { owner, repo, pullNumber }: PrRef,
 ): Promise<{ diff: string; headSha: string }> {
-  const [meta, diff] = await Promise.all([
+  // meta 与 diff 并行（正常 PR 行为与延迟不变）。Promise.allSettled 全程接管两个 Promise：
+  // 非 406 抛出路径上不会留下无人接管的 meta rejection（unhandled rejection 会砸掉 Vercel 函数）
+  const [metaSettled, diffSettled] = await Promise.allSettled([
     client.rest.pulls.get({ owner, repo, pull_number: pullNumber }),
-    client.rest.pulls.get({
-      owner,
-      repo,
-      pull_number: pullNumber,
-      mediaType: { format: "diff" },
-    }),
+    client.rest.pulls.get({ owner, repo, pull_number: pullNumber, mediaType: { format: "diff" } }),
   ]);
-  return { diff: String(diff.data), headSha: meta.data.head.sha };
+  if (diffSettled.status === "fulfilled") {
+    if (metaSettled.status === "rejected") throw metaSettled.reason;
+    return { diff: String(diffSettled.value.data), headSha: metaSettled.value.data.head.sha };
+  }
+  const diffErr = diffSettled.reason;
+  if (!isStatus(diffErr, 406)) throw diffErr;
+  // 超大 PR 兜底（D025）：diff 形态有 20,000 行硬上限，超限 406 too_large——审查原本只能失败告终。
+  // 判断依据只有 406 本身（meta 的增删行数与含上下文的 diff 行数之间没有安全换算，hunk 散布可放大 ~7 倍）
+  if (metaSettled.status === "rejected") throw metaSettled.reason;
+  const meta = metaSettled.value.data;
+  console.log(
+    `[fetchPr] diff API 406（超大 PR），切 files 分页拼合：changed_files=${meta.changed_files} +${meta.additions}/-${meta.deletions}`,
+  );
+  const diff = await assembleDiffViaFiles(client, { owner, repo, pullNumber });
+  return { diff, headSha: meta.head.sha };
+}
+
+// files API 单页容量与翻页上限：GitHub 端 files 列表硬上限 3000 文件（30 页 × 100）
+const FILES_PER_PAGE = 100;
+const FILES_MAX_PAGES = 30;
+
+export type PrFile = {
+  filename: string;
+  previous_filename?: string;
+  status: string; // added / removed / modified / renamed / copied / changed / unchanged
+  additions: number;
+  deletions: number;
+  patch?: string; // 超大单文件与二进制文件不给 patch
+};
+
+// files API 的 patch 就是 unified hunk（@@ 起），包上标准头即成可解析的 diff 块：
+// diffCoveredLines / truncateDiff / splitByLocatable / diffTouchedPaths 全部原样消费，下游口径不变。
+// 删除文件发 +++ /dev/null——diffCoveredLines 对纯删除文件的既有语义（跳过，行内评论必 422）自动生效
+export function fileToDiffBlock(file: PrFile): string {
+  const oldPath = file.previous_filename ?? file.filename;
+  const header = `diff --git a/${oldPath} b/${file.filename}`;
+  if (!file.patch) {
+    // 头行必须保留：路径仍进 diffTouchedPaths，zipball 上下文（D023）把该文件全文兜进 prompt——
+    // 传输层拉不到的由上下文层补上，不留静默盲区
+    return `${header}\n[diff 截断] 省略 ${file.filename}（files API 未提供 patch，+${file.additions}/-${file.deletions}）`;
+  }
+  return [
+    header,
+    file.status === "added" ? "--- /dev/null" : `--- a/${oldPath}`,
+    file.status === "removed" ? "+++ /dev/null" : `+++ b/${file.filename}`,
+    file.patch,
+  ].join("\n");
+}
+
+async function assembleDiffViaFiles(client: Octokit, { owner, repo, pullNumber }: PrRef): Promise<string> {
+  const blocks: string[] = [];
+  let exhausted = false;
+  for (let page = 1; page <= FILES_MAX_PAGES; page++) {
+    const { data } = await client.rest.pulls.listFiles({ owner, repo, pull_number: pullNumber, per_page: FILES_PER_PAGE, page });
+    for (const file of data) blocks.push(fileToDiffBlock(file as PrFile));
+    if (data.length < FILES_PER_PAGE) {
+      exhausted = true;
+      break;
+    }
+  }
+  if (!exhausted) {
+    blocks.push(`[diff 截断] 文件数超过 ${FILES_MAX_PAGES * FILES_PER_PAGE}（files API 上限），其余文件未列出`);
+  }
+  return blocks.join("\n");
 }
 
 const SEVERITY_ORDER = ["blocker", "major", "minor", "nit"] as const;

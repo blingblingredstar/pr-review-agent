@@ -38,3 +38,105 @@ test("splitByLocatable：行号在 diff 内行内发，变体对照命中，幻�
   assert.deepEqual(inline.map(({ comment: c, path }) => [c.file, c.line, path]), [["src/a.ts", 11, "src/a.ts"], ["a/src/a.ts", 10, "src/a.ts"]]);
   assert.deepEqual(degraded.map((c) => [c.file, c.line]), [["src/ghost.ts", 1], ["src/a.ts", 999]]);
 });
+
+// ===== 超大 PR diff 406 兜底（D025）=====
+
+import { fetchPr, fileToDiffBlock } from "../src/github.ts";
+import { diffTouchedPaths } from "../src/review.ts";
+import { diffCoveredLines } from "../src/review.ts";
+import type { Octokit } from "octokit";
+
+const prFile = (over: Partial<Parameters<typeof fileToDiffBlock>[0]> = {}): Parameters<typeof fileToDiffBlock>[0] => ({
+  filename: "src/a.ts",
+  status: "modified",
+  additions: 1,
+  deletions: 0,
+  patch: "@@ -10,1 +10,2 @@\n ctx\n+added",
+  ...over,
+});
+
+test("fileToDiffBlock：patch 包上标准头即成可解析 diff，四类 status 口径正确", () => {
+  const covered = diffCoveredLines(fileToDiffBlock(prFile()));
+  assert.deepEqual([...covered.get("src/a.ts")!].sort((a, b) => a - b), [10, 11]);
+
+  const added = diffCoveredLines(fileToDiffBlock(prFile({ filename: "n.ts", status: "added", patch: "@@ -0,0 +1,1 @@\n+new" })));
+  assert.ok(added.get("n.ts")!.has(1));
+
+  // 删除文件 +++ /dev/null → diffCoveredLines 跳过（行内评论必 422 的既有语义自动生效）
+  const removed = diffCoveredLines(fileToDiffBlock(prFile({ status: "removed", additions: 0, deletions: 2, patch: "@@ -1,2 +0,0 @@\n-a\n-b" })));
+  assert.equal(removed.has("src/a.ts"), false);
+
+  const renamed = fileToDiffBlock(prFile({ filename: "new.ts", previous_filename: "old.ts", status: "renamed" }));
+  assert.ok(renamed.startsWith("diff --git a/old.ts b/new.ts"));
+  assert.ok(renamed.includes("--- a/old.ts") && renamed.includes("+++ b/new.ts"));
+});
+
+test("fileToDiffBlock：patch 缺失发省略块但保留路径头——路径仍进上下文触及清单", () => {
+  const block = fileToDiffBlock(prFile({ filename: "big/lock.json", additions: 5000, deletions: 10, patch: undefined }));
+  assert.ok(block.startsWith("diff --git a/big/lock.json b/big/lock.json"), "头行必须保留");
+  assert.ok(block.includes("[diff 截断] 省略 big/lock.json"));
+  assert.deepEqual(diffTouchedPaths(block), ["big/lock.json"], "zipball 上下文按此清单兜全文");
+  assert.equal(diffCoveredLines(block).has("big/lock.json"), false, "无 hunk 无覆盖行，不产生行内意见");
+});
+
+const error406 = () => {
+  const e = new Error("too_large") as Error & { status: number };
+  e.status = 406;
+  return e;
+};
+
+const metaPayload = { head: { sha: "abc1234def" }, changed_files: 102, additions: 103, deletions: 0 };
+
+function fakeClient(opts: { diffError?: Error; pages: Parameters<typeof fileToDiffBlock>[0][][] }): Octokit {
+  let diffCalls = 0;
+  return {
+    rest: {
+      pulls: {
+        get: async (params: { mediaType?: { format?: string } }) => {
+          if (params.mediaType?.format === "diff") {
+            diffCalls++;
+            if (opts.diffError) throw opts.diffError;
+            return { data: "diff --git a/x b/x\n" };
+          }
+          return { data: metaPayload };
+        },
+        listFiles: async ({ page }: { page: number }) => ({ data: opts.pages[page - 1] ?? [] }),
+      },
+    },
+  } as unknown as Octokit;
+}
+
+test("fetchPr：diff 406 切 files 分页拼合；省略块路径仍进触及清单", async () => {
+  const page1 = Array.from({ length: 100 }, (_, i) => prFile({ filename: `f${i}.ts`, patch: "@@ -0,0 +1,1 @@\n+x" }));
+  const page2 = [prFile({ filename: "tail.ts" }), prFile({ filename: "binary.bin", patch: undefined })];
+  const { diff, headSha } = await fetchPr(fakeClient({ diffError: error406(), pages: [page1, page2] }), {
+    owner: "o",
+    repo: "r",
+    pullNumber: 1,
+  });
+  assert.equal(headSha, "abc1234def");
+  assert.ok(diff.includes("diff --git a/f0.ts b/f0.ts"), "分页拼合完整");
+  assert.ok(diff.includes("diff --git a/binary.bin b/binary.bin") && diff.includes("省略 binary.bin"));
+  const touched = diffTouchedPaths(diff);
+  assert.equal(touched.length, 102, "100 + 2（patch 缺失的文件也算触及）");
+  assert.equal(touched[touched.length - 1], "binary.bin");
+});
+
+test("fetchPr：翻满 30 页仍满页 → 附 files 上限省略行；非 406 错误原样抛出；正常路径不受影响", async () => {
+  const fullPage = Array.from({ length: 100 }, (_, i) => prFile({ filename: `p${i}.ts`, patch: "@@ -0,0 +1,1 @@\n+x" }));
+  const { diff } = await fetchPr(fakeClient({ diffError: error406(), pages: Array.from({ length: 31 }, () => fullPage) }), {
+    owner: "o",
+    repo: "r",
+    pullNumber: 1,
+  });
+  assert.ok(diff.includes("文件数超过 3000"), "上限省略行");
+  assert.equal((diff.match(/diff --git /g) ?? []).length, 3000);
+
+  await assert.rejects(
+    fetchPr(fakeClient({ diffError: Object.assign(new Error("boom"), { status: 500 }), pages: [] }), { owner: "o", repo: "r", pullNumber: 1 }),
+    /boom/,
+  );
+  const ok = await fetchPr(fakeClient({ pages: [] }), { owner: "o", repo: "r", pullNumber: 1 });
+  assert.equal(ok.diff, "diff --git a/x b/x\n");
+  assert.equal(ok.headSha, "abc1234def");
+});

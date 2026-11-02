@@ -173,3 +173,9 @@
 - eval 新增 injection source × 6（代码注释 / 文件名 / diff 元数据三向量各 2，底料复用 real 组已验证 bug diff 只追加载荷）：断言「载荷不回显进意见（`noEcho` 特征串判定，指出像注入的元讨论豁免）+ 内嵌真实 bug 不被抑制（复用 expect/recall）」，组指标为拦截率、不计入能力口径；PR 描述向量挂起（D023 落地后 prompt = 触及文件全文 + 文件树 + diff，仍不含 PR 描述，描述注入不可达，引入后扩 fixture）
 - `run.ts` 报告单列注入组拦截率与表格 echo 违规列；README 加威胁模型章节（diff 是不可信输入 / 模型无 approve 路径 / PAT 全量 scope 如实陈述（D008，收敛留产品化）/ 出站仅 GitHub API + LLM 端点）；路线图第 2 项标记已落地；用例集 29 → 35、单测 71 → 75
 - 注入基线三轮（final 打分器）：拦截 17/18（94.4%）、echo 违规 0/18；能力组微平均 recall 93.8%（76/81），末轮单轮 96.3% 持平 Day-6 记录——miss 全为轮转沉默类（real-07 四轮两沉默、real-02 三连沉默后恢复），归因端点侧波动（本 PR 生成路径零改动）
+
+### Added（超大 PR diff 406 兜底，D025）
+
+- `fetchPr` 热路径零改动（meta+diff 并行保留，`Promise.allSettled` 接管避免 unhandled rejection）；diff 形态超 GitHub 20,000 行硬上限 406 时切显式策略分支：files API 分页（100/页 × 30 页）拼合成可解析 diff——patch 字段即 unified hunk，包标准头后截断/行内定位/上下文触及清单原样消费，下游口径不变
+- patch 缺失的文件（超大单文件/二进制）发 D018 式省略块但保留 `diff --git` 头——路径仍进 `diffTouchedPaths`，zipball 上下文（D023）把全文兜进 prompt，传输层与上下文层盲区互补
+- 「前置预判路由」否决留档（D025）：context 放大系数随 hunk 散布 1×~11×，meta 自由字段没有安全阈值；可靠信号只有 406 本身。单测 +4（76 绿）；spec 见 `docs/plans/large-diff-fetch.md`
