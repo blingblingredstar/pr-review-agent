@@ -5,6 +5,10 @@
     "api/webhook.ts": {
       "maxDuration": 300,
       "includeFiles": "prompts/**"
+    },
+    "api/worker.ts": {
+      "maxDuration": 300,
+      "includeFiles": "prompts/**"
     }
   }
 }

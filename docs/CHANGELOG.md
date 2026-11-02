@@ -183,3 +183,11 @@
 ### Changed（文档图示 mermaid 化）
 
 - README / docs/architecture.md / docs/plans/PLAN.md / 两份 spec（context-enhancement-phase1、large-diff-fetch）共 5 张 ASCII 流程图改写为 mermaid flowchart（GitHub 原生渲染），语义逐节点对齐原图；目录树类代码块保留原样
+
+### Added（真正异步化 worker 阶段机，D026）
+
+- 审查拆 `prepare`（dedupe → pending status → 拉 diff/上下文）→ `review`（LLM 审查）→ `publish`（二次 dedupe → 回帖 → status 终态）三阶段，每阶段独立函数调用、独立 300s 预算，突破单函数墙钟——为工具循环（路线图第 4 项第二阶段）与决策模型路由（第 3 项）提供「串行深度有界、预算按阶段拆分」的底座；本 PR 不改 LLM 调用形态
+- `api/worker.ts`（Vercel function 薄壳，`maxDuration: 300`）+ `src/worker.ts`（信封签名/校验 + 三阶段 + `chainWorker` 续链 + 本地直调回退）：阶段间 HMAC-SHA256 签名信封自调用 `/api/worker`（密钥复用 `WEBHOOK_SECRET`，头名 `x-worker-signature` 与 GitHub 事件语义区分），三闸校验——签名 403 / `issuedAt` 10 分钟新鲜度 403 / `hop > 4` 403 + failure status；阶段产物（diff/context/result，~400KB）随信封直传、不落外部存储；续链最多 2 次尝试（间隔 2s），终失败 best-effort 落 failure「审查中断」——续链失败不静默，避免永久 pending 黄灯（D017）
+- `src/webhook.ts` 变纯分发器：runReview 及超时处理迁出（失败语义逐字保留），调度对象改为发 prepare 信封——首阶段也跑在新调用里，所有阶段共用同一条代码路径；验签/白名单/事件过滤不动
+- `vercel.json` 加 `api/worker.ts` 条目（`maxDuration: 300` + `includeFiles: "prompts/**"`）；无新增环境变量（信封密钥复用 `WEBHOOK_SECRET`，`VERCEL_URL` 平台注入，未设置时本地直调回退，本地链路与生产行为一致）
+- eval 回归：promptHash `d399f9d4ed17` 不变，35 用例输入 tokens 与 2026-11-02 基线（run 16-36-56/16-43-56/16-55-00）逐位一致（合计 23,376，本 PR 不碰 eval 可见路径）；单测 79 → 92（新增 worker 13 例）；spec 见 `docs/plans/async-worker.md`

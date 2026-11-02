@@ -3,6 +3,7 @@ import { createHmac } from "node:crypto";
 import { test } from "node:test";
 import { handleWebhook, reviewTriggerUsers, verifySignature } from "../src/webhook.ts";
 import { hasReviewed, reviewMarker } from "../src/dedupe.ts";
+import type { WorkerEnvelope } from "../src/worker.ts";
 
 const SECRET = "test-secret";
 process.env.WEBHOOK_SECRET ??= SECRET;
@@ -40,14 +41,30 @@ test("verifySignature：篡改 body / 缺头 / 错 secret / 非法前缀均拒�
   assert.equal(verifySignature(SECRET, body, "md5=deadbeef"), false);
 });
 
-test("分发：opened / synchronize 调度审查，携带 owner/repo/number/sha", () => {
+test("分发：opened / synchronize 发 prepare 信封，携带 owner/repo/number/sha（D026）", async () => {
   for (const action of ["opened", "synchronize"]) {
     const body = prPayload(action);
     const scheduled: Array<() => Promise<void>> = [];
-    const outcome = handleWebhook(signedHeaders("pull_request", body), body, (t) => scheduled.push(t));
+    const dispatched: WorkerEnvelope[] = [];
+    const outcome = handleWebhook(
+      signedHeaders("pull_request", body),
+      body,
+      (t) => scheduled.push(t),
+      async (e) => {
+        dispatched.push(e);
+      },
+    );
     assert.equal(outcome.status, 200);
     assert.equal(scheduled.length, 1, `${action} 应调度一次`);
     assert.ok(outcome.note.includes("acme/demo#7@abc123d"));
+    await scheduled[0]!();
+    assert.equal(dispatched.length, 1);
+    assert.equal(dispatched[0]!.stage, "prepare");
+    assert.equal(dispatched[0]!.hop, 0);
+    assert.equal(dispatched[0]!.ref.owner, "acme");
+    assert.equal(dispatched[0]!.ref.repo, "demo");
+    assert.equal(dispatched[0]!.ref.pullNumber, 7);
+    assert.equal(dispatched[0]!.ref.headSha, "abc123def4567890");
   }
 });
 
