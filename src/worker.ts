@@ -148,13 +148,9 @@ export function handleWorker(headers: WebhookHeaders, rawBody: string, deps?: Pa
   // runStage 自吞错误，catch 只兜 deps 构造等意外逃逸，避免 unhandled rejection 砸掉 Vercel 函数
   d.schedule(() =>
     // 阶段墙钟 race（自审 major）：runStage 自吞已知失败，race 兜「阶段内挂起」与意外逃逸两个类，
-    // 超线/逃逸都落 failure「审查中断」——catch 到不了的状态（进程被杀）不再是永久 pending
-    Promise.race([
-      runStage(d, envelope),
-      sleep(d.stageDeadlineMs).then(() => {
-        throw new Error(`阶段 ${envelope.stage} 超过阶段墙钟 ${d.stageDeadlineMs}ms`);
-      }),
-    ]).catch((err) => {
+    // 超线/逃逸都落 failure「审查中断」——catch 到不了的状态（进程被杀）不再是永久 pending。
+    // 用带清理的 withDeadline：正常完成即 clearTimeout，不让 285s 定时器把 waitUntil 存续拉到墙钟上限（自审 minor）
+    withDeadline(runStage(d, envelope), d.stageDeadlineMs, `阶段 ${envelope.stage}`).catch((err) => {
       console.error(`[worker] ${key} 阶段 ${envelope.stage} 异常逃逸/阶段墙钟超时`, err);
       return markFailed(d.client, key, envelope.ref, "审查中断");
     }),
@@ -339,8 +335,9 @@ export async function chainWorker(envelope: WorkerEnvelope, deps?: Partial<Worke
         // 单次硬超时：自调用挂起（网络黑洞 / 冷启动卡死）时及时进入重试与落灯路径
         signal: AbortSignal.timeout(d.chainTimeoutMs),
       });
-      // 先消费/取消响应体再判 ok：undici 在 body 未读完前不归还底层连接，2 次重试即漏 2 个 socket（自审 minor）
-      await res.body?.cancel();
+      // 先消费/取消响应体再判 ok：undici 在 body 未读完前不归还底层连接，2 次重试即漏 2 个 socket（自审 minor）。
+      // cancel 自身 reject（对端异常断流）不参与成败判定——链路可能已送达并在新调用里开跑，误判会落假 failure 灯
+      await res.body?.cancel().catch(() => {});
       if (res.ok) return;
       lastErr = new Error(`HTTP ${res.status}`);
       // 确定性 4xx（信封超限 413 / 结构非法 400 / 校验拒绝 403）重试必同败，不白等间隔直接终失败；
@@ -357,6 +354,15 @@ export async function chainWorker(envelope: WorkerEnvelope, deps?: Partial<Worke
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// 带 deadline 的 Promise.race：胜负一定即清理定时器——正常完成不留悬空 timer 占着 waitUntil 的存续时长
+function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} 超过 ${ms}ms 墙钟`)), ms);
+  });
+  return Promise.race([p, deadline]).finally(() => clearTimeout(timer));
 }
 
 // AbortSignal.timeout 抛出的 TimeoutError 可能被 AI SDK 包一层，沿 cause 链找（随 runReview 自 webhook.ts 迁入）

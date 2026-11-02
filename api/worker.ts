@@ -30,8 +30,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 }
 
 // 签名校验必须用原始字节，不能碰 req.body（@vercel/node 的惰性解析会消费流）
-// 上限 4.5MB = Vercel 请求体上限（信封中间态按 DIFF+CONTEXT 预算默认 ~400KB，预算调错时平台闸兜底）
-const MAX_BODY_BYTES = 4.5 * 1024 * 1024;
+// 上限十进制 4.5MB = Vercel 请求体上限（信封中间态按 DIFF+CONTEXT 预算默认 ~400KB，预算调错时平台闸兜底）；
+// 自设闸压在平台闸之内，413「先送达再断开」分支才实际可达（自审 minor：4.5×1024×1024 是 4.5MiB 口径，永远排不进平台闸前面）
+const MAX_BODY_BYTES = 4_500_000;
 async function readRawBody(req: IncomingMessage): Promise<string | null> {
   const chunks: Buffer[] = [];
   let total = 0;
