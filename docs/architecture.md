@@ -12,6 +12,8 @@ Vercel API route ──立即返回 200，waitUntil 异步处理──┐
       ▼                                            │
 拉取 PR diff (GitHub API)                          │
       ▼                                            │
+仓库上下文（D023 best-effort：head zipball → 触及文件全文 + 文件树）
+      ▼                                            │
 LLM 审查（OpenAI 兼容端点）：generateText + Output → { comments: [...] }     │
       ▼                                            │
 GitHub API 回帖（逐条 PR review comment）◄──────────┘
@@ -25,6 +27,7 @@ GitHub API 回帖（逐条 PR review comment）◄──────────
 | `src/webhook.ts` | 验签、事件分发、后台审查编排 | HMAC-SHA256 + `timingSafeEqual`，失败 401；只处理 `opened` / `synchronize`（其余含 `ping` 200 忽略）；触发白名单（D021）在调度前按 payload 自带作者过滤，零 GitHub API / 零 LLM token；立即 200 + `waitUntil`（`@vercel/functions`）执行 `runReview`；后台任务失败只记日志不抛出 |
 | `src/review.ts` | 拉 diff → 构造 prompt → LLM 审查 → 结构化输出 | prompt 从 `prompts/review.md` 读取；prompt 构造前 `truncateDiff()` 整文件块预算截断 + 生成物前置过滤（D018/D020）；`generateText` + `Output.object` 强约束 schema；`llm.chat()` 显式走 chat/completions（兼容端点无 Responses API）；`AbortSignal.timeout(LLM_TIMEOUT_MS)` 默认 270s（D011）；`LLM_EXTRA_BODY` 合并进请求体控制 thinking 等端点参数（D012）；usage（token 用量）console 落日志并随返回值返回（`ReviewOutcome = ReviewResult & { usage: TokenUsage }`，端点不返回的字段为 null，D021 待办兑现） |
 | `src/github.ts` | GitHub API 封装：拉 PR diff、发 review comment（有意见 REQUEST_CHANGES，D017）、审查生命周期 status、超时通知、打 severity 标签 | 只依赖 octokit；便于 eval 时 mock；review summary 内嵌 sha 标记（D010）；`postReview` 后自动打 `has-blocker`/`has-major` 标签（minor/nit 不打，Day 6 eval 可当按时间的质量数据） |
+| `src/context.ts` | 仓库上下文注入（D023，路线图第 4 项第一阶段）：head zipball 下载（302 手动跟进，凭证只发 GitHub 域 + content-length 预检 + 流式累计封顶）→ fflate 内存解压 → 触及文件全文（`diffTouchedPaths` 由 diff 头确定，diff 顺序逐文件全有或全无）+ 文件树（字母序）拼成自描述上下文块 | best-effort：预算 `CONTEXT_MAX_CHARS`（数值 0 关闭）、下载 10s 硬上限、zipball 压缩 25MB 上限、任何失败返回 null 审查照旧；fork PR 按 head 仓库取快照；纯 JS 解压不依赖 git 二进制、不落 /tmp；生产编排入口 `buildRepoContext`，eval 不经过此路径（promptHash 不变） |
 | `src/dedupe.ts` | 同一 commit SHA 只审一次 | 查 PR 已有 review 的 `<!-- pr-review-agent sha:<SHA> -->` 标记（D010） |
 | `prompts/review.md` | 审查提示词（迭代对象） | prompt 与代码分离，方便 diff 和 eval 对比；`vercel.json` `includeFiles` 保证随函数打包 |
 | `evals/` | eval 用例集 + 跑分脚本 | `cases/` 29 个自包含 diff 用例（D015 三级 source：synthetic 20 手写教学 / real 7 真实仓库 fix 反转与配对 / dogfood 2 回归集；格式见 D014）；`score.ts` 打分纯函数（命中 = file + 行 ±3 + mustMention 任一关键词）；`run.ts` 入口（`npm run eval`，串行 + 失败重试，按 source 分组统计，结果带 `promptHash` 指纹落盘 `runs/`，逐用例 tokens 入/出与合计随 run 落盘——成本基线）；`compare.ts` 多轮 run 按 prompt 指纹聚合对比（Day 6 报告的数据出口，`evals/report.md`）；用例结构校验在 `test/eval-cases.test.ts` |
@@ -56,6 +59,7 @@ schema 变更属于破坏性改动：必须同步改 `evals/run.ts` 的打分逻
 - **合并闸门双层强化**（D017）：bot 有意见以 REQUEST_CHANGES 提交 review（GitHub 原生禁合并按钮，重审无意见自动解除）；审查生命周期写 `pr-review` status（pending/success/failure，与线程状态的 review-threads 分离），补上「review 尚未发布」的窗口期；`resolve:threads --yes` 收尾后检测 head SHA 复审在途。
 - **合并前意见闭环**（D013）：`.github/workflows/review-threads.yml` 查未 resolve 线程写 commit status（红灯走 status 而非 workflow 失败，避免设计内红灯触发失败邮件）；`scripts/resolve-threads.ts`（`npm run resolve:threads -- owner/repo#N --yes`）批量 resolve 后主动 rerun 闭合绿门。仓库工具，非运行时组件。
 - **diff 截断**（D018/D020）：总长超 `DIFF_MAX_CHARS`（默认 300_000 字符）时按整文件块丢弃——先做生成物前置过滤（lock/生成物名单 + `@generated` 头 + 长行占优三层识别，命中块不进预算竞争、省略行标注「生成物」），其余按块大小升序贪心保留，保留块原顺序字节级重组，被丢弃文件在 diff 末尾附省略行（路径 + 增删计数，新建文件额外标注提示盲区）告知模型非全量；不切 hunk（破坏行号定位）、不分子调用（成本延迟翻倍）。
+- **仓库上下文注入**（D023）：审查 prompt = 上下文块 + `[diff 开始]` + 截断后 diff（diff 字节级不动，行号锚点不受影响）。上下文 = head 快照（zipball 单请求内存解压）中触及文件的全文（按 diff 顺序、逐文件全有或全无、装不下留说明）+ 仓库文件树（字母序、超预算先落说明再装前缀）。独立预算 `CONTEXT_MAX_CHARS`（默认 100_000 字符，数值 0 关闭）；任何失败（10s 超时 / 25MB 上限 / API 错误）返回 null、审查照旧——best-effort 绝不连垮主流程。
 - **触发白名单**（D021）：`REVIEW_TRIGGER_USERS` 逗号分隔 GitHub 用户名（大小写不敏感）限定可触发审查的 PR 作者——未设置 = 所有人（向后兼容），`*` = 显式全放行；判定在调度前用 webhook payload 自带的 `pull_request.user.login` 完成，名单启用但 payload 缺作者按拒绝处理（成本闸门宁可误拒）。
 
 ## 环境变量
@@ -70,6 +74,7 @@ schema 变更属于破坏性改动：必须同步改 `evals/run.ts` 的打分逻
 | `LLM_TIMEOUT_MS` | LLM 审查硬超时（毫秒） | 默认 270000；Vercel Hobby 函数上限 300s，留回帖余量（D011） |
 | `LLM_EXTRA_BODY` | 端点扩展参数（JSON） | 合并进请求体；GLM 关 thinking `{"thinking":{"type":"disabled"}}` 控延迟（D012） |
 | `DIFF_MAX_CHARS` | diff 截断预算（字符） | 默认 300000；超预算按整文件块丢弃，生成物前置排除、其余小文件优先（D018/D020）；非法值告警回退默认 |
+| `CONTEXT_MAX_CHARS` | 仓库上下文预算（字符） | 默认 100000；触及文件全文 + 文件树的独立预算，`0` 显式关闭上下文注入（D023）；非法值告警回退默认 |
 | `REVIEW_TRIGGER_USERS` | 触发白名单 | 逗号分隔 GitHub 用户名，仅名单内 PR 作者触发审查；未设置 = 所有人，`*` = 显式全放行（D021） |
 
 ## 待定问题

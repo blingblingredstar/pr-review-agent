@@ -161,3 +161,9 @@
 
 - 路线图第 1 项立项验证完成并整体回退：`evidenceSnippet` 契约（必填/可选 × 三种措辞，12 轮对照 + v2 同日对照 4 轮）实测 recall 微平均 96.3% → 87.7–91.4%，损失集中于三个「推断型」沉默用例；370 条意见真幻觉拦截为 0（全部拦截为匹配器容忍缺口或跨文件引用）。红线「recall 不回退」不可满足，D022 记否决
 - 匹配器设计结论留档 `evals/report.md`（去空白 + 12 行滑动窗口 + 剥 diff 标记 + 新侧视图 + 按所评文件判定），12 轮 run 全部落盘 `evals/runs/`；重启候选形态：旁路观测不进生成侧
+
+### Added（仓库上下文确定性注入第一阶段，D023）
+
+- `src/context.ts`：webhook 审查路径按 head SHA 下载 zipball（单请求，302 手动跟进重发凭证兼容私有仓库；fork PR 按 head 仓库取快照），fflate 纯 JS 内存解压（不落 /tmp、不依赖 git 二进制），确定性拼装「触及文件全文（diff 顺序、逐文件全有或全无）+ 仓库文件树（字母序）」注入 prompt 前段——diff 字节级不动、行号锚点不受影响，被 diff 截断丢弃的新建文件由上下文兜回
+- `CONTEXT_MAX_CHARS` 环境变量（默认 100000 字符，`0` 显式关闭）：与 `DIFF_MAX_CHARS` 独立预算；失败语义 best-effort——下载 10s 硬上限、zipball 压缩 25MB 上限、任何错误返回 null 审查照旧
+- eval 零回归面：eval 路径不传 context、`prompts/review.md` 不改，promptHash 不变；`npm test` 71 例全绿（新增 7）；spec 见 `docs/plans/context-enhancement-phase1.md`

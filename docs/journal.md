@@ -406,3 +406,22 @@
   - 会话中途 AskUserQuestion 未获回复，按预设判据自主走完决策树并把判据写进选项描述——「先定判据再跑实验」让自主决策可审计
   - **本 PR 自身 dogfood 出真实产品缺口**：GitHub diff API 有 20,000 行硬上限（`GET /pulls/N` diff 形态返回 406 `too_large`），本 PR 初版 24 个 pretty JSON run 文件 ~23k 行直接把 `fetchPr` 打炸——`DIFF_MAX_CHARS` 截断（D018）在「拉都拉不下来」这一层之前，生产侧超大 PR 会以「审查失败」告终且无法自愈。缓解（本 PR）：run JSON 压平为单行（内容不变）；产品侧修复留待办（list files 分页拼 diff 或 zip 解包，超限兜底）
 - **下一步**：PR 过 bot 自审与双硬闸门合并；路线图顺延——下一优先级为注入抗性 canary 组（原第 2 项升为 P0）；「旁路观测」形态若启动单独立项
+
+## 2026-11-03 · 会话 26：仓库上下文注入第一阶段（D023，路线图第 4 项落地）
+
+- **目标**：用户提出「agent 读不到上下文，能否把 repo 下载下来（单仓自用）？vs 逐文件调 API（担心更慢/更多流量）」——方案调研后拍板按推荐直接执行。
+- **方案结论（先于代码，两轮讨论）**：
+  - 平台核实：Vercel 运行时无 git 二进制（Lambda 精简镜像）→ clone 需 isomorphic-git，为可绕过的问题加依赖，否决；/tmp 只写不持久 → 干脆内存解压不落盘；300s 墙钟下下载 1-2s 可忽略
+  - **「API 更慢」与直觉相反**：逐文件 Contents API 是 N 个请求，zipball 是 1 个；本仓 tracked 内容 1.5MB/143 文件，zipball 单请求 1-2s——流量与延迟都占优，且附赠文件树全景
+  - 否决面：构建期打包（快照陈旧对审 PR 是正确性错误）、RAG（全量已在手上索引无增量价值）、工具循环（完全体但改输入契约，D019 约束另立项）
+  - 排序前提修订：旧结论「上下文增强必须在异步化之后」被会话 24 续超时账修订推翻（20s 级 vs 270s 预算），可独立立项（memory 已同步更正）
+- **完成**（D023，spec `docs/plans/context-enhancement-phase1.md`，走 PR 过闸门）：
+  - `src/context.ts`：head zipball 下载（302 手动跟进重发凭证——fetch 跨源重定向剥 Authorization，私有仓库 codeload 需要凭证；fork PR 按 `head.repo.full_name` 取快照）→ fflate 内存解压 → 确定性拼装「触及文件全文（`diffTouchedPaths` diff 顺序、逐文件全有或全无）+ 文件树（字母序）」，prompt = 上下文 + `[diff 开始]` + 原样 diff
+  - best-effort 失败语义：`CONTEXT_MAX_CHARS`（默认 100k，`"0"` 关闭）+ 下载 10s 硬上限 + zipball 25MB 上限，任何失败返回 null 审查照旧；触及清单基于完整原始 diff——D018/D020 截断盲区由上下文兜回
+  - `reviewDiff(diff, context?)` 可选参数，eval/scripts 零改动；webhook 编排一行接入
+  - 单测 +7（71 全绿）；.env.example / deployment / architecture / README / CHANGELOG 同步
+  - **eval 回归**：promptHash `d399f9d4ed17` 不变、输入 token 合计 19,246 与基线逐位一致（字节级不变的硬证据）、recall 96.3%（26/27）持平基线；real-02 仍间歇沉默（已知单轮波动非本次引入）
+- **发现 / 坑**：
+  - 树截断的说明行初版放在树行之后，预算紧边界下会被行内容挤掉——改为「先落说明再装前缀」，说明先占位永不被挤；单测初版用 160 字符边界预算恰好落在挤掉区间，改为 30 长路径文件的有余量场景测语义（边界巧合不是要固化的行为）
+  - zipball 根目录段命名跨 API 版本有差异，按「所有路径共享首段」的共性剥离，不猜命名
+- **下一步**：PR 过 bot 自审与双硬闸门合并（Vercel 随 push 自动部署，`CONTEXT_MAX_CHARS` 有默认值无需配置）；生产观察 `[context]` 日志行与 usage 增量；第二阶段（工具循环）等生产数据再立项
