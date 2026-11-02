@@ -212,6 +212,9 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
       // 与 >=/> 比较符的边界分叉）——预判与闸吃同一字符串、同一比较符，永不矛盾
       const promptEstimate = buildReviewPrompt(state.diff, typeof state.context === "string" ? state.context : undefined).length;
       const snapshotSkippedByGate = fileToolEnabled() && promptEstimate > TOOL_PROMPT_MAX_CHARS;
+      // 快照耗时从 LLM 预算中扣掉（自审 minor）：D026 的墙钟账「LLM 打满 + 续链 + 落灯」此前没算
+      // makeFileReader 这段（上限 10s），小 prompt + 慢快照组合仍在账外；下限 60s 防御性兜底
+      const snapshotStart = Date.now();
       const fileReader =
         fileToolEnabled() && !snapshotSkippedByGate
           ? await makeFileReader(
@@ -219,6 +222,7 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
               deps.fetchImpl,
             )
           : undefined;
+      effectiveLlmTimeoutMs = Math.max(effectiveLlmTimeoutMs - (Date.now() - snapshotStart), 60_000);
       const fileReaderNote = fileReader
         ? "生效（D027 工具循环）"
         : snapshotSkippedByGate
