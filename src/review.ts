@@ -310,8 +310,9 @@ export type TokenUsage = {
 // reviewDiff 的完整返回：LLM 结构化输出 + 本次调用用量（eval 聚合进 run 落盘，生产走 console 日志）
 export type ReviewOutcome = ReviewResult & { usage: TokenUsage };
 
-// 工具循环的 prompt 规模闸（本 PR 自身 dogfood 实测校准，见 reviewDiff 内注释）
-const TOOL_PROMPT_MAX_CHARS = 120_000;
+// 工具循环的 prompt 规模闸（本 PR 自身 dogfood 实测校准，见 reviewDiff 内注释）；
+// worker 侧在重取快照前用同一阈值预判（自审 minor：大 prompt 快照取回不用，白吃预算）
+export const TOOL_PROMPT_MAX_CHARS = 120_000;
 
 // reviewDiff 可选项（D027）：fileReader 注入即启用 read_file 工具循环（两段协议）；
 // 不传 = 单次调用原路径，prompt/system 字节级不变——eval 红线由构造保证

@@ -11,7 +11,7 @@ import { verifySignature, header, type WebhookHeaders, type Dispatch } from "./w
 import { fetchPr, getOctokit, postReview, postTimeoutNotice, setReviewStatus, type PrRef } from "./github.ts";
 import { hasReviewed } from "./dedupe.ts";
 import { buildRepoContext, makeFileReader } from "./context.ts";
-import { fileToolEnabled, llmTimeoutMs, reviewDiff, type ReviewDiffOpts, type ReviewOutcome } from "./review.ts";
+import { fileToolEnabled, llmTimeoutMs, reviewDiff, TOOL_PROMPT_MAX_CHARS, type ReviewDiffOpts, type ReviewOutcome } from "./review.ts";
 
 export type WorkerStage = "prepare" | "review" | "publish";
 
@@ -205,13 +205,18 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
       const state = (envelope.state ?? {}) as { diff?: string; context?: string | null };
       if (typeof state.diff !== "string") throw new Error("review 信封缺 state.diff");
       // read_file 工具循环（D027）：review 阶段重取 head 快照（不走信封携带——全仓内容最坏 25MB 超
-      // 4.5MB 请求体上限），best-effort 失败返回 undefined → 不注入 → 单次调用原路径，绝不连垮审查
-      const fileReader = fileToolEnabled()
-        ? await makeFileReader(
-            { headRepo: ref.headRepo ?? `${ref.owner}/${ref.repo}`, headSha: ref.headSha },
-            deps.fetchImpl,
-          )
-        : undefined;
+      // 4.5MB 请求体上限），best-effort 失败返回 undefined → 不注入 → 单次调用原路径，绝不连垮审查。
+      // 快照预判（自审 minor）：与 reviewDiff 的 TOOL_PROMPT_MAX_CHARS 规模闸同一阈值——大 prompt 场景
+      // 工具循环必被跳过，先取快照白吃最多 25MB/10s 预算，且这正是最易撞阶段墙钟的超大 PR 路径。
+      // diff+context 是 prompt 的下界（truncateDiff 只会缩短 diff 段），估过闸即跳过
+      const promptEstimate = state.diff.length + (typeof state.context === "string" ? state.context.length : 0);
+      const fileReader =
+        fileToolEnabled() && promptEstimate < TOOL_PROMPT_MAX_CHARS
+          ? await makeFileReader(
+              { headRepo: ref.headRepo ?? `${ref.owner}/${ref.repo}`, headSha: ref.headSha },
+              deps.fetchImpl,
+            )
+          : undefined;
       console.log(`[worker] ${key} review 阶段 fileReader ${fileReader ? "生效（D027 工具循环）" : "未注入（关闭或快照失败降级）"}`);
       const result = await deps.review(state.diff, state.context ?? undefined, {
         timeoutMs: effectiveLlmTimeoutMs,
@@ -394,9 +399,11 @@ function sleep(ms: number): Promise<void> {
 // 不引任何请求头派生值（PR #30 自审二轮：origin 自发现是 diff 外泄通道，见 chainWorker 注释）
 export function chainBase(): string | undefined {
   const explicit = process.env.WORKER_BASE_URL?.trim();
+  let explicitState: "ok" | "invalid" | "unset" = "unset";
   if (explicit) {
     if (!/^https?:\/\/[^/\s]+$/.test(explicit.replace(/\/+$/, ""))) {
       console.error(`[worker] WORKER_BASE_URL="${explicit}" 不是无路径的 http(s) URL，忽略，回退 VERCEL_URL`);
+      explicitState = "invalid";
     } else {
       return explicit.replace(/\/+$/, "");
     }
@@ -404,9 +411,10 @@ export function chainBase(): string | undefined {
   const vercel = process.env.VERCEL_URL?.trim();
   if (!vercel) return undefined;
   if (process.env.VERCEL_ENV === "production") {
-    // 显式 warn：生产走 VERCEL_URL 兜底大概率是 WORKER_BASE_URL 漏配（部署专属 URL 被 Standard Protection 403），
-    // 失败只体现在 PR 状态灯上不易归因（自审降级 minor）
-    console.error(`[worker] 生产环境未配置 WORKER_BASE_URL，续链回退 VERCEL_URL（部署专属 URL，Standard Protection 下会 403）——请在部署环境变量配置公开可达域名`);
+    // 显式 warn：生产走 VERCEL_URL 兜底大概率是 WORKER_BASE_URL 缺席/非法（部署专属 URL 被 Standard
+    // Protection 403），失败只体现在 PR 状态灯上不易归因（自审降级 minor；措辞区分两种成因，自审 nit）
+    const reason = explicitState === "invalid" ? "WORKER_BASE_URL 非法被忽略" : "未配置 WORKER_BASE_URL";
+    console.error(`[worker] 生产环境${reason}，续链回退 VERCEL_URL（部署专属 URL，Standard Protection 下会 403）——请在部署环境变量配置公开可达域名`);
   }
   return `https://${vercel}`;
 }
