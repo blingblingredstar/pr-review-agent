@@ -128,13 +128,13 @@ export function handleWorker(headers: WebhookHeaders, rawBody: string, deps?: Pa
   // 落灯会给伪造请求开出「用别人的 SHA 写 status」的面，故保持无副作用
   if (!Number.isFinite(envelope.issuedAt) || Date.now() - envelope.issuedAt > ENVELOPE_FRESH_MS) {
     console.error(`[worker] ${key} 信封过期（issuedAt 超窗），拒绝续链`);
-    d.schedule(() => markFailed(d.client, key, envelope.ref, "审查中断"));
+    d.schedule(() => markTerminalAfterGate(d.client, key, envelope.ref));
     return { status: 403, note: "stale worker envelope" };
   }
   // hop 封顶闸：403 之外还要落 failure status——链路断在这里时 pending 黄灯比红灯更具误导性（D017）
   if (envelope.hop > MAX_HOPS) {
     console.error(`[worker] ${key} hop ${envelope.hop} 超过上限 ${MAX_HOPS}，拒绝续链`);
-    d.schedule(() => markFailed(d.client, key, envelope.ref, "审查中断"));
+    d.schedule(() => markTerminalAfterGate(d.client, key, envelope.ref));
     return { status: 403, note: "worker hop limit exceeded" };
   }
   // 阶段执行调度在 waitUntil：当前函数立刻 200，阶段末尾的续链 POST 也在本任务内完成（D026）。
@@ -249,6 +249,28 @@ async function markFailed(client: () => Octokit, key: string, ref: PrRef & { hea
     await setReviewStatus(client(), { ...ref, sha: ref.headSha }, "failure", description);
   } catch (statusErr) {
     console.error(`[worker] ${key} failure status 写失败`, statusErr);
+  }
+}
+
+// 闸门拒绝路径的终态落定（PR #29 自审 minor）：合法信封迟到（冷启动排队超新鲜窗等）时，审查可能已由
+// 另一条重试链完成——直接落 failure 会把已成功的 pr-review 翻成红灯。先查 dedupe：已审 → 补落 success
+// （与 publish 二次 dedupe 同语义）；未审 → 链路确实断在这里 → failure「审查中断」。dedupe 查询失败按未审
+// 处理：断链需要信号，误落的 failure 可由重推/复审翻正，反之永久 pending 无出口
+async function markTerminalAfterGate(client: () => Octokit, key: string, ref: PrRef & { headSha: string }): Promise<void> {
+  let reviewed = false;
+  try {
+    reviewed = await hasReviewed(client(), ref, ref.headSha);
+  } catch (dedupeErr) {
+    console.error(`[worker] ${key} 闸门路径 dedupe 查询失败，按未审落 failure`, dedupeErr);
+  }
+  try {
+    if (reviewed) {
+      await setReviewStatus(client(), { ...ref, sha: ref.headSha }, "success", "完成（重派路径补落终态）");
+    } else {
+      await setReviewStatus(client(), { ...ref, sha: ref.headSha }, "failure", "审查中断");
+    }
+  } catch (statusErr) {
+    console.error(`[worker] ${key} 闸门终态 status 写失败`, statusErr);
   }
 }
 

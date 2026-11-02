@@ -503,3 +503,18 @@ test("review 阶段传给 LLM 的超时 = min(LLM_TIMEOUT_MS, 260s 阶段封顶)
   assert.equal(opts!.timeoutMs, Math.min(llmTimeoutMs(), 260_000));
   assert.ok(opts!.timeoutMs! + 22_000 + 2_000 < 300_000, "LLM 打满 + 续链最坏 22s + 落灯 ~2s 关进 300s 墙钟");
 });
+
+test("过期信封但审查已完成（另一条重试链跑完了）：补落 success 而非 failure 翻红灯", async () => {
+  const stale = JSON.stringify({ ...prepareEnvelope(REF), issuedAt: Date.now() - 10 * 60 * 1000 - 1 });
+  const staleTasks: Array<() => Promise<void>> = [];
+  const { client, calls } = fakeClient([{ body: `意见\n${reviewMarker(REF.headSha)}` }]);
+  assert.equal(
+    handleWorker(workerHeaders(stale), stale, { schedule: (t) => staleTasks.push(t), client: () => client }).status,
+    403,
+  );
+  await staleTasks[0]!();
+  assert.deepEqual(
+    calls.statuses.map((s) => [s.state, s.description]),
+    [["success", "完成（重派路径补落终态）"]],
+  );
+});
