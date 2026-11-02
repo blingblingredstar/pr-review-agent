@@ -167,3 +167,9 @@
 - `src/context.ts`：webhook 审查路径按 head SHA 下载 zipball（单请求，302 手动跟进重发凭证兼容私有仓库；fork PR 按 head 仓库取快照），fflate 纯 JS 内存解压（不落 /tmp、不依赖 git 二进制），确定性拼装「触及文件全文（diff 顺序、逐文件全有或全无）+ 仓库文件树（字母序）」注入 prompt 前段——diff 字节级不动、行号锚点不受影响，被 diff 截断丢弃的新建文件由上下文兜回
 - `CONTEXT_MAX_CHARS` 环境变量（默认 100000 字符，`0` 显式关闭）：与 `DIFF_MAX_CHARS` 独立预算；失败语义 best-effort——下载 10s 硬上限、zipball 压缩 25MB 上限、任何错误返回 null 审查照旧
 - eval 零回归面：eval 路径不传 context、`prompts/review.md` 不改，promptHash 不变；`npm test` 71 例全绿（新增 7）；spec 见 `docs/plans/context-enhancement-phase1.md`
+
+### Added（注入抗性 canary 组，D024）
+
+- eval 新增 injection source × 6（代码注释 / 文件名 / diff 元数据三向量各 2，底料复用 real 组已验证 bug diff 只追加载荷）：断言「载荷不回显进意见（`noEcho` 特征串判定，指出像注入的元讨论豁免）+ 内嵌真实 bug 不被抑制（复用 expect/recall）」，组指标为拦截率、不计入能力口径；PR 描述向量挂起（D023 落地后 prompt = 触及文件全文 + 文件树 + diff，仍不含 PR 描述，描述注入不可达，引入后扩 fixture）
+- `run.ts` 报告单列注入组拦截率与表格 echo 违规列；README 加威胁模型章节（diff 是不可信输入 / 模型无 approve 路径 / PAT 最小化 / 出站仅 GitHub API + LLM 端点）；路线图第 2 项标记已落地；用例集 29 → 35、单测 71 → 73
+- 注入基线三轮：拦截 11/12（91.7%）、echo 违规 0；能力组微平均 recall 91.4% 名义低于 Day-6 记录 96.3%，miss 集中于 real-02 三连沉默（端点侧漂移信号，11-01 基线轮同样沉默，与本 PR 无关——生成路径零改动）

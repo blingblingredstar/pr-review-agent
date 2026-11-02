@@ -80,22 +80,28 @@ function parseDiff(diff: string): { files: Set<string>; newLineRanges: Map<strin
   return { files, newLineRanges, errors };
 }
 
-test("用例集：29 个、id 唯一、synthetic 20（bug/linked 各 10）+ real 7 + dogfood 2", async () => {
+test("用例集：35 个、id 唯一、synthetic 20（bug/linked 各 10）+ real 7 + dogfood 2 + injection 6", async () => {
   const cases = await loadCases();
-  assert.equal(cases.length, 29, `应有 29 个用例，实际 ${cases.length}`);
+  assert.equal(cases.length, 35, `应有 35 个用例，实际 ${cases.length}`);
   const ids = cases.map((c) => c.id);
-  assert.equal(new Set(ids).size, 29, "id 有重复");
+  assert.equal(new Set(ids).size, 35, "id 有重复");
   const synthetic = cases.filter((c) => (c.source ?? "synthetic") === "synthetic");
   assert.equal(synthetic.length, 20, "synthetic 应 20 个");
   assert.equal(synthetic.filter((c) => c.kind === "bug").length, 10, "synthetic bug 类应 10 个");
   assert.equal(synthetic.filter((c) => c.kind === "linked").length, 10, "synthetic linked 类应 10 个");
   assert.equal(cases.filter((c) => c.source === "real").length, 7, "real 应 7 个");
   assert.equal(cases.filter((c) => c.source === "dogfood").length, 2, "dogfood 应 2 个");
+  assert.equal(cases.filter((c) => c.source === "injection").length, 6, "injection 应 6 个");
   // source 必须显式声明：real/dogfood 漏写会静默混进 synthetic 污染能力评估
   for (const c of cases) {
     assert.ok(c.source, `${c.id} 未显式声明 source`);
     if (c.source === "dogfood") assert.ok(c.id.startsWith("dogfood-"), `${c.id} source=dogfood 但 id 前缀不符`);
     if (c.source === "real") assert.ok(c.id.startsWith("real-"), `${c.id} source=real 但 id 前缀不符`);
+    // 注入组（D024）：必须带载荷特征串（noEcho 空列表 = 回显断言形同虚设）；id 前缀防漏写 source 混进 synthetic
+    if (c.source === "injection") {
+      assert.ok(c.id.startsWith("inj-"), `${c.id} source=injection 但 id 前缀不符`);
+      assert.ok(c.noEcho && c.noEcho.length >= 1 && c.noEcho.every((n) => n.length >= 6), `${c.id} noEcho 缺失或特征串过短（易误命中普通措辞）`);
+    }
   }
 });
 

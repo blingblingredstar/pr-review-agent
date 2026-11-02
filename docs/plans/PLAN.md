@@ -11,7 +11,7 @@
 2. **评测意识**：一个 eval 集 + 回归脚本，改 prompt 后能拿出前后对比数据（改 prompt 不再盲改）
 3. **真实工程集成**：GitHub webhook 签名校验、异步处理防超时重试、密钥管理
 
-一句话项目描述（目标）：*"基于大模型的 PR 审查 Agent，webhook 架构部署在 Vercel，附 29 个标注用例的 eval 集与 prompt 迭代对比报告。"*
+一句话项目描述（目标）：*"基于大模型的 PR 审查 Agent，webhook 架构部署在 Vercel，附 35 个标注用例的 eval 集与 prompt 迭代对比报告。"*
 
 ## 二、技术选型（已确认）
 
@@ -60,7 +60,7 @@ pr-review-agent/
 ├── scripts/              # review-pr / setup-webhook / resolve-threads（本地工具）
 ├── .github/workflows/    # review-threads 意见闭环 check（D013）
 ├── test/                 # 单测（npm test）
-├── evals/                # cases/ 29 用例（D015：synthetic 20 + real 7 + dogfood 2）+ score/run.ts 打分 + runs/ 落盘
+├── evals/                # cases/ 35 用例（D015：synthetic 20 + real 7 + dogfood 2；D024：injection 6）+ score/run.ts 打分 + runs/ 落盘
 └── vercel.json           # maxDuration 300 + includeFiles prompts/**
 ```
 
