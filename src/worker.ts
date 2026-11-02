@@ -286,8 +286,8 @@ export async function chainWorker(envelope: WorkerEnvelope, deps?: Partial<Worke
       if (res.ok) return;
       lastErr = new Error(`HTTP ${res.status}`);
       // 确定性 4xx（信封超限 413 / 结构非法 400 / 校验拒绝 403）重试必同败，不白等间隔直接终失败；
-      // 仅网络异常（含上面的超时）与 5xx / 429 值得再试（PR #29 自审 minor）
-      if (res.status < 500 && res.status !== 429) break;
+      // 仅网络异常（含上面的超时）与 5xx / 429 / 408 值得再试——408 与网络异常同属瞬态故障，冷启动/高负载时常见（自审 minor）
+      if (res.status < 500 && res.status !== 429 && res.status !== 408) break;
     } catch (err) {
       lastErr = err;
     }

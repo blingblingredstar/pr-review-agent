@@ -454,3 +454,23 @@ test("续链缺 WEBHOOK_SECRET：不抛出（waitUntil 契约），落 failure s
     if (savedSecret !== undefined) process.env.WEBHOOK_SECRET = savedSecret;
   }
 });
+
+test("续链 408 可重试：与网络异常同属瞬态，2 次尝试后落灯", async () => {
+  process.env.VERCEL_URL = "test-deploy.vercel.app";
+  try {
+    const { client, calls } = fakeClient();
+    let attempts = 0;
+    const timeoutFetch = (async () => {
+      attempts++;
+      return new Response("request timeout", { status: 408 });
+    }) as unknown as typeof fetch;
+    await chainWorker(prepareEnvelope(REF), { client: () => client, fetchImpl: timeoutFetch, chainRetryDelayMs: 1 });
+    assert.equal(attempts, 2, "408 属瞬态可重试类");
+    assert.deepEqual(
+      calls.statuses.map((s) => [s.state, s.description]),
+      [["failure", "审查中断"]],
+    );
+  } finally {
+    delete process.env.VERCEL_URL;
+  }
+});
