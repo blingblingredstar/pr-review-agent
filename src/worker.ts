@@ -265,7 +265,7 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
       }
       // 触底只在最终给主评审预算时做一次：initial - 实际已耗（快照+router），下限 60s 兜底——
       // 阶段总时长仍由 285s 墙钟 race 兜底，预算承诺是 best-effort 而非硬保证
-      effectiveLlmTimeoutMs = deductBudget(effectiveLlmTimeoutMs, budgetUsedMs);
+      effectiveLlmTimeoutMs = Math.max(deductBudget(effectiveLlmTimeoutMs, budgetUsedMs), 60_000);
       console.log(`[worker] ${key} 主评审预算 ${effectiveLlmTimeoutMs}ms（已耗 ${budgetUsedMs}ms：快照+router）`);
       if (plan) console.log(`[worker] ${key} 计划块 ${JSON.stringify(plan).length} 字符（promptEstimate 未含，边界漂移为已接受软约束）`);
       const result = await deps.review(state.diff, state.context ?? undefined, {
