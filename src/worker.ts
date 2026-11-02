@@ -254,7 +254,13 @@ export async function chainWorker(envelope: WorkerEnvelope, deps?: Partial<Worke
   }
   const url = `https://${base}/api/worker`;
   const secret = process.env.WEBHOOK_SECRET;
-  if (!secret) throw new Error("缺少环境变量 WEBHOOK_SECRET（scripts/setup-webhook.ts 首跑自动生成）");
+  if (!secret) {
+    // 缺 secret 理论上到不了（webhook/worker 入口验签用的就是同一 secret），但本函数跑在 waitUntil 里，
+    // 抛出即 unhandled rejection——并入终失败路径，保持「不抛出」注释为真（PR #29 自审 minor）
+    console.error(`[worker] ${key} 续链失败：缺少 WEBHOOK_SECRET，无法签名信封`);
+    await markFailed(d.client, key, envelope.ref, "审查中断");
+    return;
+  }
   const body = JSON.stringify(envelope);
   const signature = `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`;
   let lastErr: unknown;

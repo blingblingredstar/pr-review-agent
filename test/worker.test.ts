@@ -428,3 +428,26 @@ test("webhook 调度对象：发 prepare 信封（hop 0、ref 含 headRepo、不
   assert.ok(Math.abs(envelope.issuedAt - Date.now()) < 1000);
   assert.equal(envelope.state, undefined, "prepare 信封不携带状态");
 });
+
+test("续链缺 WEBHOOK_SECRET：不抛出（waitUntil 契约），落 failure status「审查中断」", async () => {
+  process.env.VERCEL_URL = "test-deploy.vercel.app";
+  const savedSecret = process.env.WEBHOOK_SECRET;
+  delete process.env.WEBHOOK_SECRET;
+  try {
+    const { client, calls } = fakeClient();
+    let fetched = 0;
+    const fetchSpy = (async () => {
+      fetched++;
+      return new Response("ok");
+    }) as unknown as typeof fetch;
+    await chainWorker(prepareEnvelope(REF), { client: () => client, fetchImpl: fetchSpy, chainRetryDelayMs: 1 });
+    assert.equal(fetched, 0, "无法签名，不发请求");
+    assert.deepEqual(
+      calls.statuses.map((s) => [s.state, s.description]),
+      [["failure", "审查中断"]],
+    );
+  } finally {
+    delete process.env.VERCEL_URL;
+    if (savedSecret !== undefined) process.env.WEBHOOK_SECRET = savedSecret;
+  }
+});
