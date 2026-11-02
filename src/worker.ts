@@ -176,7 +176,15 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
     // 重放由这里 + status 幂等吸收）
     client ??= deps.client();
     if (await hasReviewed(client, ref, ref.headSha)) {
-      console.log(`[worker] ${key} publish 二次 dedupe：已有同 SHA 审查，跳过`);
+      // 重派命中的最常见场景：上次 postReview 已成功、success status 没落定（崩溃在两步之间 / 写失败被吞）——
+      // 静默跳过会把 pr-review 永久留在 pending 黄灯，这里补落 success 终态（自审 minor；review 已存在，
+      // 意见分布无从复得，description 用通用文案；status 重复写幂等无害）
+      console.log(`[worker] ${key} publish 二次 dedupe：已有同 SHA 审查，补落 success status`);
+      try {
+        await setReviewStatus(client, { ...ref, sha: ref.headSha }, "success", "完成（重派路径补落终态）");
+      } catch (statusErr) {
+        console.error(`[worker] ${key} success status 写失败`, statusErr);
+      }
       return;
     }
     const state = (envelope.state ?? {}) as { diff?: string; result?: ReviewOutcome };

@@ -217,7 +217,7 @@ test("三阶段编排：prepare→review→publish 本地直调串成一条链�
   assert.equal(calls.labels.length, 0, "minor 不打标签（blocker/major 才打）");
 });
 
-test("publish 二次 dedupe：已有同 SHA 审查静默结束，不回帖不写 status（防重派）", async () => {
+test("publish 二次 dedupe：不回帖（防重派），补落 success status（上次 postReview 成功但终态未落定的重派路径）", async () => {
   const { client, calls } = fakeClient([{ body: `意见\n${reviewMarker(REF.headSha)}` }]);
   await runStage(fullDeps({ client: () => client, chain: boomChain }), {
     v: 1,
@@ -227,8 +227,11 @@ test("publish 二次 dedupe：已有同 SHA 审查静默结束，不回帖不写
     issuedAt: Date.now(),
     state: { diff: DIFF, result: REVIEW_RESULT },
   });
-  assert.equal(calls.reviews.length, 0);
-  assert.equal(calls.statuses.length, 0);
+  assert.equal(calls.reviews.length, 0, "review 已存在，不再回帖");
+  assert.deepEqual(
+    calls.statuses.map((s) => [s.state, s.description]),
+    [["success", "完成（重派路径补落终态）"]],
+  );
 });
 
 test("prepare dedupe：已有同 SHA 审查静默结束，不写 pending 不拉 diff 不续链", async () => {
