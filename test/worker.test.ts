@@ -4,6 +4,7 @@ import { test } from "node:test";
 import { zipSync, strToU8 } from "fflate";
 import type { Octokit } from "octokit";
 import {
+  chainBase,
   chainWorker,
   defaultWorkerDeps,
   handleWorker,
@@ -663,4 +664,39 @@ test("worker review 阶段接线：快照重取失败 → fileReader undefined �
     );
   });
   assert.equal(received[0]!.fileReader, undefined, "快照失败返回 undefined → 不注入 → 单次调用原路径");
+});
+
+test("chainBase：WORKER_BASE_URL > 信封 origin > VERCEL_URL；origin 带路径/非法则回退；全空 undefined（本地直调）", async () => {
+  const saved = { W: process.env.WORKER_BASE_URL, V: process.env.VERCEL_URL };
+  try {
+    delete process.env.WORKER_BASE_URL;
+    delete process.env.VERCEL_URL;
+    assert.equal(chainBase({ origin: "https://demo.vercel.app" }), "https://demo.vercel.app", "origin 合法即用");
+    assert.equal(chainBase({ origin: "https://evil.example.com/path?q=1" }), undefined, "origin 带路径不合法，回退");
+    process.env.VERCEL_URL = "proj-abc.vercel.app";
+    assert.equal(chainBase({ origin: undefined }), "https://proj-abc.vercel.app", "无 origin 回退 VERCEL_URL");
+    assert.equal(chainBase({ origin: "https://evil.example.com/path" }), "https://proj-abc.vercel.app", "origin 非法时回退 VERCEL_URL");
+    process.env.WORKER_BASE_URL = "https://custom.example.com/";
+    assert.equal(chainBase({ origin: "https://demo.vercel.app" }), "https://custom.example.com", "显式 WORKER_BASE_URL 最高优先（剥尾斜杠）");
+  } finally {
+    if (saved.W === undefined) delete process.env.WORKER_BASE_URL; else process.env.WORKER_BASE_URL = saved.W;
+    if (saved.V === undefined) delete process.env.VERCEL_URL; else process.env.VERCEL_URL = saved.V;
+  }
+});
+
+test("webhook 发 prepare 信封携带 origin（host + x-forwarded-proto 自发现）", () => {
+  const rawBody = JSON.stringify({ action: "opened", repository: { owner: { login: "acme" }, name: "demo" }, pull_request: { number: 7, head: { sha: REF.headSha }, user: { login: "acme" } } });
+  const tasks: Array<() => Promise<void>> = [];
+  const chained: WorkerEnvelope[] = [];
+  handleWebhook(
+    { "x-hub-signature-256": sig(rawBody), "x-github-event": "pull_request", host: "demo.vercel.app", "x-forwarded-proto": "https" },
+    rawBody,
+    (t) => tasks.push(t),
+    async (e) => {
+      chained.push(e);
+    },
+  );
+  return tasks[0]!().then(() => {
+    assert.equal(chained[0]!.origin, "https://demo.vercel.app");
+  });
 });

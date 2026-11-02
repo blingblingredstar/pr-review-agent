@@ -184,6 +184,10 @@
 
 - README / docs/architecture.md / docs/plans/PLAN.md / 两份 spec（context-enhancement-phase1、large-diff-fetch）共 5 张 ASCII 流程图改写为 mermaid flowchart（GitHub 原生渲染），语义逐节点对齐原图；目录树类代码块保留原样
 
+### Fixed（续链目标被 Standard Protection 挡掉，PR #30 dogfood 实证）
+
+- #29 合并后首次生产运行即「审查中断」：chainWorker 用 VERCEL_URL（部署专属 URL）自调，Vercel Standard Protection 403 秒败（确定性 4xx 直落灯，重试不白等的设计恰好把故障快速暴露）。续链目标改为三级：`WORKER_BASE_URL` 显式配置 > 信封自带 origin（webhook 从请求 Host 自发现公开入口，全链路传递）> VERCEL_URL 兜底；origin 不可信面评估见 D026 后果区
+
 ### Added（真正异步化 worker 阶段机，D026）
 
 - 审查拆 `prepare`（dedupe → pending status → 拉 diff/上下文）→ `review`（LLM 审查）→ `publish`（二次 dedupe → 回帖 → status 终态）三阶段，每阶段独立函数调用、独立 300s 预算，突破单函数墙钟——为工具循环（路线图第 4 项第二阶段）与决策模型路由（第 3 项）提供「串行深度有界、预算按阶段拆分」的底座；本 PR 不改 LLM 调用形态

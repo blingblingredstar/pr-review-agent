@@ -93,7 +93,13 @@ export function handleWebhook(
       return { status: 200, note: "ignored: PR author not in REVIEW_TRIGGER_USERS" };
     }
   }
-  schedule(() => dispatch(prepareEnvelope(ref)));
+  // 自发现公开入口：webhook 本身就是从公开可达的域名进来的（GitHub 只会 POST 配置时填的 URL），
+  // host + x-forwarded-proto 还原 origin 塞进信封——后续续链优先走它（VERCEL_URL 部署专属 URL 会被
+  // Standard Protection 挡掉，生产实测 PR #30）
+  const proto = header(headers, "x-forwarded-proto") ?? "https";
+  const host = header(headers, "host");
+  const origin = host ? `${proto}://${host}` : undefined;
+  schedule(() => dispatch(prepareEnvelope(ref, origin)));
   return {
     status: 200,
     note: `review scheduled: ${ref.owner}/${ref.repo}#${ref.pullNumber}@${ref.headSha.slice(0, 7)}`,
