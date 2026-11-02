@@ -41,6 +41,10 @@ const CHAIN_TIMEOUT_MS = 10_000;
 // 260 + 22 + 2 ≈ 284s < 300s 平台强杀线（留 ~16s 平台开销余量）；现端点 20s 级，封顶只在慢端点场景生效；
 // 慢端点的预算压力由阶段机天然可拆（review 可再分跳）吸收，不动 LLM_TIMEOUT_MS 语义（D011）
 const REVIEW_STAGE_LLM_CAP_MS = 260_000;
+// 阶段墙钟：比平台 300s 强杀线早 ~15s，给落灯的 GitHub API 调用留余量——阶段内任何无超时的挂起
+// （octokit 分页/回帖等）到线即落 failure「审查中断」，不把 waitUntil 占满到强杀（永久 pending，自审 major）。
+// 迟到的阶段工作若最终完成，success 覆盖 failure（status last-write-wins），语义自愈
+const STAGE_DEADLINE_MS = 285_000;
 
 // 依赖注入（生产默认、测试传 mock）：schedule 调度后台任务；client 工厂延迟构造（缺 token 不炸 handler）；
 // review / chain / fetchImpl 可替换——chain 默认即 chainWorker，测试传 spy 观察信封
@@ -52,6 +56,8 @@ export type WorkerDeps = {
   fetchImpl: typeof fetch;
   chainRetryDelayMs: number;
   chainTimeoutMs: number;
+  // 阶段墙钟：阶段内任何挂起（octokit 调用无超时等）超线即落 failure，不等平台 300s 强杀
+  stageDeadlineMs: number;
 };
 
 export function defaultWorkerDeps(): WorkerDeps {
@@ -63,6 +69,7 @@ export function defaultWorkerDeps(): WorkerDeps {
     fetchImpl: fetch,
     chainRetryDelayMs: 2_000,
     chainTimeoutMs: CHAIN_TIMEOUT_MS,
+    stageDeadlineMs: STAGE_DEADLINE_MS,
   };
 }
 
@@ -140,8 +147,16 @@ export function handleWorker(headers: WebhookHeaders, rawBody: string, deps?: Pa
   // 阶段执行调度在 waitUntil：当前函数立刻 200，阶段末尾的续链 POST 也在本任务内完成（D026）。
   // runStage 自吞错误，catch 只兜 deps 构造等意外逃逸，避免 unhandled rejection 砸掉 Vercel 函数
   d.schedule(() =>
-    runStage(d, envelope).catch((err) => {
-      console.error(`[worker] ${key} 阶段 ${envelope.stage} 异常逃逸（不应发生）`, err);
+    // 阶段墙钟 race（自审 major）：runStage 自吞已知失败，race 兜「阶段内挂起」与意外逃逸两个类，
+    // 超线/逃逸都落 failure「审查中断」——catch 到不了的状态（进程被杀）不再是永久 pending
+    Promise.race([
+      runStage(d, envelope),
+      sleep(d.stageDeadlineMs).then(() => {
+        throw new Error(`阶段 ${envelope.stage} 超过阶段墙钟 ${d.stageDeadlineMs}ms`);
+      }),
+    ]).catch((err) => {
+      console.error(`[worker] ${key} 阶段 ${envelope.stage} 异常逃逸/阶段墙钟超时`, err);
+      return markFailed(d.client, key, envelope.ref, "审查中断");
     }),
   );
   return { status: 200, note: `worker ${envelope.stage} scheduled: ${key}` };
@@ -154,6 +169,8 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
   const { ref } = envelope;
   const key = stageKey(ref);
   let client: Octokit | undefined;
+  // review 阶段实际生效的 LLM 超时：catch 里的降级通知/日志必须报同一个数，排查时口径一致（自审 minor）
+  let effectiveLlmTimeoutMs = Math.min(llmTimeoutMs(), REVIEW_STAGE_LLM_CAP_MS);
   try {
     if (envelope.stage === "prepare") {
       client ??= deps.client();
@@ -185,7 +202,7 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
       const state = (envelope.state ?? {}) as { diff?: string; context?: string | null };
       if (typeof state.diff !== "string") throw new Error("review 信封缺 state.diff");
       const result = await deps.review(state.diff, state.context ?? undefined, {
-        timeoutMs: Math.min(llmTimeoutMs(), REVIEW_STAGE_LLM_CAP_MS),
+        timeoutMs: effectiveLlmTimeoutMs,
       });
       // state 累积传递：publish 的 postReview 仍需 diff 做行内预定位（splitByLocatable）
       await deps.chain({ v: 1, stage: "publish", hop: envelope.hop + 1, ref, issuedAt: Date.now(), state: { ...state, result } });
@@ -230,9 +247,9 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
   } catch (err) {
     // failure status 落定独立于任何其他动作成败；isTimeoutError 随 runReview 迁入，超时语义不变（D011）
     if (isTimeoutError(err)) {
-      console.error(`[worker] ${key} LLM 超时（${llmTimeoutMs()}ms），发降级通知（D011）`);
+      console.error(`[worker] ${key} LLM 超时（${effectiveLlmTimeoutMs}ms），发降级通知（D011）`);
       try {
-        await postTimeoutNotice(getFallbackClient(deps, client), ref, llmTimeoutMs());
+        await postTimeoutNotice(getFallbackClient(deps, client), ref, effectiveLlmTimeoutMs);
       } catch (postErr) {
         console.error(`[worker] ${key} 降级通知发送失败`, postErr);
       }

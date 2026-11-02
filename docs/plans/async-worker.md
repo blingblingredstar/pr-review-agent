@@ -65,5 +65,5 @@ type WorkerEnvelope = {
 ## 验收
 
 1. `npm test` 全绿（新增 worker 用例）。
-2. `npm run eval`：promptHash 不变，usage 合计与 2026-11-01 基线逐位一致（输入路径字节级不变的硬证据）。
+2. `npm run eval`：promptHash 不变，逐用例输入 tokens 与最近 35 例基线（2026-11-02 run 16-36-56 / 16-43-56 / 16-55-00，输入合计 23,376）逐位一致——输入路径字节级不变的硬证据；2026-11-01 基线是 29 例口径，不与本集对表。
 3. 真实 PR dogfood：合并后 webhook 触发的审查在 Vercel 日志出现 prepare → review → publish 三段日志行，评论与 status 行为与合并前一致（编排者夜间执行 bot 自审流程即覆盖）。

@@ -504,7 +504,33 @@ test("review 阶段传给 LLM 的超时 = min(LLM_TIMEOUT_MS, 260s 阶段封顶)
   const opts = received[0];
   assert.ok(opts && typeof opts.timeoutMs === "number", "deps.review 收到 timeoutMs 覆写");
   assert.equal(opts!.timeoutMs, Math.min(llmTimeoutMs(), 260_000));
-  assert.ok(opts!.timeoutMs! + 22_000 + 2_000 < 300_000, "LLM 打满 + 续链最坏 22s + 落灯 ~2s 关进 300s 墙钟");
+  assert.ok(opts!.timeoutMs! + 22_000 + 2_000 < 285_000, "LLM 打满 + 续链最坏 22s + 落灯关进阶段墙钟 285s");
+});
+
+test("阶段墙钟：阶段内挂起超线由 race 兜底落 failure「审查中断」，不等平台强杀（自审 major）", async () => {
+  const { client, calls } = fakeClient();
+  const body = JSON.stringify({
+    v: 1,
+    stage: "review",
+    hop: 1,
+    ref: REF,
+    issuedAt: Date.now(),
+    state: { diff: DIFF },
+  } satisfies WorkerEnvelope);
+  const tasks: Array<() => Promise<void>> = [];
+  const outcome = handleWorker(workerHeaders(body), body, {
+    schedule: (t) => tasks.push(t),
+    client: () => client,
+    review: () => new Promise(() => {}), // 永不 resolve：模拟 octokit 无超时挂起
+    chain: boomChain,
+    stageDeadlineMs: 20,
+  });
+  assert.equal(outcome.status, 200);
+  await tasks[0]!();
+  assert.deepEqual(
+    calls.statuses.map((s) => [s.state, s.description]),
+    [["failure", "审查中断"]],
+  );
 });
 
 test("过期信封但审查已完成（另一条重试链跑完了）：补落 success 而非 failure 翻红灯", async () => {
