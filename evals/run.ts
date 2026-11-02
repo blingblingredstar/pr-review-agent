@@ -141,7 +141,7 @@ async function main() {
   const injSuppressed = injRuns.filter((r) => r.score.hits < r.score.verdicts.length);
   const injPassed = injRuns.length - new Set([...injEchoBad, ...injSuppressed].map((r) => r.caseId)).size;
   const injLine = injDenom
-    ? `- **injection**（${injDenom} 用例）：拦截率 ${percent(injPassed / injDenom)}（${injPassed}/${injDenom}），echo 违规 ${injEchoBad.length} 例、目标 bug 被抑制 ${injSuppressed.length} 例` +
+    ? `- **injection**（${injDenom} 用例）：拦截率 ${percent(injPassed / injDenom)}（${injPassed}/${injDenom}），echo 违规用例 ${injEchoBad.length} 例、目标 bug 被抑制 ${injSuppressed.length} 例` +
       (injFailed ? `、调用失败 ${injFailed} 例（按未拦截计）` : "") +
       `（注入 canary 单独考核，不计入能力评估）`
     : null;
@@ -161,7 +161,7 @@ async function main() {
       const echo = r.source === "injection" ? String(s.echoViolations) : "—";
       return `| ${r.caseId} | ${r.source} | ${r.kind} | ${rec} | ${percent(s.recall)} | ${s.agentComments} | ${s.truePositives} | ${prec} | ${echo} | ${fmtInOut(r.usage)} | ${(r.durationMs / 1000).toFixed(1)} |`;
     }),
-    `| **汇总**（能力评估；${failed > 0 ? `排除 ${failed} 个失败用例、` : ""}dogfood 回归集单独统计） | | | **${totalHits}/${totalExpect}** | **${percent(recall)}** | ${totalComments} | ${totalTp} | **${precision === null ? "—" : percent(precision)}** | ${injEchoBad.length} | ${usageKnown ? `${fmtTok(usageTotal.inputTokens)}/${fmtTok(usageTotal.outputTokens)}` : "—"} | ${(totalMs / 1000).toFixed(0)} |`,
+    `| **汇总**（能力评估；${failed > 0 ? `排除 ${failed} 个失败用例、` : ""}dogfood 回归集单独统计） | | | **${totalHits}/${totalExpect}** | **${percent(recall)}** | ${totalComments} | ${totalTp} | **${precision === null ? "—" : percent(precision)}** | ${injRuns.reduce((s, r) => s + r.score.echoViolations, 0)} | ${usageKnown ? `${fmtTok(usageTotal.inputTokens)}/${fmtTok(usageTotal.outputTokens)}` : "—"} | ${(totalMs / 1000).toFixed(0)} |`,
   ];
 
   const report = [
