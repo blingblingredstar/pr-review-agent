@@ -448,3 +448,19 @@
   - **dogfood 自审首轮 3 条意见全采纳**（本 PR 自身又被自己审了）：①拦截率分母漏调用失败用例（失败按未拦截计——「连审查都没完成」恰是未拦截最强信号）；②汇总行与组行 echo 口径分叉（终解见终轮条：全表意见级一致 + 组行用例数分解）；③基线轮次与分母数字对不上（final 打分器三轮 × 6 = 18 例重述，旧口径轮注明存档）——第三条正是「runs JSON 无版本标记」盲区的又一次现身
   - worktree 实操坑：.gitignore 的 `node_modules/` 只匹配目录不匹配 symlink——worktree 里 symlink 主仓 node_modules 后显示为 untracked，精确 add 时排除
 - **下一步**：PR 处理意见后过双硬闸门合并（rebase 已吸收并行会话的 D023，编号撞车按合并序重编 D024/会话 27）；下一优先级 = 决策模型路由（第 3 项，基于已合入上下文第一阶段的新 main）；立项时需先核对 real-02/real-07 沉默频率对对照组可用性的影响
+
+## 2026-11-03 · 会话 28：超大 PR diff 406 兜底（D025），判断层落在失败信号上
+
+- **目标**：用户问「超大 PR diff 拉取缺口，是不是与加一个前置判断层一起做更合适？」——分析后按修正形态执行（worktree 隔离，主目录留给并行会话 #26）。
+- **方案结论**：
+  - **前置预判数学上不成立**：406 由含上下文行的 diff 总行数触发，context 放大系数随 hunk 散布 1×~11×（2k 散布行即触顶、15k 连续行不触顶）——meta 自由字段（changed_files/+a-d）没有安全阈值，松了漏、紧了误伤正常 PR；可靠信号只有 406 本身（确定性失败）
+  - 判断层的正确位置 = 406 兜底处、显式策略分支（非隐式 try/catch 补丁）；LLM 决策层不捆（D020 理由未变 + 第 3 项前置未动）；zip 自算 diff 否决（需双归档 + merge-base）
+  - 与 D023 的协同是本方案的亮点：patch 缺失文件发省略块但保留 `diff --git` 头 → 路径仍进 `diffTouchedPaths` → zipball 上下文兜全文——传输层与上下文层盲区互补
+- **完成**（D025，spec `docs/plans/large-diff-fetch.md`，走 PR 过闸门）：
+  - `fetchPr` 热路径零改动（meta+diff 并行保留）；换 `Promise.allSettled` 接管两个 Promise——非 406 抛出路径上不留 unhandled rejection（Vercel 函数会被砸）
+  - `fileToDiffBlock`：patch（unified hunk）包标准头成可解析块，四类 status 口径（added `--- /dev/null`、removed `+++ /dev/null` 触发既有跳过语义、rename 用 previous_filename 作 a 侧）；分页 100/页 × 30 页上限，超限附省略行
+  - 单测 +4（76 全绿）：status 矩阵可解析、省略块保路径、406 切分页跨页、30 页封顶、非 406 透传、正常路径回归；eval 零影响（fetchPr 不在 eval 路径）
+- **发现 / 坑**：
+  - 编号纪律：#26（并行会话）已占 D024/会话 27 且自带撞号重编说明——本条按合并序用 D025/会话 28；**合并必须排在 #26 之后**（decisions/CHANGELOG/journal 三处 append 两边都动，先合者免 rebase）
+  - 端到端真实验证受限于需要 >20k 行 diff 的 PR（可临时批量生成 run 文件构造），单测以 mock 406 覆盖策略分支
+- **下一步**：PR 过 bot 自审与双硬闸门；等 #26 合并后 rebase → 合并；生产观测 `[fetchPr]` 406 切换日志
