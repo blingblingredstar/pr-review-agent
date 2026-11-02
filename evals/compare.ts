@@ -74,8 +74,9 @@ export function aggregateRuns(files: { name: string; data: RunJson }[]): Version
       capScores.map((s) => s.truePositives),
       capScores.map((s) => s.agentComments),
     );
-    // groups 含全部 source（dogfood 照常输出、打印处标注回归集），能力口径只作用于 micro 合计
-    const sources = [...new Set(ordered.flatMap((f) => f.data.runs.map((r) => r.source)))];
+    // groups 含全部 source（dogfood 照常输出、打印处标注回归集），能力口径只作用于 micro 合计；
+    // injection 不进组聚合（D024：组指标是拦截率不是 recall/precision，按普通组展示会误导跨轮对比）
+    const sources = [...new Set(ordered.flatMap((f) => f.data.runs.map((r) => r.source)))].filter((src) => src !== "injection");
     const groups = Object.fromEntries(
       sources.map((src) => {
         const ss = ordered

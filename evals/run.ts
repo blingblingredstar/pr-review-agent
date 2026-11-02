@@ -95,8 +95,10 @@ async function main() {
   };
   const overall = metrics(capability);
   const groupMetrics = Object.fromEntries(
-    // source 集合从用例数据收集：新增枚举值时报告不会静默漏组
-    [...new Set(runs.map((r) => r.source))].map((src) => {
+    // source 集合从用例数据收集：新增枚举值时报告不会静默漏组。
+    // injection 不进 groups（D024 契约：组指标是拦截率不是 recall/precision，机械出口为 summary.injection 专属块）——
+    // 留在 groups 里会被下游按普通能力组读 recall/precision，与报告层口径打架
+    [...new Set(runs.map((r) => r.source))].filter((src) => src !== "injection").map((src) => {
       const rs = okRuns.filter((r) => r.source === src);
       const groupFailed = runs.filter((r) => r.source === src && r.error).length;
       // runs/failed 附带：某组全部失败时指标为 0，读报告的人需要能区分「0 命中」和「没跑」
