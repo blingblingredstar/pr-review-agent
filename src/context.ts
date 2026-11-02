@@ -3,6 +3,7 @@
 // 不依赖 git 二进制（Vercel 运行时没有）、不落 /tmp。best-effort：任何失败返回 null、审查照旧，绝不连垮主流程。
 import { unzipSync } from "fflate";
 import { diffTouchedPaths } from "./review.ts";
+import { normalizeSnapshotPath } from "./paths.ts";
 
 // 上下文预算（字符）：与 DIFF_MAX_CHARS 独立，不参与 diff 截断竞争。
 // 默认 100_000；数值 0（"0"/"0.0" 等）= 显式关闭（best-effort 新链路的配置级总闸，生产异常时可免 redeploy 关掉）；
@@ -169,15 +170,6 @@ export function buildContextText(entries: ZipballEntries, touchedPaths: string[]
 }
 
 // read_file 工具循环（D027）——快照读取属上下文层职责，与注入共用同一份 zipball 管道与口径。
-
-// 路径归一化（review.ts 去重键与 resolveSnapshotPath 共用，PR #30 自审 minor：两份实现会漂移）：
-// trim + 剥 `./` 前缀；含反斜杠或 `..` 段返回 null（非法）
-export function normalizeSnapshotPath(raw: string): string | null {
-  let p = raw.trim();
-  while (p.startsWith("./")) p = p.slice(2);
-  if (!p || p.includes("\\") || p.split("/").includes("..")) return null;
-  return p;
-}
 
 // read_file 入参路径解析：归一化后精确匹配快照键。
 // 拒绝与未命中同义返回 null（不给路径探测留预言机）；命中返回快照键原文

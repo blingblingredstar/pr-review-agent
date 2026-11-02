@@ -184,10 +184,6 @@
 
 - README / docs/architecture.md / docs/plans/PLAN.md / 两份 spec（context-enhancement-phase1、large-diff-fetch）共 5 张 ASCII 流程图改写为 mermaid flowchart（GitHub 原生渲染），语义逐节点对齐原图；目录树类代码块保留原样
 
-### Fixed（续链目标被 Standard Protection 挡掉，PR #30 dogfood 实证）
-
-- #29 合并后首次生产运行即「审查中断」：chainWorker 用 VERCEL_URL（部署专属 URL）自调，Vercel Standard Protection 403 秒败（确定性 4xx 直落灯，重试不白等的设计恰好把故障快速暴露）。续链目标定稿为 `WORKER_BASE_URL` 显式环境变量 > VERCEL_URL 兜底；中途的「信封 origin 自发现」方案被自审二轮否决回退（重放 webhook + 伪造 Host = 信封内 diff 外泄通道，评估漏了随信封直传的产物泄露面）——续链目标不含任何请求头派生输入；kill switch（FILE_TOOL_MAX_STEPS=0）语义对齐直调路径
-
 ### Added（真正异步化 worker 阶段机，D026）
 
 - 审查拆 `prepare`（dedupe → pending status → 拉 diff/上下文）→ `review`（LLM 审查）→ `publish`（二次 dedupe → 回帖 → status 终态）三阶段，每阶段独立函数调用、独立 300s 预算，突破单函数墙钟——为工具循环（路线图第 4 项第二阶段）与决策模型路由（第 3 项）提供「串行深度有界、预算按阶段拆分」的底座；本 PR 不改 LLM 调用形态
@@ -195,6 +191,10 @@
 - `src/webhook.ts` 变纯分发器：runReview 及超时处理迁出（失败语义逐字保留），调度对象改为发 prepare 信封——首阶段也跑在新调用里，所有阶段共用同一条代码路径；验签/白名单/事件过滤不动
 - `vercel.json` 加 `api/worker.ts` 条目（`maxDuration: 300` + `includeFiles: "prompts/**"`）；无新增环境变量（信封密钥复用 `WEBHOOK_SECRET`，`VERCEL_URL` 平台注入，未设置时本地直调回退，本地链路与生产行为一致）
 - eval 回归：promptHash `d399f9d4ed17` 不变，35 用例输入 tokens 与 2026-11-02 基线（run 16-36-56/16-43-56/16-55-00）逐位一致（合计 23,376，本 PR 不碰 eval 可见路径）；单测 79 → 92（新增 worker 13 例）；spec 见 `docs/plans/async-worker.md`
+
+### Fixed（续链目标被 Standard Protection 挡掉，PR #30 dogfood 实证）
+
+- #29 合并后首次生产运行即「审查中断」：chainWorker 用 VERCEL_URL（部署专属 URL）自调，Vercel Standard Protection 403 秒败（确定性 4xx 直落灯，重试不白等的设计恰好把故障快速暴露）。续链目标定稿为 `WORKER_BASE_URL` 显式环境变量 > VERCEL_URL 兜底；中途的「信封 origin 自发现」方案被自审二轮否决回退（重放 webhook + 伪造 Host = 信封内 diff 外泄通道，评估漏了随信封直传的产物泄露面）——续链目标不含任何请求头派生输入；kill switch（FILE_TOOL_MAX_STEPS=0）语义对齐直调路径
 
 ### Added（read file 工具循环，D027）
 

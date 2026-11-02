@@ -402,7 +402,13 @@ export function chainBase(): string | undefined {
     }
   }
   const vercel = process.env.VERCEL_URL?.trim();
-  return vercel ? `https://${vercel}` : undefined;
+  if (!vercel) return undefined;
+  if (process.env.VERCEL_ENV === "production") {
+    // 显式 warn：生产走 VERCEL_URL 兜底大概率是 WORKER_BASE_URL 漏配（部署专属 URL 被 Standard Protection 403），
+    // 失败只体现在 PR 状态灯上不易归因（自审降级 minor）
+    console.error(`[worker] 生产环境未配置 WORKER_BASE_URL，续链回退 VERCEL_URL（部署专属 URL，Standard Protection 下会 403）——请在部署环境变量配置公开可达域名`);
+  }
+  return `https://${vercel}`;
 }
 
 // 带 deadline 的 Promise.race：胜负一定即清理定时器——正常完成不留悬空 timer 占着 waitUntil 的存续时长

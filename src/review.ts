@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { normalizeSnapshotPath } from "./context.ts";
+import { normalizeSnapshotPath } from "./paths.ts";
 import { generateText, Output } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
