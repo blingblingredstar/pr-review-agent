@@ -555,6 +555,36 @@ test("reviewDiff：fileReader 不注入 = 现状单调用（system/prompt 字节
   }
 });
 
+test("两段协议与单段同享 withExtraBody：两段请求体都合并 LLM_EXTRA_BODY（自审 major 误报的机械证明）", async () => {
+  const bodies: unknown[] = [];
+  const fake = await startFakeLLM((i) => {
+    if (i === 0) return { content: '{"readRequests":["src/a.ts"]}', usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } };
+    return { content: REVIEW_JSON, usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 } };
+  });
+  // 包一层 withExtraBody 的抓取：绕过 provider 直连——直接在 fake 上记录不了 provider 内部包装，
+  // 改为断言「provider 构造即包装」这一契约：reviewDiff 内 createOpenAI 传 withExtraBody(fetch)，
+  // 这里用环境变量打开 extra body，fake 收到的请求体应已含 thinking 字段
+  try {
+    await withEnv(
+      {
+        LLM_BASE_URL: fake.url, LLM_API_KEY: "test", LLM_MODEL: "fake",
+        LLM_EXTRA_BODY: '{"thinking":{"type":"disabled"}}', LLM_TIMEOUT_MS: undefined, FILE_TOOL_MAX_STEPS: "2",
+      },
+      async () => {
+        const out = await reviewDiff("DIFF_TEXT", undefined, { timeoutMs: 10_000, fileReader: () => "content" });
+        assert.deepEqual(out.comments, [{ file: "src/a.ts", line: 1, severity: "major", body: "b" }]);
+        assert.equal(fake.calls.length, 2, "两段调用");
+        for (const [i, call] of fake.calls.entries()) {
+          const body = call.body as { thinking?: { type?: string } };
+          assert.equal(body.thinking?.type, "disabled", `第 ${i + 1} 段请求体已合并 LLM_EXTRA_BODY`);
+        }
+      },
+    );
+  } finally {
+    await fake.close();
+  }
+});
+
 test("reviewDiff：fileReader 注入 = 两段协议（第一段 readRequests 无 response_format，第二段注入工具结果复用同一 schema，usage 两段合计）", async () => {
   const fake = await startFakeLLM((i) => {
     if (i === 0) {

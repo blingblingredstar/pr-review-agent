@@ -349,7 +349,7 @@ export async function reviewDiff(diff: string, context?: string, opts?: ReviewDi
   // 大 prompt 跳过工具循环（本 PR 生产 dogfood 实测：~220KB prompt 第二段实测 ~240s，两段协议延迟 ≈ 2× 单段，
   // 叠加 zipball/续链会撞 285s 阶段墙钟，race 落「审查中断」）。120k 字符下第二段经验上界 ~130s，总预算留有余量；
   // 大 PR 本就靠 D018 截断 + D023 上下文覆盖，工具读取的边际价值最低，跳过不损失能力面
-  if (prompt.length > TOOL_PROMPT_MAX_CHARS && opts?.fileReader) {
+  if (prompt.length > TOOL_PROMPT_MAX_CHARS && opts?.fileReader && fileToolMaxSteps() > 0) {
     console.log(`[tools] prompt ${prompt.length} 字符超过 ${TOOL_PROMPT_MAX_CHARS}，跳过工具循环走单段（D027 后果）`);
   }
   if (opts?.fileReader && fileToolMaxSteps() > 0 && prompt.length <= TOOL_PROMPT_MAX_CHARS) {
