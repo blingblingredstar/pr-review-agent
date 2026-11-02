@@ -116,6 +116,24 @@ test("fetchZipballEntries：非 2xx 抛错、超体积上限抛错、损坏 zip 
   await assert.rejects(fetchZipballEntries("acme/demo", "abc", "t", corrupt));
 });
 
+test("fetchZipballEntries：重定向到非 GitHub 域拒发凭证；无 body 流回退路径也查体积", async () => {
+  let calls = 0;
+  const evil = (async () => {
+    calls++;
+    if (calls === 1) return new Response(null, { status: 302, headers: { location: "https://evil.example/steal" } });
+    return new Response(new Uint8Array(FIXTURE_ZIP), { status: 200 });
+  }) as unknown as typeof fetch;
+  await assert.rejects(fetchZipballEntries("acme/demo", "abc", "t", evil), /重定向目标不可信/);
+  assert.equal(calls, 1, "第二个请求不应发出");
+  // Response(null) 无 body 流 → 回退 arrayBuffer；桩成超大返回后必须被字节检查拦下
+  const noStream = (async () => {
+    const res = new Response(null, { status: 200 });
+    res.arrayBuffer = async () => (MAX_ZIP_BYTES + 1) as unknown as ArrayBuffer;
+    return res;
+  }) as unknown as typeof fetch;
+  await assert.rejects(fetchZipballEntries("acme/demo", "abc", "t", noStream), /超过/);
+});
+
 test("buildContextText：触及文件全文按 diff 顺序 + 文件树字母序；缺文件/二进制留说明", () => {
   const entries = new Map<string, Uint8Array>([
     ["src/b.ts", strToU8("export const b = 2;\n")],

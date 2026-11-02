@@ -28,10 +28,16 @@ export const MAX_ZIP_BYTES = 25 * 1024 * 1024;
 export type ZipballEntries = Map<string, Uint8Array>;
 
 // 流式读取并累计封顶：超限立即中止（reader.cancel），超限响应不完整占内存——
-// PR #25 自审意见的修复；无 body 流（异常响应）时退回整体读，字节检查仍兜底
+// PR #25 自审意见的修复；无 body 流（异常/测试假响应）时退回整体读，读后补同一条字节检查（兜底要真存在）
 async function readCapped(res: Response, max: number): Promise<Uint8Array> {
   const reader = res.body?.getReader();
-  if (!reader) return new Uint8Array(await res.arrayBuffer());
+  if (!reader) {
+    const buf = new Uint8Array(await res.arrayBuffer());
+    if (buf.byteLength > max) {
+      throw new Error(`zipball ${Math.round(buf.byteLength / 1024 / 1024)}MB 超过 ${Math.round(max / 1024 / 1024)}MB 上限`);
+    }
+    return buf;
+  }
   const chunks: Uint8Array[] = [];
   let total = 0;
   for (;;) {
@@ -76,6 +82,12 @@ export async function fetchZipballEntries(
   if (res.status >= 300 && res.status < 400) {
     const location = res.headers.get("location");
     if (!location) throw new Error(`zipball 重定向缺少 location（HTTP ${res.status}）`);
+    // 凭证只发给 GitHub 自己的域（PR #25 自审意见）：fetch 跨源重定向剥 Authorization 是为防这类泄露，
+    // 手动跟进重新携带就归我们自己管——location 常态可信，被改写时宁可跳过上下文也不外泄 PAT
+    const host = new URL(location).host;
+    if (host !== "github.com" && host !== "codeload.github.com") {
+      throw new Error(`zipball 重定向目标不可信：${host}`);
+    }
     res = await fetchImpl(location, { headers, redirect: "follow", signal: deadline });
   }
   if (!res.ok) {
