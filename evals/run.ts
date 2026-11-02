@@ -116,7 +116,12 @@ async function main() {
   const usageTotal = sumUsage(okRuns.map((r) => r.usage).filter((u): u is TokenUsage => u !== null));
   const usageKnown = usageTotal.inputTokens !== null || usageTotal.outputTokens !== null;
 
-  const groupLines = (["synthetic", "real", "dogfood"] as const)
+  // 组行数据收集：显式序保持既有报告版式，尾接新增 source（防漏组）；injection 走专属 injLine（拦截率口径不同，不进通用渲染）
+  const groupSources: string[] = [
+    ...(["synthetic", "real", "dogfood"] as const).filter((src) => runs.some((r) => r.source === src)),
+    ...[...new Set(runs.map((r) => r.source))].filter((s) => !["synthetic", "real", "dogfood", "injection"].includes(s)),
+  ];
+  const groupLines = groupSources
     .map((src) => {
       const rs = okRuns.filter((r) => r.source === src);
       if (rs.length === 0) return null;
