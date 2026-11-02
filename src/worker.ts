@@ -208,7 +208,8 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
       // 4.5MB 请求体上限），best-effort 失败返回 undefined → 不注入 → 单次调用原路径，绝不连垮审查。
       // 快照预判（自审 minor）：与 reviewDiff 的 TOOL_PROMPT_MAX_CHARS 规模闸同一阈值——大 prompt 场景
       // 工具循环必被跳过，先取快照白吃最多 25MB/10s 预算，且这正是最易撞阶段墙钟的超大 PR 路径。
-      // diff+context 是 prompt 的下界（truncateDiff 只会缩短 diff 段），估过闸即跳过
+      // 预判与闸同向的证明：diff ≤ 300k（D018 闸内）时 prompt = diff+context+14 = est+14；diff > 300k 时
+      // prompt ≥ 300k > 本闸——即 est ≥ 120k ⟹ 实际 prompt ≥ 120k，此处跳过与 reviewDiff 的闸永不矛盾
       const promptEstimate = state.diff.length + (typeof state.context === "string" ? state.context.length : 0);
       const fileReader =
         fileToolEnabled() && promptEstimate < TOOL_PROMPT_MAX_CHARS
