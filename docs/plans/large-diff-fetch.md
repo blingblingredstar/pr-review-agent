@@ -13,15 +13,14 @@
 
 因此：
 
-```
-fetchPr（热路径零改动）
-  ├─ Promise.allSettled: meta + diff    ← 正常 PR：行为、延迟与现状一致
-  └─ diff 406 ──► 显式策略分支
-        ├─ structured log：切换原因 + meta 规模（changed_files / +a-d）
-        ├─ files API 分页（100/页 × 30 页上限）拼合成 diff
-        │   patch 字段本身就是 unified hunk（@@ 起），包上 diff --git / --- / +++ 标准头
-        │   即成可解析 diff：truncateDiff / diffCoveredLines / splitByLocatable / diffTouchedPaths 原样消费
-        └─ patch 缺失的文件（超大单文件 / 二进制）→ D018 式「省略块」，但保留 diff --git 头行
+```mermaid
+flowchart TD
+    A["fetchPr（热路径零改动）"] --> B["Promise.allSettled: meta + diff<br/>← 正常 PR：行为、延迟与现状一致"]
+    A --> C["diff 406"]
+    C --> D["显式策略分支"]
+    D --> E["structured log：切换原因 + meta 规模（changed_files / +a-d）"]
+    D --> F["files API 分页（100/页 × 30 页上限）拼合成 diff<br/>patch 字段本身就是 unified hunk（@@ 起），包上 diff --git / --- / +++ 标准头<br/>即成可解析 diff：truncateDiff / diffCoveredLines / splitByLocatable / diffTouchedPaths 原样消费"]
+    D --> G["patch 缺失的文件（超大单文件 / 二进制）→ D018 式「省略块」，但保留 diff --git 头行"]
 ```
 
 **与 D023 的协同**：省略块保留路径头 → 路径仍进 `diffTouchedPaths` → zipball 上下文把该文件全文兜进 prompt。传输层拉不到的由上下文层补上，不留静默盲区。

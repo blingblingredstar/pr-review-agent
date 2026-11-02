@@ -22,15 +22,12 @@ diff 触及文件的全文 + 仓库文件树——让它「看得见 diff 之外
 
 ### 数据流（生产路径）
 
-```
-fetchPr 拉 diff ──► buildRepoContext(headRepo, headSha, diff)      [src/context.ts，best-effort]
-                        │ GET /repos/{headRepo}/zipball/{headSha}    （1 个 API 请求，302 手动跟进重发凭证）
-                        │ fflate 内存解压（不落 /tmp，不依赖 git 二进制）
-                        ▼
-                    触及文件全文（diff 顺序，逐文件全有或全无）+ 文件树（字母序）
-                        │ 任何失败 → null
-                        ▼
-reviewDiff(diff, context?) ──► prompt = context ? `${context}\n\n[diff 开始]\n${truncateDiff(diff)}` : truncateDiff(diff)
+```mermaid
+flowchart TD
+    A["fetchPr 拉 diff"] --> B["buildRepoContext(headRepo, headSha, diff)<br/>[src/context.ts，best-effort]"]
+    B -->|"GET /repos/{headRepo}/zipball/{headSha}（1 个 API 请求，302 手动跟进重发凭证）<br/>fflate 内存解压（不落 /tmp，不依赖 git 二进制）"| C["触及文件全文（diff 顺序，逐文件全有或全无）+ 文件树（字母序）"]
+    C -->|"任何失败 → null"| D["reviewDiff(diff, context?)"]
+    D --> E["prompt = context ? `${context}\n\n[diff 开始]\n${truncateDiff(diff)}` : truncateDiff(diff)"]
 ```
 
 ### 关键设计（沿用仓库既有决策口味）
