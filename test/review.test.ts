@@ -486,7 +486,7 @@ test("buildToolBlock：80k 字符预算（含包装与说明行实长）——�
   }
 });
 
-test("buildToolBlock：余量低于包装开销时不产生碎片段，直接未纳入（预算计入包装的边界语义）", () => {
+test("buildToolBlock：全文块含包装头超顶时转截断；残余碎余量不出碎片段（先拼再量的边界语义）", () => {
   const entries = new Map<string, Uint8Array>([
     ["first.ts", strToU8("y".repeat(79_995))],
     ["tiny.ts", strToU8("x".repeat(20))],
@@ -496,9 +496,13 @@ test("buildToolBlock：余量低于包装开销时不产生碎片段，直接未
   console.log = () => {};
   try {
     const block = buildToolBlock(["first.ts", "tiny.ts"], reader);
-    assert.ok(block.includes("=== read_file：first.ts（全文 79995 字符）==="));
-    assert.ok(block.includes("[read_file] tiny.ts 全文 20 字符超出字符预算，未纳入"), `实际: ${block.slice(-200)}`);
-    assert.ok(!block.includes("tiny.ts（截断）"), "余量 5 < 包装开销，不出碎片段");
+    // 79995 + 包装头 > 80k：先拼再量判为截断（收敛后 cut ≤ remaining 保住封顶）
+    assert.ok(!block.includes("first.ts（全文"), `实际头: ${block.slice(0, 80)}`);
+    assert.ok(block.includes("=== read_file：first.ts（截断）==="));
+    assert.ok(/\[read_file\] first\.ts 超出字符预算截断：仅注入前 \d+\/79995 字符/.test(block));
+    assert.ok(block.length <= 80_000 + 100, `整块长度 ${block.length} 应 ≲ 80k`);
+    assert.ok(block.includes("[read_file] tiny.ts 全文 20 字符超出字符预算，未纳入"), `实际尾: ${block.slice(-200)}`);
+    assert.ok(!block.includes("tiny.ts（截断）"), "残余余量 < 包装开销，不出碎片段");
   } finally {
     console.log = origLog;
   }
@@ -652,7 +656,12 @@ test("reviewDiff：fileReader 注入但首段不请求文件（readRequests 空�
       async () => {
         await reviewDiff("DIFF_TEXT", undefined, { timeoutMs: 60_000, fileReader: () => "unused" });
         const secondUser = messagesOf(fake.calls[1]!.body).find((m) => m.role === "user")!;
-        assert.equal(secondUser.content, "DIFF_TEXT", "无请求不拼工具块，第二段 prompt = 原形态");
+        // 空 readRequests 也注入占位块（自审 minor）：与第一段 prompt 保持可区分，模型不再重复输出请求
+        assert.equal(
+          secondUser.content,
+          "[read_file 工具结果]（本轮无文件请求，请直接给出审查意见）\n\nDIFF_TEXT",
+          "空请求占位块 + 原形态 diff",
+        );
       },
     );
   } finally {

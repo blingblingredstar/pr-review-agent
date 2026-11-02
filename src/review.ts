@@ -434,9 +434,12 @@ export function extractReadRequests(text: string, maxSteps: number): string[] {
   const out: string[] = [];
   for (const p of paths) {
     const key = normalizeSnapshotPath(p);
-    if (key === null || seen.has(key)) continue;
-    seen.add(key);
-    out.push(p);
+    // 非法路径（含 ../反斜杠）保留原文进列表：由 buildToolBlock 落 not found 说明行给模型反馈，
+    // 静默丢弃会让模型收不到任何纠正信号（自审 nit，与 review-tools.md 的「会被拒绝」承诺对齐）
+    const dedupeKey = key ?? `illegal:${p.trim()}`;
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    out.push(p.trim());
   }
   return out.slice(0, maxSteps);
 }
@@ -495,11 +498,11 @@ export function buildToolBlock(requests: string[], reader: (path: string) => str
     // 包装头尾计入预算（自审 minor：只算内容则实际注入块可超 FILE_TOOL_BLOCK_MAX_CHARS）
     const wrapperHead = `=== read_file：${path}（截断）===\n`;
     const remaining = FILE_TOOL_BLOCK_MAX_CHARS - used;
-    if (content.length <= remaining) {
-      // 与截断分支同口径：拼好片段按实际长度记账（包装头计入，自审 minor）
-      const part = `=== read_file：${path}（全文 ${content.length} 字符）===\n${content}`;
-      parts.push(part);
-      used += part.length;
+    const fullPart = `=== read_file：${path}（全文 ${content.length} 字符）===\n${content}`;
+    if (fullPart.length <= remaining) {
+      // 先拼再量（自审 minor：判定与记账统一含包装头，与截断分支同口径）
+      parts.push(fullPart);
+      used += fullPart.length;
       console.log(`[tools] step ${i + 1}: read ${path} (${content.length} chars)`);
     } else if (remaining > wrapperHead.length + 20) {
       // 说明行长度随路径/位数变化，无法用常量余量精确预留——两轮收敛：拼一次量一次，超出 remaining
@@ -552,7 +555,10 @@ async function reviewDiffWithFileReader(
   const probe = await generateText({ model: llm.chat(modelId), system, prompt, abortSignal });
   const requests = extractReadRequests(probe.text, maxSteps);
   console.log(`[tools] 第一段 readRequests：${requests.length > 0 ? requests.join(", ") : "无"}（预算 ${maxSteps}）`);
-  const toolBlock = requests.length > 0 ? `${buildToolBlock(requests, fileReader)}\n\n` : "";
+  // 空 readRequests 也要注入占位块（自审 minor，dogfood 高频路径）：否则第二段 prompt/system 与第一段
+  // 完全相同，模型按 review-tools.md 的「末尾无块 = 第一段」判据会再输出 readRequests 而非审查意见，
+  // Output 解析失败整审炸
+  const toolBlock = `${requests.length > 0 ? buildToolBlock(requests, fileReader) : "[read_file 工具结果]（本轮无文件请求，请直接给出审查意见）"}\n\n`;
   const { output, usage } = await generateText({
     model: llm.chat(modelId),
     output: Output.object({ schema: reviewResultSchema, name: "ReviewResult" }),
