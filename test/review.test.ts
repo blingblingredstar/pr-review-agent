@@ -437,7 +437,7 @@ test("extractReadRequests：纯 JSON / 围栏 / 前后闲话都可解析；字�
     ["./src/a.ts"],
     "写法变体（./ 前缀）按归一键去重，保留首个",
   );
-  assert.deepEqual(extractReadRequests('{"readRequests":[{"path":"a.ts"},{"path":"b.ts"},{"path":"c.ts"}]}', 2), ["a.ts", "b.ts"], "超出步预算截断");
+  assert.deepEqual(extractReadRequests('{"readRequests":[{"path":"a.ts"},{"path":"b.ts"},{"path":"c.ts"}]}', 2), ["a.ts", "b.ts"], "超出字符预算截断");
   assert.deepEqual(extractReadRequests('{"readRequests":[{"path":"a.ts"},{"path":{"nested":1}}]}', 5), ["a.ts"], "非字符串元素跳过");
   assert.deepEqual(extractReadRequests('{"readRequests":[]}', 2), [], "空请求 = 不读文件");
   assert.deepEqual(extractReadRequests("我觉得不需要读文件，直接审。", 2), [], "无 JSON 返回空（协议违规不炸审查）");
@@ -464,7 +464,7 @@ test("buildToolBlock：命中全文 / 未命中说明行 / 每步观测日志", 
   assert.ok(logs.some((l) => l.includes("[tools] step 1: read nope.ts (not found)")));
 });
 
-test("buildToolBlock：80k 步预算——第二个文件截断附说明行，预算耗尽后未纳入", () => {
+test("buildToolBlock：80k 字符预算——第二个文件截断附说明行，预算耗尽后未纳入", () => {
   const entries = new Map<string, Uint8Array>([
     ["first.ts", strToU8("y".repeat(79_990))],
     ["big.ts", strToU8("x".repeat(120))],
@@ -477,8 +477,8 @@ test("buildToolBlock：80k 步预算——第二个文件截断附说明行，�
     const block = buildToolBlock(["first.ts", "big.ts", "last.ts"], reader);
     assert.ok(block.includes("=== read_file：first.ts（全文 79990 字符）==="), "第一个文件全文注入");
     assert.ok(block.includes("=== read_file：big.ts（截断）==="), "剩余预算 10 字符，第二个文件截断");
-    assert.ok(block.includes("[read_file] big.ts 超出步预算截断：仅注入前 10/120 字符"), `实际: ${block.slice(-200)}`);
-    assert.ok(block.includes("[read_file] last.ts 全文 50 字符超出步预算，未纳入"), "预算耗尽后未纳入留说明");
+    assert.ok(block.includes("[read_file] big.ts 超出字符预算截断：仅注入前 10/120 字符"), `实际: ${block.slice(-200)}`);
+    assert.ok(block.includes("[read_file] last.ts 全文 50 字符超出字符预算，未纳入"), "预算耗尽后未纳入留说明");
   } finally {
     console.log = origLog;
   }

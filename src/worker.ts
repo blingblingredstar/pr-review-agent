@@ -396,7 +396,15 @@ function sleep(ms: number): Promise<void> {
 // 续链 base 选择：WORKER_BASE_URL > envelope.origin > VERCEL_URL；origin 必须是无路径的 http(s) 绝对 URL
 export function chainBase(envelope: Pick<WorkerEnvelope, "origin">): string | undefined {
   const explicit = process.env.WORKER_BASE_URL?.trim();
-  if (explicit) return explicit.replace(/\/+$/, "");
+  if (explicit) {
+    // 显式配置与 origin 同一合法性口径（PR #30 自审 minor）：漏 scheme 的值会拼出无效 URL，
+    // fetch 抛错走重试后落「审查中断」，排障只见网络异常看不到根因——不合法 warn 后回退下一级
+    if (!/^https?:\/\/[^/\s]+$/.test(explicit.replace(/\/+$/, ""))) {
+      console.error(`[worker] WORKER_BASE_URL="${explicit}" 不是无路径的 http(s) URL，忽略，回退 origin/VERCEL_URL`);
+    } else {
+      return explicit.replace(/\/+$/, "");
+    }
+  }
   const origin = envelope.origin?.trim();
   if (origin && /^https?:\/\/[^/\s]+$/.test(origin)) return origin.replace(/\/+$/, "");
   const vercel = process.env.VERCEL_URL?.trim();

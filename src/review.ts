@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { normalizeSnapshotPath } from "./context.ts";
 import { generateText, Output } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
@@ -408,8 +409,9 @@ export const FILE_TOOL_BLOCK_MAX_CHARS = 80_000;
 
 // 首段自由文本里提取 readRequests（best-effort，D027）：容忍 ```json 围栏与前后闲话，取第一个平衡 JSON 对象；
 // 解析失败 / 缺 readRequests / 超预算条数截断——协议违规不炸审查，降级为不读文件照常出结果。
-// readRequests 元素兼容两种形态：字符串路径 或 {path} 对象；去重按轻量归一键（trim + 剥 ./ 前缀），
-// 覆盖同一文件的写法变体，最终合法性仍由 reader 的 resolveSnapshotPath 把关
+// readRequests 元素兼容两种形态：字符串路径 或 {path} 对象；去重键与 reader 的路径解析共用同一
+// normalizeSnapshotPath（PR #30 自审 minor：两份归一化会漂移），覆盖同一文件的写法变体，
+// 最终合法性仍由 resolveSnapshotPath 把关
 export function extractReadRequests(text: string, maxSteps: number): string[] {
   if (maxSteps <= 0) return [];
   const parsed = extractBalancedJson(text);
@@ -426,8 +428,8 @@ export function extractReadRequests(text: string, maxSteps: number): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const p of paths) {
-    const key = p.trim().replace(/^(\.\/)+/, "");
-    if (seen.has(key)) continue;
+    const key = normalizeSnapshotPath(p);
+    if (key === null || seen.has(key)) continue;
     seen.add(key);
     out.push(p);
   }
@@ -490,12 +492,12 @@ export function buildToolBlock(requests: string[], reader: (path: string) => str
     } else if (remaining > 0) {
       parts.push(
         `=== read_file：${path}（截断）===\n${content.slice(0, remaining)}` +
-          `\n[read_file] ${path} 超出步预算截断：仅注入前 ${remaining}/${content.length} 字符`,
+          `\n[read_file] ${path} 超出字符预算截断：仅注入前 ${remaining}/${content.length} 字符`,
       );
       used += remaining;
       console.log(`[tools] step ${i + 1}: read ${path} (${remaining}/${content.length} chars, 截断)`);
     } else {
-      parts.push(`[read_file] ${path} 全文 ${content.length} 字符超出步预算，未纳入`);
+      parts.push(`[read_file] ${path} 全文 ${content.length} 字符超出字符预算，未纳入`);
       console.log(`[tools] step ${i + 1}: read ${path} (0/${content.length} chars, 未纳入)`);
     }
   }

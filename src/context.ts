@@ -170,13 +170,20 @@ export function buildContextText(entries: ZipballEntries, touchedPaths: string[]
 
 // read_file 工具循环（D027）——快照读取属上下文层职责，与注入共用同一份 zipball 管道与口径。
 
-// read_file 入参路径归一化：剥 `./` 前缀、拒绝含 `..` 段与反斜杠、精确匹配快照键。
-// 拒绝与未命中同义返回 null（不给路径探测留预言机）；命中返回快照键原文
-export function resolveSnapshotPath(entries: ZipballEntries, raw: string): string | null {
+// 路径归一化（review.ts 去重键与 resolveSnapshotPath 共用，PR #30 自审 minor：两份实现会漂移）：
+// trim + 剥 `./` 前缀；含反斜杠或 `..` 段返回 null（非法）
+export function normalizeSnapshotPath(raw: string): string | null {
   let p = raw.trim();
   while (p.startsWith("./")) p = p.slice(2);
   if (!p || p.includes("\\") || p.split("/").includes("..")) return null;
-  return entries.has(p) ? p : null;
+  return p;
+}
+
+// read_file 入参路径解析：归一化后精确匹配快照键。
+// 拒绝与未命中同义返回 null（不给路径探测留预言机）；命中返回快照键原文
+export function resolveSnapshotPath(entries: ZipballEntries, raw: string): string | null {
+  const p = normalizeSnapshotPath(raw);
+  return p !== null && entries.has(p) ? p : null;
 }
 
 // fileReader：path → 文件全文；null = 路径非法/未命中/二进制（不抛错，由调用方决定注入什么说明）
