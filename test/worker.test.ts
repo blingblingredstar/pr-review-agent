@@ -822,11 +822,10 @@ test("worker review 阶段接线：router 耗时从主评审预算扣除（D028 
   assert.ok(timeout > base - 2_000, "快照 mock 即时，扣减后仍贴近原预算（2s 容差防 CI 时序抖动）");
 });
 
-test("deductBudget：线性扣减；触底下限 60s（D028）", () => {
-  assert.equal(deductBudget(260_000, 50_000), 210_000);
-  assert.equal(deductBudget(100_000, 10_000), 90_000);
-  assert.equal(deductBudget(100_000, 50_000), 60_000);
-  assert.equal(deductBudget(100_000, 200_000), 60_000);
+test("deductBudget：纯线性扣减不触底（触底在 deps.review 调用点统一一次，D028 自审 major）", () => {
+  assert.equal(deductBudget(260_000, 10_000), 250_000, "线性扣减");
+  assert.equal(deductBudget(90_000, 40_000), 50_000, "可为负值/低于 60s——触底交给调用点单次处理");
+  assert.equal(deductBudget(30_000, 40_000), -10_000, "超耗返回负值，由统一触底截断");
 });
 
 test("worker 编排端到端：DECISION_MODEL + mock route → 真实 reviewDiff 收到 plan，主评审 prompt 含计划块、system 仍只有 review.md（D028）", async () => {

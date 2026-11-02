@@ -189,6 +189,8 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
   let client: Octokit | undefined;
   // review 阶段实际生效的 LLM 超时：catch 里的降级通知/日志必须报同一个数，排查时口径一致（自审 minor）
   let effectiveLlmTimeoutMs = Math.min(llmTimeoutMs(), REVIEW_STAGE_LLM_CAP_MS);
+  // 预算外消耗累计（快照 + router），在 deps.review 调用点一次性触底扣减
+  let budgetUsedMs = 0;
   try {
     if (envelope.stage === "prepare") {
       client ??= deps.client();
@@ -237,9 +239,7 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
           ? await makeSnapshot({ headRepo: ref.headRepo ?? `${ref.owner}/${ref.repo}`, headSha: ref.headSha }, deps.fetchImpl)
           : undefined;
       const fileReader = needReader && entries ? fileReaderFromEntries(entries) : undefined;
-      // 快照耗时从 LLM 预算中扣掉（自审 minor）：D026 的墙钟账「LLM 打满 + 续链 + 落灯」此前没算
-      // 快照这段（上限 10s），小 prompt + 慢快照组合仍在账外；下限 60s 防御性兜底
-      effectiveLlmTimeoutMs = deductBudget(effectiveLlmTimeoutMs, Date.now() - snapshotStart);
+      budgetUsedMs += Date.now() - snapshotStart;
       const fileReaderNote = fileReader
         ? "生效（D027 工具循环）"
         : snapshotSkippedByGate
@@ -260,13 +260,14 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
           } catch (err) {
             console.error(`[worker] ${key} router 失败，无计划继续（best-effort，D028）`, err);
           }
-          const routerElapsed = Date.now() - routerStart;
-          effectiveLlmTimeoutMs = deductBudget(effectiveLlmTimeoutMs, routerElapsed);
-          console.log(
-            `[worker] ${key} router ${plan ? "产出评审计划" : "无计划（失败降级）"}，耗时 ${routerElapsed}ms，主评审预算 ${effectiveLlmTimeoutMs}ms`,
-          );
+          budgetUsedMs += Date.now() - routerStart;
         }
       }
+      // 触底只在最终给主评审预算时做一次：initial - 实际已耗（快照+router），下限 60s 兜底——
+      // 阶段总时长仍由 285s 墙钟 race 兜底，预算承诺是 best-effort 而非硬保证
+      effectiveLlmTimeoutMs = deductBudget(effectiveLlmTimeoutMs, budgetUsedMs);
+      console.log(`[worker] ${key} 主评审预算 ${effectiveLlmTimeoutMs}ms（已耗 ${budgetUsedMs}ms：快照+router）`);
+      if (plan) console.log(`[worker] ${key} 计划块 ${JSON.stringify(plan).length} 字符（promptEstimate 未含，边界漂移为已接受软约束）`);
       const result = await deps.review(state.diff, state.context ?? undefined, {
         timeoutMs: effectiveLlmTimeoutMs,
         fileReader,
@@ -448,8 +449,10 @@ function sleep(ms: number): Promise<void> {
 // LLM 预算扣减（D028）：前置耗时（快照/router）从主评审预算中扣除，下限 60s 防御性兜底——主评审再挤也有 60s。
 // PR #30 快照扣减的同一写法抽成单点，防快照/router 两处扣减漂移（router 上限 60s + 下限 60s 的组合
 // 保证「router 打满 + 主评审打满」不突破 review 阶段 260s LLM 封顶）
+// 纯扣减（不触底）：触底下限只在 deps.review 调用点统一做一次（自审 major：逐次触底的双重下限
+// 会让预算承诺漂移，如 90s 配置下「快照 40s + router 60s」各触一次底）
 export function deductBudget(effective: number, elapsed: number): number {
-  return Math.max(effective - elapsed, 60_000);
+  return effective - elapsed;
 }
 
 // 续链 base 选择：WORKER_BASE_URL（无路径 http(s) URL，不合法 warn 后视为未配置）> VERCEL_URL；
