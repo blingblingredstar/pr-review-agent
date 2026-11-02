@@ -464,10 +464,10 @@ test("buildToolBlock：命中全文 / 未命中说明行 / 每步观测日志", 
   assert.ok(logs.some((l) => l.includes("[tools] step 1: read nope.ts (not found)")));
 });
 
-test("buildToolBlock：80k 字符预算（含包装开销）——第二个文件截断附说明行，余量不足/耗尽后未纳入", () => {
+test("buildToolBlock：80k 字符预算（含包装与说明行实长）——第二个文件收敛截断，耗尽后未纳入", () => {
   const entries = new Map<string, Uint8Array>([
-    ["first.ts", strToU8("y".repeat(79_900))],
-    ["big.ts", strToU8("x".repeat(120))],
+    ["first.ts", strToU8("y".repeat(79_700))],
+    ["big.ts", strToU8("x".repeat(400))],
     ["last.ts", strToU8("z".repeat(50))],
   ]);
   const reader = fileReaderFromEntries(entries);
@@ -475,10 +475,12 @@ test("buildToolBlock：80k 字符预算（含包装开销）——第二个文�
   console.log = () => {};
   try {
     const block = buildToolBlock(["first.ts", "big.ts", "last.ts"], reader);
-    assert.ok(block.includes("=== read_file：first.ts（全文 79900 字符）==="), "第一个文件全文注入");
-    assert.ok(block.includes("=== read_file：big.ts（截断）==="), "剩余预算 100 字符（扣除包装开销后仍有余量），第二个文件截断");
-    assert.ok(/\[read_file\] big\.ts 超出字符预算截断：仅注入前 \d+\/120 字符/.test(block), `实际: ${block.slice(-200)}`);
+    assert.ok(block.includes("=== read_file：first.ts（全文 79700 字符）==="), "第一个文件全文注入（按实际片段记账）");
+    assert.ok(block.includes("=== read_file：big.ts（截断）==="), "剩余预算扣除包装与说明行后仍可截断");
+    assert.ok(/\[read_file\] big\.ts 超出字符预算截断：仅注入前 \d+\/400 字符/.test(block), `实际: ${block.slice(-250)}`);
     assert.ok(block.includes("[read_file] last.ts 全文 50 字符超出字符预算，未纳入"), "预算耗尽后未纳入留说明");
+    // 封顶契约：整块（含头行）不超 FILE_TOOL_BLOCK_MAX_CHARS 一个说明行的余量
+    assert.ok(block.length <= 80_000 + 100, `整块长度 ${block.length} 应 ≲ 80k`);
   } finally {
     console.log = origLog;
   }

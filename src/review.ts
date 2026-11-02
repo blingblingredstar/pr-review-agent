@@ -502,17 +502,30 @@ export function buildToolBlock(requests: string[], reader: (path: string) => str
       used += part.length;
       console.log(`[tools] step ${i + 1}: read ${path} (${content.length} chars)`);
     } else if (remaining > wrapperHead.length + 20) {
-      // 码元安全截断（自审 minor）：slice 按 UTF-16 码元切，边界落在代理对中间会产生非法字符进 prompt，
-      // 尾位是高位代理（且下一单位是低位代理）时回退一个码元
-      let cut = remaining - wrapperHead.length - 20;
-      if (0xd800 <= content.charCodeAt(cut - 1)! && content.charCodeAt(cut - 1)! <= 0xdbff) cut -= 1;
-      // 按拼好的完整片段实际长度记账（自审 minor：+20 估算低于说明行实长，多文件截断会累计超顶）
-      const part =
+      // 说明行长度随路径/位数变化，无法用常量余量精确预留——两轮收敛：拼一次量一次，超出 remaining
+      // 就按超出量缩 cut 重拼（数字位数变化 ≤1，二轮必收敛），part.length ≤ remaining 保住封顶契约。
+      // 收敛后 cut ≤ 0（说明行+包装吃掉全部余量）回退未纳入，杜绝负数 slice 从尾部切的反直觉行为
+      const buildPart = (cut: number): string =>
         `${wrapperHead}${content.slice(0, cut)}` +
         `\n[read_file] ${path} 超出字符预算截断：仅注入前 ${cut}/${content.length} 字符`;
-      parts.push(part);
-      used += part.length;
-      console.log(`[tools] step ${i + 1}: read ${path} (${cut}/${content.length} chars, 截断)`);
+      // 码元安全截断（自审 minor）：slice 按 UTF-16 码元切，边界落在代理对中间会产生非法字符进 prompt，
+      // 尾位是高位代理（且下一单位是低位代理）时回退一个码元
+      const alignCodePoint = (cut: number): number =>
+        0xd800 <= content.charCodeAt(cut - 1)! && content.charCodeAt(cut - 1)! <= 0xdbff ? cut - 1 : cut;
+      let cut = alignCodePoint(remaining - wrapperHead.length - 20);
+      let part = buildPart(cut);
+      if (part.length > remaining) {
+        cut = alignCodePoint(cut - (part.length - remaining));
+        part = buildPart(cut);
+      }
+      if (cut > 0 && part.length <= remaining) {
+        parts.push(part);
+        used += part.length;
+        console.log(`[tools] step ${i + 1}: read ${path} (${cut}/${content.length} chars, 截断)`);
+      } else {
+        parts.push(`[read_file] ${path} 全文 ${content.length} 字符超出字符预算，未纳入`);
+        console.log(`[tools] step ${i + 1}: read ${path} (0/${content.length} chars, 未纳入)`);
+      }
     } else {
       parts.push(`[read_file] ${path} 全文 ${content.length} 字符超出字符预算，未纳入`);
       console.log(`[tools] step ${i + 1}: read ${path} (0/${content.length} chars, 未纳入)`);
