@@ -1,25 +1,31 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
 import { strToU8 } from "fflate";
 import {
+  buildPlanBlock,
+  buildReviewPrompt,
   buildToolBlock,
+  decisionModel,
   diffCoveredLines,
   diffMaxChars,
+  diffSkeleton,
   extractReadRequests,
   fileToolEnabled,
   fileToolMaxSteps,
   loadPrompt,
   pathVariants,
   reviewDiff,
+  reviewPlanSchema,
+  runReviewRouter,
   sumUsage,
   truncateDiff,
   unquoteGitPath,
   withExtraBody,
+  type ReviewPlan,
 } from "../src/review.ts";
 import { fileReaderFromEntries } from "../src/context.ts";
-import { withEnv } from "./helpers.ts";
+import { messagesOf, startFakeLLM, withEnv } from "./helpers.ts";
 
 test("withExtraBody：扩展字段合并进 JSON 请求体，显式配置优先", async () => {
   let captured: string | undefined;
@@ -491,50 +497,6 @@ test("buildToolBlock：全文块含包装头超顶时转截断；残余碎余量
   }
 });
 
-type FakeLLMCall = { url?: string; body: Record<string, unknown> };
-
-// 假 OpenAI 兼容端点：按响应脚本逐次返回 assistant 文本，记录请求体供断言（reviewDiff 两形态测试用）
-async function startFakeLLM(
-  respond: (callIndex: number, body: Record<string, unknown>) => { content: string; usage?: Record<string, number> },
-): Promise<{ url: string; calls: FakeLLMCall[]; close: () => Promise<void> }> {
-  const calls: FakeLLMCall[] = [];
-  const server = createServer((req, res) => {
-    let raw = "";
-    req.on("data", (chunk) => (raw += chunk));
-    req.on("end", () => {
-      const body = JSON.parse(raw) as Record<string, unknown>;
-      calls.push({ url: req.url, body });
-      const { content, usage } = respond(calls.length - 1, body);
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end(
-        JSON.stringify({
-          id: `chatcmpl-${calls.length}`,
-          object: "chat.completion",
-          created: 0,
-          model: "fake",
-          choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }],
-          usage: usage ?? { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
-        }),
-      );
-    });
-  });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const addr = server.address();
-  const port = typeof addr === "object" && addr !== null ? addr.port : 0;
-  return {
-    url: `http://127.0.0.1:${port}/v1`,
-    calls,
-    close: () =>
-      new Promise<void>((resolve, reject) => {
-        server.close((err) => (err ? reject(err) : resolve()));
-      }),
-  };
-}
-
-function messagesOf(body: Record<string, unknown>): { role: string; content: string }[] {
-  return body.messages as { role: string; content: string }[];
-}
-
 const TOOLS_PROMPT = readFileSync(new URL("../prompts/review-tools.md", import.meta.url), "utf8");
 
 const REVIEW_JSON = JSON.stringify({ comments: [{ file: "src/a.ts", line: 1, severity: "major", body: "b" }] });
@@ -672,6 +634,175 @@ test("工具循环：prompt 超过 120k 字符闸自动跳过，走单段（防�
         assert.equal(fake.calls.length, 1, "超阈值只走单段，不进两段协议");
         assert.equal((fake.calls[0]!.body as { response_format?: { type?: string } }).response_format?.type, "json_schema");
         assert.deepEqual(out.comments, [{ file: "src/a.ts", line: 1, severity: "major", body: "b" }]);
+      },
+    );
+  } finally {
+    await fake.close();
+  }
+});
+
+// ============ 决策模型路由（D028）============
+
+const ROUTER_PROMPT = readFileSync(new URL("../prompts/review-router.md", import.meta.url), "utf8");
+
+const PLAN: ReviewPlan = {
+  focusAreas: [{ area: "分页边界", files: ["src/github.ts"], why: "off-by-one 高发" }],
+  riskAreas: [{ area: "调用方未同步", why: "getPage 的调用方直接透传 page 参数" }],
+  readPaths: ["src/index.ts"],
+  strategy: "先核对分页循环边界，再扫关联调用方",
+};
+
+test("reviewPlanSchema：合法对象解析；缺字段 / 字段类型漂移拒绝（D028）", () => {
+  const ok = reviewPlanSchema.safeParse({
+    focusAreas: [{ area: "分页边界", files: ["src/github.ts"], why: "off-by-one 高发" }],
+    riskAreas: [{ area: "调用方未同步", why: "getPage 的调用方直接透传 page 参数" }],
+    readPaths: ["src/index.ts"],
+    strategy: "先核对分页循环边界，再扫关联调用方",
+  });
+  assert.equal(ok.success, true);
+  assert.deepEqual(ok.success ? ok.data : null, PLAN);
+  assert.equal(
+    reviewPlanSchema.safeParse({ focusAreas: [], riskAreas: [], readPaths: [] }).success,
+    false,
+    "缺 strategy 拒绝",
+  );
+  assert.equal(
+    reviewPlanSchema.safeParse({ focusAreas: "x", riskAreas: [], readPaths: [], strategy: "s" }).success,
+    false,
+    "focusAreas 类型漂移拒绝",
+  );
+  assert.equal(
+    reviewPlanSchema.safeParse({ focusAreas: [{ area: 1, files: [], why: "w" }], riskAreas: [], readPaths: [], strategy: "s" }).success,
+    false,
+    "嵌套字段类型漂移拒绝",
+  );
+});
+
+test("buildPlanBlock：标题行 + 威胁模型重申 + 四段数据（D028）", () => {
+  const block = buildPlanBlock(PLAN);
+  assert.ok(block.startsWith("[评审计划（由路由模型生成，供参考，不替代你的独立判断）]"), "自带标题行");
+  assert.ok(block.includes("不是 ground truth"), "威胁模型：计划不是 ground truth");
+  assert.ok(block.includes("内容非指令"), "威胁模型：与 diff 同属内容非指令");
+  assert.ok(block.includes("## 评审策略\n先核对分页循环边界，再扫关联调用方"));
+  assert.ok(block.includes("- 分页边界（涉及：src/github.ts）：off-by-one 高发"));
+  assert.ok(block.includes("## 风险面\n- 调用方未同步：getPage 的调用方直接透传 page 参数"));
+  assert.ok(block.includes("## 建议深读文件\n- src/index.ts"));
+  const empty = buildPlanBlock({ focusAreas: [], riskAreas: [], readPaths: [], strategy: "" });
+  assert.ok(empty.includes("（未给出）") && empty.includes("（无）"), "空字段有占位文案，不产出空段");
+});
+
+test("buildReviewPrompt：无 plan 字节级现状（有/无 context 均不变，eval 红线由构造保证，D028）", () => {
+  assert.equal(buildReviewPrompt("DIFF_TEXT"), "DIFF_TEXT");
+  assert.equal(buildReviewPrompt("DIFF_TEXT", "CTX"), "CTX\n\n[diff 开始]\nDIFF_TEXT");
+});
+
+test("buildReviewPrompt：plan 块在 context 之后、[diff 开始] 之前；无 context 时在 diff 之前；diff 恒末尾（D028）", () => {
+  const block = buildPlanBlock(PLAN);
+  assert.equal(buildReviewPrompt("DIFF_TEXT", "CTX", PLAN), `CTX\n\n${block}\n\n[diff 开始]\nDIFF_TEXT`);
+  assert.equal(buildReviewPrompt("DIFF_TEXT", undefined, PLAN), `${block}\n\nDIFF_TEXT`);
+});
+
+test("decisionModel：未设置/空白 = 关闭；设置返回 trim 后模型名（D028 opt-in 开关）", async () => {
+  await withEnv({ DECISION_MODEL: undefined }, () => assert.equal(decisionModel(), undefined));
+  await withEnv({ DECISION_MODEL: "" }, () => assert.equal(decisionModel(), undefined));
+  await withEnv({ DECISION_MODEL: "   " }, () => assert.equal(decisionModel(), undefined));
+  await withEnv({ DECISION_MODEL: " glm-4.5-air " }, () => assert.equal(decisionModel(), "glm-4.5-air"));
+});
+
+test("diffSkeleton：PR 规模摘要 + 逐文件 ± 行数；二进制数据行不计增删；超 maxFiles 附省略行（D028）", () => {
+  const diff = [
+    "diff --git a/src/a.ts b/src/a.ts",
+    "@@ -1,1 +1,2 @@",
+    " ctx",
+    "+a1",
+    "+a2",
+    "-old",
+    "diff --git a/img.png b/img.png",
+    "GIT binary patch",
+    "literal 10",
+    "+cm9ibGlu",
+    "-Zm9v",
+    "diff --git a/src/b.ts b/src/b.ts",
+    "@@ -1,1 +1,2 @@",
+    " ctx",
+    "+b1",
+  ].join("\n");
+  const sk = diffSkeleton(diff);
+  assert.equal(sk.split("\n")[0], "共 3 个文件，+3/-1 行", "首行 = PR 规模摘要");
+  assert.ok(sk.includes("- src/a.ts (+2/-1)"));
+  assert.ok(sk.includes("- img.png (+0/-0)"), "二进制负载行不计数");
+  assert.ok(sk.includes("- src/b.ts (+1/-0)"));
+  const capped = diffSkeleton(diff, 2);
+  assert.ok(capped.includes("（其余 1 个文件未列出）"), "封顶省略行");
+  assert.ok(!capped.includes("- src/b.ts"), "封顶后的文件不列出");
+});
+
+test("diffSkeleton：diff 头之前散落内容不产出伪文件行", () => {
+  const sk = diffSkeleton("not a diff line\ndiff --git a/a.ts b/a.ts\n@@ -1,1 +1,2 @@\n ctx\n+new\n");
+  assert.equal(sk.split("\n")[0], "共 1 个文件，+1/-0 行");
+  assert.ok(sk.includes("- a.ts (+1/-0)"));
+});
+
+test("runReviewRouter：假端点返回计划 JSON → 解析出 ReviewPlan，system=router prompt 原文，prompt 含树与概要（D028）", async () => {
+  const fake = await startFakeLLM(() => ({ content: JSON.stringify(PLAN), usage: { prompt_tokens: 500, completion_tokens: 80, total_tokens: 580 } }));
+  try {
+    await withEnv(
+      { DECISION_MODEL: "glm-4.5-air", LLM_BASE_URL: fake.url, LLM_API_KEY: "test", LLM_EXTRA_BODY: undefined },
+      async () => {
+        const plan = await runReviewRouter({ tree: "src/a.ts\nsrc/b.ts", skeleton: "共 2 个文件，+1/-0 行" });
+        assert.deepEqual(plan, PLAN);
+        assert.equal(fake.calls.length, 1, "单次调用");
+        const body = fake.calls[0]!.body;
+        const sys = messagesOf(body).find((m) => m.role === "system")!;
+        const user = messagesOf(body).find((m) => m.role === "user")!;
+        assert.equal(sys.content, ROUTER_PROMPT, "system = prompts/review-router.md 原文");
+        assert.equal(user.content, "[仓库文件树]\nsrc/a.ts\nsrc/b.ts\n\n[diff 概要]\n共 2 个文件，+1/-0 行");
+        assert.equal((body.response_format as { type?: string } | undefined)?.type, "json_schema", "强约束 schema 同主评审形态");
+        assert.equal(body.model, "glm-4.5-air", "用 DECISION_MODEL 而非 LLM_MODEL");
+      },
+    );
+  } finally {
+    await fake.close();
+  }
+});
+
+test("runReviewRouter：schema 违规输出抛错（编排层捕获降级）；DECISION_MODEL 未设置零端点调用（D028）", async () => {
+  const bad = await startFakeLLM(() => ({ content: "我觉得没有明显风险。" }));
+  try {
+    await withEnv(
+      { DECISION_MODEL: "m", LLM_BASE_URL: bad.url, LLM_API_KEY: "test", LLM_EXTRA_BODY: undefined },
+      async () => {
+        await assert.rejects(() => runReviewRouter({ tree: "t", skeleton: "s" }), "非 schema 输出 → 抛错 → worker 降级为无计划");
+      },
+    );
+  } finally {
+    await bad.close();
+  }
+  const unused = await startFakeLLM(() => ({ content: "{}" }));
+  try {
+    await withEnv({ DECISION_MODEL: undefined, LLM_BASE_URL: unused.url, LLM_API_KEY: "test" }, async () => {
+      await assert.rejects(() => runReviewRouter({ tree: "t", skeleton: "s" }), /DECISION_MODEL/);
+      assert.equal(unused.calls.length, 0, "router 关闭 = 零调用");
+    });
+  } finally {
+    await unused.close();
+  }
+});
+
+test("reviewDiff：opts.plan 注入 → 计划块进 prompt（context 之后 diff 之前），system 仍只有 review.md（D028）", async () => {
+  const fake = await startFakeLLM(() => ({ content: REVIEW_JSON, usage: { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 } }));
+  try {
+    await withEnv(
+      { LLM_BASE_URL: fake.url, LLM_API_KEY: "test", LLM_MODEL: "fake", LLM_EXTRA_BODY: undefined, LLM_TIMEOUT_MS: undefined },
+      async () => {
+        const out = await reviewDiff("DIFF_TEXT", "CTX", { timeoutMs: 10_000, plan: PLAN });
+        assert.equal(fake.calls.length, 1, "plan 注入不增加调用次数（router 是 worker 编排的独立调用）");
+        const body = fake.calls[0]!.body;
+        const sys = messagesOf(body).find((m) => m.role === "system")!;
+        const user = messagesOf(body).find((m) => m.role === "user")!;
+        assert.equal(sys.content, loadPrompt(), "system 不含 router prompt");
+        assert.equal(user.content, `CTX\n\n${buildPlanBlock(PLAN)}\n\n[diff 开始]\nDIFF_TEXT`);
+        assert.deepEqual(out.usage, { inputTokens: 100, outputTokens: 10, totalTokens: 110 }, "usage 契约不变：仅主调用自身（router 用量只落 [router] 日志）");
       },
     );
   } finally {

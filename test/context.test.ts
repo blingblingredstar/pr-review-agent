@@ -8,8 +8,10 @@ import {
   fetchZipballEntries,
   fileReaderFromEntries,
   makeFileReader,
+  makeSnapshot,
   MAX_ZIP_BYTES,
   resolveSnapshotPath,
+  snapshotTree,
 } from "../src/context.ts";
 import { diffTouchedPaths } from "../src/review.ts";
 import { withEnv } from "./helpers.ts";
@@ -249,4 +251,36 @@ test("makeFileReader：快照下载成功返回 reader；失败/缺 token 返回
     const reader = await makeFileReader({ headRepo: "acme/demo", headSha: "abc" }, boom);
     assert.equal(reader, undefined, "缺 GITHUB_TOKEN 同样 best-effort 降级");
   });
+});
+
+test("makeSnapshot：成功返回快照 Map（makeFileReader 的底座，router 与 reader 共用一次下载，D028）", async () => {
+  await withEnv({ GITHUB_TOKEN: "t" }, async () => {
+    const { fetch: impl } = fakeZipFetch(FIXTURE_ZIP);
+    const entries = await makeSnapshot({ headRepo: "acme/demo", headSha: "abc1234def" }, impl);
+    assert.ok(entries, "成功返回快照");
+    assert.ok(entries!.has("src/a.ts"));
+    assert.ok(entries!.has("README.md"));
+  });
+  await withEnv({ GITHUB_TOKEN: undefined }, async () => {
+    const boom = (async () => {
+      throw new Error("缺 token 不应发起请求");
+    }) as unknown as typeof fetch;
+    assert.equal(await makeSnapshot({ headRepo: "acme/demo", headSha: "abc" }, boom), undefined, "缺 token best-effort 降级");
+  });
+});
+
+test("snapshotTree：字母序全量；超预算先落说明再装前缀，总长不超预算（D028 router 文件树）", () => {
+  const entries = new Map<string, Uint8Array>([
+    ["src/b.ts", strToU8("x")],
+    ["src/a.ts", strToU8("y")],
+    ["README.md", strToU8("z")],
+  ]);
+  assert.equal(snapshotTree(entries), "README.md\nsrc/a.ts\nsrc/b.ts", "快照键字母序");
+  const big = new Map<string, Uint8Array>();
+  for (let i = 0; i < 50; i++) big.set(`dir/file-${String(i).padStart(2, "0")}.ts`, strToU8("x"));
+  const tree = snapshotTree(big, 200);
+  assert.ok(tree.startsWith("[文件树截断] 共 50 个文件"), `实际头: ${tree.slice(0, 60)}`);
+  assert.ok(tree.length <= 200, `树长 ${tree.length} 应 ≤ 预算 200`);
+  assert.ok(tree.includes("dir/file-00.ts"), "装得下的前缀照常出现");
+  assert.ok(!tree.includes("dir/file-49.ts"), "装不下的不出现");
 });

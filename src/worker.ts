@@ -10,8 +10,20 @@ import type { Octokit } from "octokit";
 import { verifySignature, header, type WebhookHeaders, type Dispatch } from "./webhook.ts";
 import { fetchPr, getOctokit, postReview, postTimeoutNotice, setReviewStatus, type PrRef } from "./github.ts";
 import { hasReviewed } from "./dedupe.ts";
-import { buildRepoContext, makeFileReader } from "./context.ts";
-import { buildReviewPrompt, fileToolEnabled, llmTimeoutMs, reviewDiff, TOOL_PROMPT_MAX_CHARS, type ReviewDiffOpts, type ReviewOutcome } from "./review.ts";
+import { buildRepoContext, fileReaderFromEntries, makeSnapshot, snapshotTree } from "./context.ts";
+import {
+  buildReviewPrompt,
+  decisionModel,
+  diffSkeleton,
+  fileToolEnabled,
+  llmTimeoutMs,
+  reviewDiff,
+  runReviewRouter,
+  TOOL_PROMPT_MAX_CHARS,
+  type ReviewDiffOpts,
+  type ReviewOutcome,
+  type ReviewPlan,
+} from "./review.ts";
 
 export type WorkerStage = "prepare" | "review" | "publish";
 
@@ -51,12 +63,14 @@ const STAGE_DEADLINE_MS = 285_000;
 const STATUS_WRITE_TIMEOUT_MS = 10_000;
 
 // 依赖注入（生产默认、测试传 mock）：schedule 调度后台任务；client 工厂延迟构造（缺 token 不炸 handler）；
-// review / chain / fetchImpl 可替换——chain 默认即 chainWorker，测试传 spy 观察信封
+// review / chain / fetchImpl 可替换——chain 默认即 chainWorker，测试传 spy 观察信封；
+// route 为决策路由（D028），测试传 mock 观察「审什么」计划的注入
 export type WorkerDeps = {
   schedule: (task: () => Promise<void>) => void;
   client: () => Octokit;
   review: (diff: string, context?: string, opts?: ReviewDiffOpts) => Promise<ReviewOutcome>;
   chain: (envelope: WorkerEnvelope) => Promise<void>;
+  route: (args: { tree: string; skeleton: string }) => Promise<ReviewPlan | null>;
   fetchImpl: typeof fetch;
   chainRetryDelayMs: number;
   chainTimeoutMs: number;
@@ -71,6 +85,7 @@ export function defaultWorkerDeps(): WorkerDeps {
     client: getOctokit,
     review: reviewDiff,
     chain: chainWorker,
+    route: runReviewRouter,
     fetchImpl: fetch,
     chainRetryDelayMs: 2_000,
     chainTimeoutMs: CHAIN_TIMEOUT_MS,
@@ -204,34 +219,58 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
     if (envelope.stage === "review") {
       const state = (envelope.state ?? {}) as { diff?: string; context?: string | null };
       if (typeof state.diff !== "string") throw new Error("review 信封缺 state.diff");
-      // read_file 工具循环（D027）：review 阶段重取 head 快照（不走信封携带——全仓内容最坏 25MB 超
-      // 4.5MB 请求体上限），best-effort 失败返回 undefined → 不注入 → 单次调用原路径，绝不连垮审查。
-      // 快照预判（自审 minor）：与 reviewDiff 的 TOOL_PROMPT_MAX_CHARS 规模闸同一阈值——大 prompt 场景
-      // 工具循环必被跳过，先取快照白吃最多 25MB/10s 预算，且这正是最易撞阶段墙钟的超大 PR 路径。
+      // read_file 工具循环（D027）+ 决策路由（D028）共用的快照预判与获取。快照预判（自审 minor）：
+      // 与 reviewDiff 的 TOOL_PROMPT_MAX_CHARS 规模闸同一阈值——大 prompt 场景工具循环必被跳过，
+      // 先取快照白吃最多 25MB/10s 预算，且这正是最易撞阶段墙钟的超大 PR 路径。
       // 用 buildReviewPrompt（与 reviewDiff 同一构造函数，自审三轮：曾用 diff+context 估算出现 +14 偏移
-      // 与 >=/> 比较符的边界分叉）——预判与闸吃同一字符串、同一比较符，永不矛盾
+      // 与 >=/> 比较符的边界分叉）——预判与闸吃同一字符串、同一比较符，永不矛盾。
+      // 注：预判时 plan 尚不存在（router 在其后才跑），计划块 ~1k 字符的边界漂移属既有软约束口径，不为它加 plumbing
       const promptEstimate = buildReviewPrompt(state.diff, typeof state.context === "string" ? state.context : undefined).length;
       const snapshotSkippedByGate = fileToolEnabled() && promptEstimate > TOOL_PROMPT_MAX_CHARS;
-      // 快照耗时从 LLM 预算中扣掉（自审 minor）：D026 的墙钟账「LLM 打满 + 续链 + 落灯」此前没算
-      // makeFileReader 这段（上限 10s），小 prompt + 慢快照组合仍在账外；下限 60s 防御性兜底
+      // 需要快照的条件（D028 重构）：read_file 工具循环需要快照内容，决策路由需要快照文件树——
+      // 任一需要即取，一次下载共用（router 拿树、reader 拿内容），不做第二次 zipball 请求
+      const needReader = fileToolEnabled() && !snapshotSkippedByGate;
+      const routerOn = decisionModel() !== undefined;
       const snapshotStart = Date.now();
-      const fileReader =
-        fileToolEnabled() && !snapshotSkippedByGate
-          ? await makeFileReader(
-              { headRepo: ref.headRepo ?? `${ref.owner}/${ref.repo}`, headSha: ref.headSha },
-              deps.fetchImpl,
-            )
+      const entries =
+        needReader || routerOn
+          ? await makeSnapshot({ headRepo: ref.headRepo ?? `${ref.owner}/${ref.repo}`, headSha: ref.headSha }, deps.fetchImpl)
           : undefined;
-      effectiveLlmTimeoutMs = Math.max(effectiveLlmTimeoutMs - (Date.now() - snapshotStart), 60_000);
+      const fileReader = needReader && entries ? fileReaderFromEntries(entries) : undefined;
+      // 快照耗时从 LLM 预算中扣掉（自审 minor）：D026 的墙钟账「LLM 打满 + 续链 + 落灯」此前没算
+      // 快照这段（上限 10s），小 prompt + 慢快照组合仍在账外；下限 60s 防御性兜底
+      effectiveLlmTimeoutMs = deductBudget(effectiveLlmTimeoutMs, Date.now() - snapshotStart);
       const fileReaderNote = fileReader
         ? "生效（D027 工具循环）"
         : snapshotSkippedByGate
-          ? "未注入（prompt 超规模闸，跳过快照与工具循环）"
+          ? "未注入（prompt 超规模闸，跳过工具循环）"
           : "未注入（关闭或快照失败降级）";
       console.log(`[worker] ${key} review 阶段 fileReader ${fileReaderNote}`);
+      // 决策模型路由（D028，best-effort）：DECISION_MODEL 注入且快照就绪才跑；失败 console.error 一行 +
+      // 无计划继续（绝不重试——多一次重试 = 预算翻倍风险，计划是增强不是依赖；绝不连垮主评审），
+      // 耗时从主评审预算扣除（快照扣减同款写法）。eval 路径不经过这里（直调 reviewDiff 无 plan）
+      let plan: ReviewPlan | undefined;
+      if (routerOn) {
+        if (!entries) {
+          console.log(`[worker] ${key} router 跳过：快照不可用，无文件树（D028 best-effort）`);
+        } else {
+          const routerStart = Date.now();
+          try {
+            plan = (await deps.route({ tree: snapshotTree(entries), skeleton: diffSkeleton(state.diff) })) ?? undefined;
+          } catch (err) {
+            console.error(`[worker] ${key} router 失败，无计划继续（best-effort，D028）`, err);
+          }
+          const routerElapsed = Date.now() - routerStart;
+          effectiveLlmTimeoutMs = deductBudget(effectiveLlmTimeoutMs, routerElapsed);
+          console.log(
+            `[worker] ${key} router ${plan ? "产出评审计划" : "无计划（失败降级）"}，耗时 ${routerElapsed}ms，主评审预算 ${effectiveLlmTimeoutMs}ms`,
+          );
+        }
+      }
       const result = await deps.review(state.diff, state.context ?? undefined, {
         timeoutMs: effectiveLlmTimeoutMs,
         fileReader,
+        plan,
       });
       // state 累积传递：publish 的 postReview 仍需 diff 做行内预定位（splitByLocatable）
       await deps.chain({ v: 1, stage: "publish", hop: envelope.hop + 1, ref, issuedAt: Date.now(), state: { ...state, result } });
@@ -404,6 +443,13 @@ export async function chainWorker(envelope: WorkerEnvelope, deps?: Partial<Worke
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// LLM 预算扣减（D028）：前置耗时（快照/router）从主评审预算中扣除，下限 60s 防御性兜底——主评审再挤也有 60s。
+// PR #30 快照扣减的同一写法抽成单点，防快照/router 两处扣减漂移（router 上限 60s + 下限 60s 的组合
+// 保证「router 打满 + 主评审打满」不突破 review 阶段 260s LLM 封顶）
+export function deductBudget(effective: number, elapsed: number): number {
+  return Math.max(effective - elapsed, 60_000);
 }
 
 // 续链 base 选择：WORKER_BASE_URL（无路径 http(s) URL，不合法 warn 后视为未配置）> VERCEL_URL；
