@@ -396,12 +396,18 @@ export async function reviewDiff(diff: string, context?: string, opts?: ReviewDi
 // 工具循环步预算（D027）：FILE_TOOL_MAX_STEPS，默认 2；数值 0 = 显式关闭（生产 kill switch，
 // 与 CONTEXT_MAX_CHARS 同款「按数值判定关闭」语义）；其余非法值告警回退默认。
 // 两段协议里「步」= 文件读取次数（readRequests 条数上限），与 AI SDK tools 形态每步一读的成本口径一致
+let warnedInvalidMaxSteps = false;
+
 export function fileToolMaxSteps(): number {
   const raw = process.env.FILE_TOOL_MAX_STEPS;
   if (raw === undefined || raw.trim() === "") return 2;
   const parsed = Number(raw);
   if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 0) {
-    console.warn(`FILE_TOOL_MAX_STEPS="${raw}" 不是非负整数，回退默认 2`);
+    // 一次审查 worker/review 两处各调一次、synchronize 重复刷——配置错误告警一次（同 chainBase 模式，自审 minor）
+    if (!warnedInvalidMaxSteps) {
+      console.warn(`FILE_TOOL_MAX_STEPS="${raw}" 不是非负整数，回退默认 2`);
+      warnedInvalidMaxSteps = true;
+    }
     return 2;
   }
   return parsed;
