@@ -4,6 +4,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { waitUntil } from "@vercel/functions";
 import { fetchPr, getOctokit, postReview, postTimeoutNotice, setReviewStatus, type PrRef } from "./github.ts";
 import { hasReviewed } from "./dedupe.ts";
+import { buildRepoContext } from "./context.ts";
 import { llmTimeoutMs, reviewDiff } from "./review.ts";
 
 export function verifySignature(secret: string, rawBody: string, signature: string | undefined): boolean {
@@ -48,7 +49,7 @@ export function handleWebhook(
   let payload: {
     action?: string;
     repository?: { owner?: { login?: string }; name?: string };
-    pull_request?: { number?: number; head?: { sha?: string }; user?: { login?: string } };
+    pull_request?: { number?: number; head?: { sha?: string; repo?: { full_name?: string } }; user?: { login?: string } };
   };
   try {
     payload = JSON.parse(rawBody);
@@ -72,7 +73,14 @@ export function handleWebhook(
     console.error(`[webhook] pull_request payload 字段缺失，忽略（owner=${owner} repo=${repo} number=${pullNumber}）`);
     return { status: 200, note: "ignored: malformed pull_request payload" };
   }
-  const ref: PrRef & { headSha: string } = { owner, repo, pullNumber, headSha };
+  // headRepo：fork PR 的 head 快照在 fork 仓库里（zipball 按 head 仓库取，D023）；payload 缺字段回退 base 仓库（同仓 PR 两者相同）
+  const ref: PrRef & { headSha: string; headRepo?: string } = {
+    owner,
+    repo,
+    pullNumber,
+    headSha,
+    headRepo: payload.pull_request?.head?.repo?.full_name,
+  };
   // 白名单判定在调度前用 payload 自带的作者字段完成：零 GitHub API、零 LLM token（D021）
   const allowedUsers = reviewTriggerUsers();
   if (allowedUsers) {
@@ -92,7 +100,7 @@ export function handleWebhook(
 }
 
 // 后台任务：任何失败只记日志不抛出——waitUntil 无人接 catch，抛了只会变成 unhandled rejection
-async function runReview(ref: PrRef & { headSha: string }): Promise<void> {
+async function runReview(ref: PrRef & { headSha: string; headRepo?: string }): Promise<void> {
   const key = `${ref.owner}/${ref.repo}#${ref.pullNumber}@${ref.headSha.slice(0, 7)}`;
   let client: ReturnType<typeof getOctokit> | undefined;
   try {
@@ -109,7 +117,9 @@ async function runReview(ref: PrRef & { headSha: string }): Promise<void> {
       console.error(`[review] ${key} pending status 写失败`, statusErr);
     }
     const { diff } = await fetchPr(client, ref);
-    const result = await reviewDiff(diff);
+    // 仓库上下文（D023，best-effort）：失败返回 null、审查照旧，绝不连垮主流程
+    const context = await buildRepoContext({ headRepo: ref.headRepo ?? `${ref.owner}/${ref.repo}`, headSha: ref.headSha, diff });
+    const result = await reviewDiff(diff, context ?? undefined);
     const posted = await postReview(client, { owner: ref.owner, repo: ref.repo, pullNumber: ref.pullNumber, commitId: ref.headSha }, result, diff);
     console.log(`[review] ${key} 完成：${posted.inline} 条行内（进线程可闭环），${posted.degraded} 条降级进 body`);
     try {

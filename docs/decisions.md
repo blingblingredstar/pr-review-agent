@@ -225,3 +225,16 @@
   - 只留记录不拦截（去掉发帖闸门）——recall 损失来自生成侧（prompt/schema 改变模型行为），闸门从不影响打分，此变体救不回 recall。否决。
   - 逃逸条款单独采纳（real-03 从 0/6 → 6/6 的措辞有效）——它与契约字段耦合测试，未单独验证；留作后续 prompt 迭代的独立候选。
 - **后果**：路线图第 1 项标记暂缓；匹配器设计结论留档 `evals/report.md`（重启时按此重建）；若重启，优先「旁路观测不进生成侧」的便宜形态——先在真实 PR 积累幻觉率数据，证明需要闸门再做闸门。
+
+## D023 — 仓库上下文第一阶段：head zipball 确定性注入（触及文件全文 + 文件树），best-effort
+
+- **状态**：已接受（2026-11-03，spec 见 `docs/plans/context-enhancement-phase1.md`）
+- **背景**：路线图第 4 项（上下文增强）。只看 diff 的短板明确——hunk 局部上下文丢语义（real-02 类）、关联问题无线索、D018/D020 截断的新建大文件是整块盲区。D019 曾以「改输入契约需另设计用例集」延后；会话 24 续的超时账修订（thinking 关闭后 20s 级 vs 270s 预算）解除了异步化前置，可独立立项。
+- **决策**：webhook 审查路径新增 `src/context.ts`——按 head SHA 下载 zipball（`GET /repos/{headRepo}/zipball/{sha}` 单请求，302 手动跟进重发凭证以兼容私有仓库），fflate 纯 JS 内存解压（不落 /tmp、不依赖 git 二进制——Vercel 运行时没有），确定性拼装「触及文件全文（diff 顺序，逐文件全有或全无）+ 文件树（字母序）」注入 prompt 前段，diff 字节级不动。独立预算 `CONTEXT_MAX_CHARS`（默认 100_000 字符，`"0"` 显式关闭）；失败语义一律 best-effort 返回 null（下载硬上限 10s、zipball 压缩 25MB 上限、任何错误），审查照旧。eval 路径不传 context、`prompts/review.md` 不改——promptHash 不变，回归面为零。
+- **备选**：
+  - 运行时 git clone（isomorphic-git）——Vercel 运行时无 git 二进制，为可绕过的问题加依赖，且 clone 携带 .git 历史体积远超快照。否决。
+  - Contents API 逐文件拉取——N 次请求的延迟与限额放大，且没有文件树全景；「API 比下载更慢」与直觉相反（N>1 时成立）。留作 zipball 失败的降级候选，YAGNI 不实现。
+  - 构建期把 repo 打进函数 bundle——快照陈旧对「审 PR」是正确性错误（PR 改的就是这个仓库）。否决。
+  - 工具循环（`read_file` 按需读）——完全体但改输入契约，eval 集需另设计（D019），本阶段生产数据出来前不启动；列为第二阶段。
+  - RAG 向量索引——全量 1.5MB 已在手上，索引无增量价值，徒增基建。否决。
+- **后果**：触及文件全文补 hunk 语义盲区、文件树给关联问题线索、被截断的新建文件由上下文兜回；已知取舍——新建文件全文与 diff 重复 spend（换确定性）、单个超大触及文件可能整体出局（留说明）、树预算紧张时殿后截断。生产观测走 `[context]` 日志行 + usage 日志（PR #22）对照注入前后 inputTokens。zipball 管道同时为超大 PR diff 拉取缺口（会话 25 记录的 20k 行 406）铺路。

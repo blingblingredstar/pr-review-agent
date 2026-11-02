@@ -56,6 +56,18 @@ export function diffHeaderPath(line: string): string | null {
   return m ? unquoteGitPath(m[1]).replace(/^b\//, "") : null;
 }
 
+// diff 触及的文件路径（b 侧，出现顺序去重）：仓库上下文（D023）按它选快照里的全文。
+// 吃完整原始 diff——被 truncateDiff 丢掉的文件也纳入，上下文正好补 D018/D020 的截断盲区
+export function diffTouchedPaths(diff: string): string[] {
+  const paths: string[] = [];
+  for (const raw of diff.split("\n")) {
+    if (!raw.startsWith("diff --git ")) continue;
+    const path = diffHeaderPath(raw);
+    if (path && !paths.includes(path)) paths.push(path);
+  }
+  return paths;
+}
+
 // 解析 unified diff，返回每个文件被 hunk 覆盖的新侧行号集合。
 // 用于行内评论的预定位：只有行号落在 diff 内的意见才能行内发（GitHub 对 hunk 外行号返回 422）。
 export function diffCoveredLines(diff: string): Map<string, Set<number>> {
@@ -306,12 +318,16 @@ export function sumUsage(usages: TokenUsage[]): TokenUsage {
   };
 }
 
-export async function reviewDiff(diff: string): Promise<ReviewOutcome> {
+export async function reviewDiff(diff: string, context?: string): Promise<ReviewOutcome> {
   const { LLM_API_KEY, LLM_BASE_URL, LLM_MODEL } = process.env;
   if (!LLM_API_KEY || !LLM_BASE_URL || !LLM_MODEL) {
     throw new Error("缺少环境变量 LLM_BASE_URL / LLM_API_KEY / LLM_MODEL（参照 .env.example 配置 .env）");
   }
   const llm = createOpenAI({ apiKey: LLM_API_KEY, baseURL: LLM_BASE_URL, fetch: withExtraBody(fetch, extraBody()) });
+  const diffText = truncateDiff(diff);
+  // 上下文（D023，best-effort）放 diff 之前：diff（含截断省略行）保持在生成前最近位置，行号锚点不受影响；
+  // eval 不传 context → prompt 字节级不变（promptHash 稳定是回归对照的前提）
+  const prompt = context ? `${context}\n\n[diff 开始]\n${diffText}` : diffText;
   // .chat() 强制走 /chat/completions：OpenAI 兼容端点（如 GLM）不实现 Responses API；
   // ai v7 起 generateObject 已废弃，结构化输出走 generateText + Output；
   // 超时预算见 docs/decisions.md D011（Vercel Hobby 函数上限 300s，留回帖余量）
@@ -319,7 +335,7 @@ export async function reviewDiff(diff: string): Promise<ReviewOutcome> {
     model: llm.chat(LLM_MODEL),
     output: Output.object({ schema: reviewResultSchema, name: "ReviewResult" }),
     system: loadPrompt(),
-    prompt: truncateDiff(diff),
+    prompt,
     abortSignal: AbortSignal.timeout(llmTimeoutMs()),
   });
   const tokenUsage: TokenUsage = {

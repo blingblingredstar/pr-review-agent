@@ -36,6 +36,8 @@ GitHub API 回帖（逐条行内 PR review comment）◄──────┘
 
 **diff 截断按整文件块丢弃。** 总长超 `DIFF_MAX_CHARS`（默认 300k 字符）时以 `diff --git` 行切块，截断前先生成物过滤（D020）：lock/生成物名单（各语言 lock 文件、`node_modules/` 等目录与顶层 `dist/`/`build/` 生成目录、`*.min.js`/`*.map` 等后缀）、`@generated` 文件头、长行占优（压缩/混淆产物的结构信号）三层识别，命中的块不占预算、省略行标注「生成物」；其余按块大小升序贪心保留，保留块字节级重组，被丢弃文件附省略行告知模型非全量（新建文件额外标注，提示审查盲区）。不切 hunk（破坏行号定位）、不分子调用（成本延迟翻倍）。
 
+**仓库上下文确定性注入（best-effort）。** 审查不只看 diff：按 head SHA 下载 zipball（单请求、纯 JS 内存解压，无 git 二进制依赖），把 diff 触及文件的全文（hunk 局部上下文补成完整语义）+ 仓库文件树（关联问题线索）注入 prompt 前段，diff 本身字节级不动、行号锚点不受影响。独立预算 `CONTEXT_MAX_CHARS`（默认 100k 字符，`0` 关闭）；下载 10s 硬上限、超大仓库 25MB 上限，任何失败自动降级为无上下文审查，绝不连垮主流程（D023）。fork PR 按 head 仓库取快照。
+
 **超时降级而非静默失败。** `AbortSignal.timeout(LLM_TIMEOUT_MS)`（默认 270s）硬超时，超时发 issue comment 告知并提示重推重试；超时不写去重标记，同 SHA 重投可重试。
 
 **行内评论逐条预定位。** 发 review 前按 diff 覆盖行号逐条判定：可定位的行内发（进线程、可回复可 resolve），真定位不了的（模型幻觉行号）列进 summary body 注明——意见闭环机制只认线程，任何不落线程的意见都会漏。
@@ -47,7 +49,7 @@ GitHub API 回帖（逐条行内 PR review comment）◄──────┘
 ```bash
 npm install
 cp .env.example .env   # 填 LLM_BASE_URL / LLM_API_KEY / LLM_MODEL / GITHUB_TOKEN
-npm test               # 64 例单测
+npm test               # 71 例单测
 npm run review:local   # hardcode 样例 diff 冒烟
 npm run review:pr -- owner/repo#N [--post]   # 真实 PR 试跑（默认只打印）
 npm run eval           # 29 用例打分表，结果落盘 evals/runs/
@@ -57,7 +59,7 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 
 部署：Vercel（Hobby 免费档即可），事件订阅 `pull_request`（opened / synchronize）。完整步骤（环境变量、webhook 配置、安全模型、排障分层）见 [docs/deployment.md](./docs/deployment.md)。
 
-环境变量：`LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`（OpenAI 兼容端点，换模型只改配置）、`GITHUB_TOKEN`（PAT，拉 diff + 回帖）、`WEBHOOK_SECRET`（验签）、`LLM_TIMEOUT_MS`（默认 270000）、`LLM_EXTRA_BODY`（端点扩展参数 JSON，如 GLM 关 thinking）、`DIFF_MAX_CHARS`（diff 截断预算，默认 300000）、`REVIEW_TRIGGER_USERS`（触发白名单，逗号分隔 GitHub 用户名，未设置 = 所有人）。
+环境变量：`LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`（OpenAI 兼容端点，换模型只改配置）、`GITHUB_TOKEN`（PAT，拉 diff + 回帖）、`WEBHOOK_SECRET`（验签）、`LLM_TIMEOUT_MS`（默认 270000）、`LLM_EXTRA_BODY`（端点扩展参数 JSON，如 GLM 关 thinking）、`DIFF_MAX_CHARS`（diff 截断预算，默认 300000）、`CONTEXT_MAX_CHARS`（仓库上下文预算，默认 100000，`0` 关闭）、`REVIEW_TRIGGER_USERS`（触发白名单，逗号分隔 GitHub 用户名，未设置 = 所有人）。
 
 ## eval
 
@@ -72,7 +74,7 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 1. **证据可溯**（暂缓，D022 否决）：`evidenceSnippet` 契约经 12 轮对照实测 recall 微平均 96.3% → 87.7–91.4%——「字段存在」即抑制推断型发现（必填/可选/措辞均不可救），且 370 条意见真幻觉拦截为 0，成本确定、收益为理论值。重启候选形态：旁路观测不进生成侧。数据见 [evals/report.md](./evals/report.md)
 2. **注入抗性 canary 组**：新增 eval 分组——注入藏于 PR 描述/代码注释/文件名的 fixture，断言注入内容不回显进意见、真实 findings 不被抑制（本 agent 无 approve 路径，review 只会 REQUEST_CHANGES / COMMENT）；README 加 threat model 章节：diff 是不可信输入 + PAT 最小权限盘点
 3. **决策模型路由 + 消融表**：两段式调用（便宜档先做内容路由，贵档只做评审），环境变量开关，`compare.ts` 扩展 token 对比列出消融表；前置 = 超时预算按阶段拆分（多跳串行共享 300s 墙钟）；红线 = recall 不回退，对照组 = 2026-11-01 基线 run
-4. **上下文增强**：拉相关文件/搜引用喂 prompt（当前只看 diff，diff 外引用靠 hunk 上下文覆盖）；路由是它的第一阶段；引入工具循环时工具 allowlist 是前置条件
+4. **上下文增强**：~~拉相关文件/搜引用喂 prompt~~ **第一阶段已落地（D023）**——head zipball 确定性注入触及文件全文 + 文件树（best-effort，eval 零回归面）；余下：按需读取的工具循环（改输入契约，等第一阶段生产数据再立项，工具 allowlist 是前置条件）
 5. **对抗性关联 fixture 扩充**：5 例「表面优化、实际引洞」类关联问题，优先 fix 反转/真实配对构造（手写用例会高估能力，D015），关联命中率在报告单列
 6. **增量审查**（synchronize 只审新 commit）与按 severity 分层的报告门槛细化
 7. **多模型对比**（同一 eval 集跑第二家端点）
