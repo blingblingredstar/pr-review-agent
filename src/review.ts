@@ -493,8 +493,10 @@ function extractBalancedJson(text: string): unknown {
 // 第二段 prompt 的工具结果块（D027）：工具结果在前、diff 保持生成前最近位置（行号锚点原则同 D023 上下文）。
 // 命中 → 全文（超出剩余预算截断附说明行）；未命中/非法路径 → 统一 not found 说明行（不抛错，模型自行纠正）
 export function buildToolBlock(requests: string[], reader: (path: string) => string | null): string {
-  const parts: string[] = ["[read_file 工具结果]"];
-  let used = 0;
+  const HEADER = "[read_file 工具结果]";
+  const parts: string[] = [HEADER];
+  // 记账含头部行与 join 分隔换行（自审 nit：此前系统性低估几十字符，多文件截断边界可能越顶）
+  let used = HEADER.length;
   for (const [i, path] of requests.entries()) {
     const content = reader(path);
     if (content === null) {
@@ -509,7 +511,7 @@ export function buildToolBlock(requests: string[], reader: (path: string) => str
     if (fullPart.length <= remaining) {
       // 先拼再量（自审 minor：判定与记账统一含包装头，与截断分支同口径）
       parts.push(fullPart);
-      used += fullPart.length;
+      used += fullPart.length + 1;
       console.log(`[tools] step ${i + 1}: read ${path} (${content.length} chars)`);
     } else if (remaining > wrapperHead.length + 20) {
       // 说明行长度随路径/位数变化，无法用常量余量精确预留——两轮收敛：拼一次量一次，超出 remaining
@@ -530,7 +532,7 @@ export function buildToolBlock(requests: string[], reader: (path: string) => str
       }
       if (cut > 0 && part.length <= remaining) {
         parts.push(part);
-        used += part.length;
+        used += part.length + 1;
         console.log(`[tools] step ${i + 1}: read ${path} (${cut}/${content.length} chars, 截断)`);
       } else {
         parts.push(`[read_file] ${path} 全文 ${content.length} 字符超出字符预算，未纳入`);

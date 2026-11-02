@@ -208,12 +208,13 @@ test("buildRepoContext：预算 0 不发请求；下载失败返回 null；成�
 });
 
 test("resolveSnapshotPath：目录键（尾斜杠）与目录请求同义未命中，不给 0 字符伪成功", () => {
+  // 键形状对齐 fetchZipballEntries 产物（根段已剥，D023「所有路径共享首段」剥离）
   const entries = new Map<string, Uint8Array>([
-    ["repo-hash/src/", strToU8("")],
-    ["repo-hash/src/a.ts", strToU8("export const a = 1;")],
+    ["src/", strToU8("")],
+    ["src/a.ts", strToU8("export const a = 1;")],
   ]);
   const reader = fileReaderFromEntries(entries);
-  assert.equal(reader("src/"), null, "目录请求返回 null（file not found 语义）");
+  assert.equal(reader("src/"), null, "目录请求返回 null（file not found 语义，normalizeSnapshotPath 拒绝尾斜杠）");
   assert.equal(reader("src/a.ts"), "export const a = 1;", "文件照常命中");
 });
 
