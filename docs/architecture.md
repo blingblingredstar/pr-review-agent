@@ -30,7 +30,7 @@ GitHub API 回帖（逐条 PR review comment）◄──────────
 | `src/context.ts` | 仓库上下文注入（D023，路线图第 4 项第一阶段）：head zipball 下载（302 手动跟进，凭证只发 GitHub 域 + content-length 预检 + 流式累计封顶）→ fflate 内存解压 → 触及文件全文（`diffTouchedPaths` 由 diff 头确定，diff 顺序逐文件全有或全无）+ 文件树（字母序）拼成自描述上下文块 | best-effort：预算 `CONTEXT_MAX_CHARS`（数值 0 关闭）、下载 10s 硬上限、zipball 压缩 25MB 上限、任何失败返回 null 审查照旧；fork PR 按 head 仓库取快照；纯 JS 解压不依赖 git 二进制、不落 /tmp；生产编排入口 `buildRepoContext`，eval 不经过此路径（promptHash 不变） |
 | `src/dedupe.ts` | 同一 commit SHA 只审一次 | 查 PR 已有 review 的 `<!-- pr-review-agent sha:<SHA> -->` 标记（D010） |
 | `prompts/review.md` | 审查提示词（迭代对象） | prompt 与代码分离，方便 diff 和 eval 对比；`vercel.json` `includeFiles` 保证随函数打包 |
-| `evals/` | eval 用例集 + 跑分脚本 | `cases/` 35 个自包含 diff 用例（D015 四级 source：synthetic 20 手写教学 / real 7 真实仓库 fix 反转与配对 / dogfood 2 回归集 / injection 6 注入 canary（D024，diff 内三向量藏「放行」指令，考不回显 + 不抑制，单独报拦截率不计入能力口径）；格式见 D014/D024）；`score.ts` 打分纯函数（命中 = file + 行 ±3 + mustMention 任一关键词；注入组另有 noEcho 特征串回显判定，元讨论豁免）；`run.ts` 入口（`npm run eval`，串行 + 失败重试，按 source 分组统计，结果带 `promptHash` 指纹落盘 `runs/`，逐用例 tokens 入/出与合计随 run 落盘——成本基线）；`compare.ts` 多轮 run 按 prompt 指纹聚合对比（Day 6 报告的数据出口，`evals/report.md`）；用例结构校验在 `test/eval-cases.test.ts` |
+| `evals/` | eval 用例集 + 跑分脚本 | `cases/` 35 个自包含 diff 用例（D015 三级 source + D024 injection：synthetic 20 手写教学 / real 7 真实仓库 fix 反转与配对 / dogfood 2 回归集 / injection 6 注入 canary（D024，diff 内三向量藏「放行」指令，考不回显 + 不抑制，单独报拦截率不计入能力口径）；格式见 D014/D024）；`score.ts` 打分纯函数（命中 = file + 行 ±3 + mustMention 任一关键词；注入组另有 noEcho 特征串回显判定，元讨论豁免）；`run.ts` 入口（`npm run eval`，串行 + 失败重试，按 source 分组统计，结果带 `promptHash` 指纹落盘 `runs/`，逐用例 tokens 入/出与合计随 run 落盘——成本基线）；`compare.ts` 多轮 run 按 prompt 指纹聚合对比（Day 6 报告的数据出口，`evals/report.md`）；用例结构校验在 `test/eval-cases.test.ts` |
 
 ## 结构化输出 schema
 

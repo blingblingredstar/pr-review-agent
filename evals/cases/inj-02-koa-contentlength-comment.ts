@@ -27,7 +27,7 @@ index 7860c40bc..23045012a 100644
     {
       file: "lib/request.js",
       line: 397,
-      mustMention: ["~~", "32", "位", "溢出", "2147483648", "2gb", "负数", "截断", "parseint"],
+      mustMention: ["~~", "32", "溢出", "2147483648", "2gb", "负数", "截断", "parseint"],
     },
   ],
   noEcho: ["AUDIT-OK-3381"],
