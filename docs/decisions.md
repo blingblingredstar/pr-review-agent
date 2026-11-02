@@ -265,3 +265,14 @@
   - zip 解包自算 diff——需 base+head 两份归档与 merge-base 逻辑，rename 检测等复杂度不成比例。否决。
   - 超大 PR 分发补审（拆两环节绕 300s 墙钟）——D020 后果区记录的架构扩展，依赖异步化/预算拆分，不捆。
 - **后果**：超大 PR 从「审查失败无法自愈」变为「多付 1 次注定失败的请求 + 最多 30 页分页，~秒级」；合成 diff 与既有管道零耦合（下游不感知来源），行内定位口径不变；与 D023 形成盲区互补（传输层缺 patch 的文件由上下文层兜全文）。eval 零影响（fetchPr 不在 eval 路径）。残余边界：>3000 文件只列前 3000（省略行告知）；PR 描述注入向量仍不可达（会话 27 已挂起该 fixture 位）。
+
+## D026 — 真正异步化：worker 阶段机 + 签名信封自调用续链，外部队列否决
+
+- **状态**：已接受（2026-11-03，spec 见 `docs/plans/async-worker.md`）
+- **背景**：路线图第 8 项（必须长 thinking 时真正异步化）。单函数 300s 墙钟（D011）是工具循环（路线图第 4 项第二阶段）与决策模型路由（第 3 项，两段调用）的硬前置——多轮串行共享同一墙钟，「串行深度有界、预算按阶段拆分」没有载体。thinking 关闭后实测单次审查 20s 级，当前无质量压力；但底座先行成本最低，届时再拆要同时改编排、失败语义与测试。
+- **决策**：审查拆 `prepare`（dedupe → pending status → fetchPr → buildRepoContext）/ `review`（reviewDiff）/ `publish`（二次 dedupe → postReview → status 终态）三阶段，每阶段独立函数调用、独立 300s 预算；阶段间用 HMAC-SHA256 签名信封自调用 `/api/worker` 续链——签名校验复用 webhook 的 `verifySignature`（密钥同为 `WEBHOOK_SECRET`），头名 `x-worker-signature` 与 GitHub 事件语义区分；三闸校验：签名不过 403、`issuedAt` 距今超 10 分钟 403（限重放窗口）、`hop > 4` 403 + failure status（防御性）。信封状态随请求携带（diff / context / result 直接进 POST body），不在外部存储中间态。webhook 变纯分发器：验签/白名单/事件过滤不动（零 API 零 token 的判定不后移），调度对象从 runReview 改为发 prepare 信封——首阶段也跑在新调用里，所有阶段共用同一条代码路径。续链失败不静默：`chainWorker` 最多 2 次尝试（间隔 2s、单次 10s 硬超时——自调用挂起会占满 waitUntil 直到平台强杀，恰是本机制要消灭的永久 pending；仅网络异常/5xx/429/408 重试，确定性 4xx 直接终失败，PR #29 自审迭代采纳），review 阶段 LLM 封顶 260s（`reviewDiff` 可选 `opts.timeoutMs`，eval/本地零传参不受影响）——最坏路径「LLM 打满 + 续链 + 落灯」整体关进 300s 墙钟，终失败由当前调用 best-effort 落 failure status「审查中断」；`VERCEL_URL` 未设置（本地/单测）不走 HTTP、直调回退本进程执行下一阶段——本地链路与生产行为一致、可单测。
+- **备选**：
+  - QStash / Vercel Workflows 外部队列——引第三方服务或平台专属原语，违背本仓「零基建」口味（幂等去重 D010 不建外部存储同款）；持久队列、可见性超时、重试策略都是规模化才用得上的能力，当前规模用不上。记为规模化时的备选。否决。
+  - 信封不携带状态、下阶段重派生（重拉 diff + 重下 zipball）——多烧 API 配额且引入两次快照漂移风险（两次拉取之间 PR 可能变化，审查口径不一致）；pass-state 更确定，且中间态 ~400KB 远小于 4.5MB 平台请求体上限。否决。
+  - 维持单 waitUntil 不拆阶段——20s 级现状下确实够用，但 300s 墙钟对多轮工具循环 / 两段路由是不可绕的天花板，届时再拆是编排 + 失败语义 + 测试的一揽子大改，不如底座先行；且 hop 封顶、续链失败落灯已把新增风险面关死。否决（对本 PR 是「不为不存在的需求付复杂度」，非永久拒绝）。
+- **后果**：每阶段独立 300s 预算、串行深度有界（hop 封顶 4；固定三跳理论上到不了，防御后续 review 阶段内扩展轮数的失控循环）；续链重试为 at-least-once 语义（超时≠未送达，review 双跑上界 1 次额外 LLM 调用，回帖副作用由 dedupe 吸收；省 token 的「review 不重试」换假 failure 灯，维持可用性优先）；失败语义与现状逐字对齐（超时 → postTimeoutNotice + 「审查超时，重推 commit 可重试」，D011；其他异常 → 「审查失败，见 Vercel 日志」），新增「审查中断」覆盖续链失败；publish 二次 dedupe + status 幂等吸收信封重放，不做续链幂等键（10 分钟新鲜度窗口限重放面）。安全面：信封只能由 webhook/worker 内部铸造（需 `WEBHOOK_SECRET`），陌生人打 `/api/worker` 等价于打 webhook 的验签闸——烧 token 的面没有扩大。本 PR 不改 LLM 调用形态（阶段机是路线图第 3/4 项的底座）；eval 路径零接触（`reviewDiff` 直调不变，promptHash 与逐用例输入 tokens 与基线逐位一致）。

@@ -322,7 +322,7 @@ export function sumUsage(usages: TokenUsage[]): TokenUsage {
   };
 }
 
-export async function reviewDiff(diff: string, context?: string): Promise<ReviewOutcome> {
+export async function reviewDiff(diff: string, context?: string, opts?: { timeoutMs?: number }): Promise<ReviewOutcome> {
   const { LLM_API_KEY, LLM_BASE_URL, LLM_MODEL } = process.env;
   if (!LLM_API_KEY || !LLM_BASE_URL || !LLM_MODEL) {
     throw new Error("缺少环境变量 LLM_BASE_URL / LLM_API_KEY / LLM_MODEL（参照 .env.example 配置 .env）");
@@ -340,7 +340,9 @@ export async function reviewDiff(diff: string, context?: string): Promise<Review
     output: Output.object({ schema: reviewResultSchema, name: "ReviewResult" }),
     system: loadPrompt(),
     prompt,
-    abortSignal: AbortSignal.timeout(llmTimeoutMs()),
+    // 超时可被调用方覆写（worker 阶段机 D026：review 阶段按「300s 墙钟 - 续链/落灯预留」封顶，
+    // 保证最坏路径「LLM 打满 + 续链失败 + 落灯」整体不超墙钟）；不传走 LLM_TIMEOUT_MS（D011）
+    abortSignal: AbortSignal.timeout(opts?.timeoutMs ?? llmTimeoutMs()),
   });
   const tokenUsage: TokenUsage = {
     inputTokens: usage?.inputTokens ?? null,

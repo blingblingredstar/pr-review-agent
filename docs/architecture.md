@@ -6,12 +6,11 @@
 
 ```mermaid
 flowchart TD
-    A["GitHub PR 事件 (pull_request: opened/synchronize)"] -->|"webhook (HMAC-SHA256 签名校验, secret 校验失败丢弃)"| B["Vercel API route"]
-    B --> C["拉取 PR diff (GitHub API)"]
-    C --> D["仓库上下文（D023 best-effort：head zipball → 触及文件全文 + 文件树）"]
-    D --> E["LLM 审查（OpenAI 兼容端点）：generateText + Output → { comments: [...] }"]
-    E --> F["GitHub API 回帖（逐条 PR review comment）"]
-    B -->|"立即返回 200，waitUntil 异步处理"| F
+    A["GitHub PR 事件 (pull_request: opened/synchronize)"] -->|"webhook (HMAC-SHA256 签名校验, secret 校验失败丢弃)"| B["webhook API route：验签 / 白名单 / 事件过滤（零 API 零 token），立即返回 200"]
+    B -->|"立即返回 200，waitUntil 发 prepare 签名信封"| W["worker 阶段机 (api/worker.ts + src/worker.ts)：每阶段独立函数调用、独立 300s 预算"]
+    W --> P["prepare：dedupe（D010）+ pending status（D017）+ 拉取 PR diff (GitHub API) + 仓库上下文（D023 best-effort：head zipball → 触及文件全文 + 文件树）"]
+    P -->|"签名信封自调用续链（hop 封顶 4，续链失败落 failure status）"| R["review：LLM 审查（OpenAI 兼容端点）：generateText + Output → { comments: [...] }"]
+    R -->|"签名信封自调用续链"| PB["publish：GitHub API 回帖（逐条 PR review comment）+ status 终态（D017）"]
 ```
 
 ## 组件
@@ -19,7 +18,9 @@ flowchart TD
 | 模块 | 职责 | 关键点 |
 |---|---|---|
 | `api/webhook.ts` | Vercel function 薄壳 | 读 raw body（不能碰 `req.body`，惰性解析会消费流破坏验签）+ 响应；`maxDuration: 300`（Hobby 上限） |
-| `src/webhook.ts` | 验签、事件分发、后台审查编排 | HMAC-SHA256 + `timingSafeEqual`，失败 401；只处理 `opened` / `synchronize`（其余含 `ping` 200 忽略）；触发白名单（D021）在调度前按 payload 自带作者过滤，零 GitHub API / 零 LLM token；立即 200 + `waitUntil`（`@vercel/functions`）执行 `runReview`；后台任务失败只记日志不抛出 |
+| `src/webhook.ts` | 验签、事件分发、发 prepare 信封（D026 起为纯分发器，审查编排迁至 `src/worker.ts`） | HMAC-SHA256 + `timingSafeEqual`，失败 401；只处理 `opened` / `synchronize`（其余含 `ping` 200 忽略）；触发白名单（D021）在调度前按 payload 自带作者过滤，零 GitHub API / 零 LLM token；立即 200 + `waitUntil`（`@vercel/functions`）发 prepare 签名信封（`prepareEnvelope` → `chainWorker`），首阶段也跑在新调用里 |
+| `api/worker.ts` | Vercel function 薄壳（D026 阶段机入口，续链自调用的唯一落点） | 读 raw body + 响应；`maxDuration: 300`（Hobby 上限）；body 上限 4.5MB（平台请求体上限，信封中间态默认 ~400KB） |
+| `src/worker.ts` | worker 阶段机（D026）：信封签名/校验 + `prepare` / `review` / `publish` 三阶段 + `chainWorker` 续链 | 信封（stage/hop/ref/issuedAt/state）复用 webhook 的 HMAC-SHA256 验签，头名 `x-worker-signature` 与 GitHub 事件语义区分；三闸：签名 403 / `issuedAt` 10 分钟新鲜度 403 / `hop > 4` 403 + failure status；阶段产物（diff/context/result）随信封直传、不落外部存储；`publish` 二次 dedupe 防重派；续链最多 2 次尝试（间隔 2s），终失败 best-effort 落 failure「审查中断」；`VERCEL_URL` 未设置（本地/单测）直调回退本进程执行下一阶段；依赖注入（schedule/client/review/chain/fetchImpl）便于 mock |
 | `src/review.ts` | 拉 diff → 构造 prompt → LLM 审查 → 结构化输出 | prompt 从 `prompts/review.md` 读取；prompt 构造前 `truncateDiff()` 整文件块预算截断 + 生成物前置过滤（D018/D020）；`generateText` + `Output.object` 强约束 schema；`llm.chat()` 显式走 chat/completions（兼容端点无 Responses API）；`AbortSignal.timeout(LLM_TIMEOUT_MS)` 默认 270s（D011）；`LLM_EXTRA_BODY` 合并进请求体控制 thinking 等端点参数（D012）；usage（token 用量）console 落日志并随返回值返回（`ReviewOutcome = ReviewResult & { usage: TokenUsage }`，端点不返回的字段为 null，D021 待办兑现） |
 | `src/github.ts` | GitHub API 封装：拉 PR diff、发 review comment（有意见 REQUEST_CHANGES，D017）、审查生命周期 status、超时通知、打 severity 标签 | 只依赖 octokit；便于 eval 时 mock；review summary 内嵌 sha 标记（D010）；`postReview` 后自动打 `has-blocker`/`has-major` 标签（minor/nit 不打，Day 6 eval 可当按时间的质量数据）；超大 PR diff 406 兜底（D025）：热路径零改动，406 切 files 分页拼合成可解析 diff，patch 缺失的文件发省略块但保留路径头（zipball 上下文兜全文） |
 | `src/context.ts` | 仓库上下文注入（D023，路线图第 4 项第一阶段）：head zipball 下载（302 手动跟进，凭证只发 GitHub 域 + content-length 预检 + 流式累计封顶）→ fflate 内存解压 → 触及文件全文（`diffTouchedPaths` 由 diff 头确定，diff 顺序逐文件全有或全无）+ 文件树（字母序）拼成自描述上下文块 | best-effort：预算 `CONTEXT_MAX_CHARS`（数值 0 关闭）、下载 10s 硬上限、zipball 压缩 25MB 上限、任何失败返回 null 审查照旧；fork PR 按 head 仓库取快照；纯 JS 解压不依赖 git 二进制、不落 /tmp；生产编排入口 `buildRepoContext`，eval 不经过此路径（promptHash 不变） |
@@ -48,7 +49,8 @@ schema 变更属于破坏性改动：必须同步改 `evals/run.ts` 的打分逻
 
 ## 关键工程机制
 
-- **先 200 再异步**：LLM 审查可能几十秒到数分钟，超过 GitHub webhook 超时会触发重试导致重复评论。用 `waitUntil` 后台执行，HTTP 层立刻返回 200；Vercel Hobby 函数上限 300s（Fluid compute）。
+- **先 200 再异步**：LLM 审查可能几十秒到数分钟，超过 GitHub webhook 超时会触发重试导致重复评论。用 `waitUntil` 后台执行，HTTP 层立刻返回 200；Vercel Hobby 函数上限 300s（Fluid compute）。D026 起调度对象为 prepare 签名信封（见下条），审查本体全部跑在 worker 调用里。
+- **签名信封续链（D026）**：审查拆 `prepare`（dedupe → pending status → 拉 diff/上下文）→ `review`（LLM）→ `publish`（二次 dedupe → 回帖 → status 终态）三阶段，每阶段独立函数调用、独立 300s 预算——突破单函数墙钟，为工具循环/决策模型路由（路线图第 3/4 项）提供「串行深度有界、预算按阶段拆分」的底座。阶段间用 HMAC-SHA256 签名信封（密钥复用 `WEBHOOK_SECRET`，头名 `x-worker-signature` 与 GitHub 事件语义区分）自调用 `/api/worker` 续链：三闸校验（签名 403、`issuedAt` 10 分钟新鲜度 403 限重放窗口、`hop > 4` 403 + failure status 防御性）；阶段产物随信封直传（~400KB 远小于 4.5MB 平台上限，不在外部存中间态、无快照漂移）；续链最多 2 次尝试，终失败 best-effort 落 failure「审查中断」——续链失败不静默，避免永久 pending 黄灯（D017 窗口期语义）；`VERCEL_URL` 未设置（本地/单测）直调回退本进程。信封只能由 webhook/worker 内部铸造（需 `WEBHOOK_SECRET`），陌生人打 `/api/worker` 等价于打 webhook 的验签闸——烧 token 的面没有扩大。
 - **幂等去重**：以 review body 内嵌的 `(repo, commit SHA)` 标记为键（D010），同 SHA 已审直接跳过；超时通知不带标记，同 SHA 重投可重试。
 - **超时降级**（D011）：`AbortSignal.timeout(LLM_TIMEOUT_MS)`（默认 270s）硬超时；超时发 issue comment 告知并提示重推重试。
 - **合并闸门双层强化**（D017）：bot 有意见以 REQUEST_CHANGES 提交 review（GitHub 原生禁合并按钮，重审无意见自动解除）；审查生命周期写 `pr-review` status（pending/success/failure，与线程状态的 review-threads 分离），补上「review 尚未发布」的窗口期；`resolve:threads --yes` 收尾后检测 head SHA 复审在途。

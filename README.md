@@ -21,7 +21,7 @@ flowchart TD
 
 ## 关键工程决策
 
-**先 200 再异步。** LLM 审查耗时不可控（数秒到数分钟），超过 GitHub webhook 超时窗口会触发重试、导致重复评论。HTTP 层立即返回 200，实际审查放 `waitUntil` 后台执行（Vercel 函数上限 300s）。
+**先 200 再异步。** LLM 审查耗时不可控（数秒到数分钟），超过 GitHub webhook 超时窗口会触发重试、导致重复评论。HTTP 层立即返回 200，实际审查放 `waitUntil` 后台执行（Vercel 函数上限 300s）；D026 起审查进一步拆成 prepare → review → publish 三阶段，webhook 只发 prepare 签名信封，阶段间以 HMAC 签名信封自调用续链，每阶段独立 300s 预算、串行深度有界（hop 封顶 4），续链失败落 failure status 不留永久 pending——为工具循环与决策模型路由铺「预算按阶段拆分」的底座。
 
 **幂等去重不建外部存储。** 以 review body 内嵌的 `(repo, commit SHA)` 标记为键，处理事件前查 PR 已有 review——同 SHA 已审直接跳过。零新基建、天然跨实例持久，代价是每次事件多一个只读 API 调用。
 
@@ -90,7 +90,7 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 | [docs/plans/PLAN.md](./docs/plans/PLAN.md) | 项目定位、技术选型、执行计划（交接文档） |
 | [docs/architecture.md](./docs/architecture.md) | 架构：组件、数据流、输出 schema、环境变量 |
 | [docs/deployment.md](./docs/deployment.md) | 部署指南：五步上线路径、安全模型、排障分层 |
-| [docs/decisions.md](./docs/decisions.md) | 技术决策记录（append-only，D001–D024） |
+| [docs/decisions.md](./docs/decisions.md) | 技术决策记录（append-only，D001–D026） |
 | [evals/report.md](./evals/report.md) | prompt 迭代对比报告（方法/数据/局限） |
 | [docs/journal.md](./docs/journal.md) | 开发日志（append-only） |
 | [docs/CHANGELOG.md](./docs/CHANGELOG.md) | 变更记录 |
