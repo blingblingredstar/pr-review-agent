@@ -207,6 +207,16 @@ test("buildRepoContext：预算 0 不发请求；下载失败返回 null；成�
   });
 });
 
+test("resolveSnapshotPath：目录键（尾斜杠）与目录请求同义未命中，不给 0 字符伪成功", () => {
+  const entries = new Map<string, Uint8Array>([
+    ["repo-hash/src/", strToU8("")],
+    ["repo-hash/src/a.ts", strToU8("export const a = 1;")],
+  ]);
+  const reader = fileReaderFromEntries(entries);
+  assert.equal(reader("src/"), null, "目录请求返回 null（file not found 语义）");
+  assert.equal(reader("src/a.ts"), "export const a = 1;", "文件照常命中");
+});
+
 test("resolveSnapshotPath：剥 ./ 前缀、拒绝 .. 段与反斜杠、精确匹配快照键（D027）", () => {
   const entries = new Map<string, Uint8Array>([["src/a.ts", strToU8("x")], ["b.md", strToU8("y")]]);
   assert.equal(resolveSnapshotPath(entries, "src/a.ts"), "src/a.ts", "命中返回快照键原文");

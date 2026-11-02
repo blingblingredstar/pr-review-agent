@@ -4,5 +4,7 @@ export function normalizeSnapshotPath(raw: string): string | null {
   let p = raw.trim();
   while (p.startsWith("./")) p = p.slice(2);
   if (!p || p.includes("\\") || p.split("/").includes("..")) return null;
+  // 目录键（zip 条目带尾斜杠，如 src/）不是文件：伪命中会解码出 0 字符「全文」，模型收不到纠正信号
+  if (p.endsWith("/")) return null;
   return p;
 }
