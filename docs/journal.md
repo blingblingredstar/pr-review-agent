@@ -495,3 +495,24 @@
   - worker 的 promptEstimate 在 plan 生成前算（鸡生蛋）：计划块 ~1k 字符不进 120k 工具规模闸预判，边界漂移属既有软约束口径，代码注释说明、不为它加 plumbing
   - eval 回归硬证据：promptHash `d399f9d4ed17` 不变，35 用例输入 tokens 与基线（16-36-56/16-43-56/16-55-00）逐位一致、合计 23,376（node 脚本逐用例比对，非只看合计）；本轮 recall 92.6%（25/27，linked-08/real-02 沉默——均为基线记录过的轮转沉默类）、injection 拦截 5/6（inj-06 echo 违规 1 条，首次出现，特征串进了意见 body——挂生产观察）；run 22-54-23 落盘入库
 - **下一步**：PR 过 bot 自审与双硬闸门合并；生产配 `DECISION_MODEL` dogfood，`[router] tokens` 日志积累消融表数据；多 agent 分发/`compare.ts` 消融扩展等数据说话后另立
+
+## 2026-11-03 · 会话 29：夜间批量实现（D026 异步化 / D027 工具循环 / D028 决策模型路由，PR #28–#31）
+
+- **目标**：用户睡前指令——把路线图剩余项全部实现、严格串行（一个 PR 全流程闭环再开下一个）、每功能先写 spec（不审批，只留档）、夜间免费 token 一次性用完；点名「真正异步 + read file + super agent（路由/决策模型）」，目标是仓库整体视角的完整 CR。附增需求：文档 ASCII 图 mermaid 化。
+- **完成**（4 个 PR 全部走完 bot 自审 → 意见闭环 → 双硬闸门 → 合并）：
+  - **#28**（docs）：5 张 ASCII 流程图 → mermaid（GitHub 原生渲染），目录树保留；subagent 用 mermaid.parse 全部预校验
+  - **#29**（D026）：真正异步化——worker 阶段机（prepare/review/publish）+ HMAC 签名信封自调用续链，每阶段独立 300s，不引外部队列（QStash 记规模化备选）。15 轮自审，抓出：续链 POST 无超时（major）、4xx 确定性失败不该重试、publish 二次 dedupe 静默留 pending、新鲜度闸不落灯、墙钟算账（LLM 270s+续链 62s > 300s → LLM 封顶 260s + 链超时 10s）、阶段墙钟 race 兜内部挂起、hop 双写冗余（回应不修）
+  - **#30**（D027）：read_file 工具循环——SDK tools+Output 组合在 GLM 端点实测**会伪造「已读文件」**（比不读更糟），按 spec 授权走手工两段协议；120k prompt 规模闸（自身 dogfood 撞墙钟实证）；快照预判用 truncateDiff 后长度。25 轮自审，抓出 major：**工具循环对真实 zipball 全 miss**（单测 fixture 无根段键 + 端点验证时模型恰好没请求文件，双双漏过）、空 readRequests 死循环、origin 自发现是 diff 外泄通道（方案否决回退，续链目标定稿纯环境变量）
+  - **#31**（D028）：决策模型路由第一形态——`DECISION_MODEL` 便宜档 router（文件树+diff 骨架 → ReviewPlan），主评审带计划评审，失败降级；eval 红线靠参数路径保证（与环境解耦）。4 轮自审，抓出 major：预算双重触底漂移（deductBudget 改纯扣减+调用点单次触底）；plan 两段丢弃（核实为误报，prompt 分支前构造，钉死测试留证）
+- **关键事故与恢复**：#29 合并后生产首跑即「审查中断」——chainWorker 用 VERCEL_URL（部署专属 URL）自调被 Standard Protection 403。诊断路径：外部签名信封直打 alias 200（排除验签/解析）→ status 时间线 2s 内 pending→failure（排除超时）→ 定位续链目标。修复在 #30 内；**合并前生产链路不可自愈，PR-30/31 的 bot 审查由编排者以 main 工作树手动补审完成（真实 LLM 真实回帖，status 如实手写并标注，PR 内披露）**
+- **发现 / 坑**：
+  - **夜间自主流程的轮询间隙漏洞**：#29 收尾 `--yes` 时 bot 第 11 轮意见刚好落地被批量 resolve 未及裁定——发现后逐条补核全采纳。教训：收尾 `--yes` 前必须确认最新 review 已读
+  - **编排者自身两次用嵌套 replace 改坏源文件**（`r.replace(old, r.replace(old, new))` 自复制；`open('w')` 先截断后求值抛错清空文件）——都靠 git checkout 恢复。教训：批量文本编辑必须单步 replace + 每步 assert
+  - **bot 意见的「翻旧账」再锚定**：行内线程随 push 重新锚定到新 SHA，按 commit_id 过滤会重复看到旧意见——按 created_at + id 双重去重
+  - eval 红线三次全守住（promptHash `d399f9d4ed17` + 35 例输入 tokens 23,376 逐位一致），单测 76 → 138；inj-06 在 D028 run 里 echo 违规 1 条（基线外首现，挂观察）
+  - 手动补审的「生产等价」口径：main 工作树 + 相同调用链（fetchPr → context → reader）——但 #31 的 router 只能等合并后 dogfood，脚本错拿分支 API 即刻暴露（这是特性不是缺陷）
+- **下一步**：
+  1. **睡醒必做（生产启用）**：Vercel 环境变量配 `WORKER_BASE_URL=https://pr-review-agent-mauve.vercel.app`（webhook 同款 URL；不配则续链回退 VERCEL_URL 403，审查全落「审查中断」——代码已有显式 warn）；可选配 `DECISION_MODEL`（与 LLM_MODEL 同名即可）启用路由
+  2. 生产观测：三段日志行（prepare/review/publish）、`[router] tokens`、D027 工具循环的实际读取行为；inj-06 echo 挂观察
+  3. PR-32 对抗 fixture 扩充（路线图第 5 项）：需要真实 fix 反转构造，留专注会话——夜间赶工出低质 fixture 会污染 eval 集（D015 教训）
+  4. 消融表（路线图第 3 项余下）：生产 run 数据积累后 compare.ts 扩展

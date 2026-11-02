@@ -82,7 +82,7 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 5. **对抗性关联 fixture 扩充**：5 例「表面优化、实际引洞」类关联问题，优先 fix 反转/真实配对构造（手写用例会高估能力，D015），关联命中率在报告单列
 6. **增量审查**（synchronize 只审新 commit）与按 severity 分层的报告门槛细化
 7. **多模型对比**（同一 eval 集跑第二家端点）
-8. **必须长 thinking 时真正异步化**（QStash / Vercel Workflows 突破 300s）——质量触发立项：thinking 关闭后实测单次审查 20 秒级，270s 预算余量约 10 倍，其余路线项均不需此前置，设计约束是「串行深度有界、预算按阶段拆分」
+8. **真正异步化**（~~QStash / Vercel Workflows~~）**已落地（D026）**——零基建方案：worker 阶段机（prepare/review/publish）+ HMAC 签名信封自调用续链，每阶段独立 300s 预算、串行深度有界（hop 封顶 4）；QStash 记为规模化备选。生产注意：续链目标需配 `WORKER_BASE_URL`（公开可达域名），`VERCEL_URL` 部署专属 URL 会被 Standard Protection 403
 9. **多仓产品化**：GitHub App 身份（权限收敛）+ 多租户上下文隔离前置；branch protection 硬闸门已启用（`review-threads` / `pr-review` required check + 会话必须 resolve）
 
 ## 文档导航
