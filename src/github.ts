@@ -56,7 +56,7 @@ export async function fetchPr(
   console.log(
     `[fetchPr] diff API 406（超大 PR），切 files 分页拼合：changed_files=${meta.changed_files} +${meta.additions}/-${meta.deletions}`,
   );
-  const diff = await assembleDiffViaFiles(client, { owner, repo, pullNumber });
+  const diff = await assembleDiffViaFiles(client, { owner, repo, pullNumber }, meta.changed_files);
   return { diff, headSha: meta.head.sha };
 }
 
@@ -93,7 +93,7 @@ export function fileToDiffBlock(file: PrFile): string {
   ].join("\n");
 }
 
-async function assembleDiffViaFiles(client: Octokit, { owner, repo, pullNumber }: PrRef): Promise<string> {
+async function assembleDiffViaFiles(client: Octokit, { owner, repo, pullNumber }: PrRef, changedFiles: number | undefined): Promise<string> {
   const blocks: string[] = [];
   let exhausted = false;
   for (let page = 1; page <= FILES_MAX_PAGES; page++) {
@@ -104,7 +104,10 @@ async function assembleDiffViaFiles(client: Octokit, { owner, repo, pullNumber }
       break;
     }
   }
-  if (!exhausted) {
+  // 截断判定用 meta.changed_files 对账而非「满页即超限」：恰好 3000 文件时 30 页全满但并无省略，
+  // 假的「非全量」信号会诱导模型写「可能遗漏」（PR #27 自审意见）。changed_files 未知时保守给省略行；
+  // 审查期间 PR 有新推送导致对账轻微失真时，方向是「多提示非全量」——宁可保守不装全量
+  if (!exhausted && (changedFiles === undefined || blocks.length < changedFiles)) {
     blocks.push(`[diff 截断] 文件数超过 ${FILES_MAX_PAGES * FILES_PER_PAGE}（files API 上限），其余文件未列出`);
   }
   return blocks.join("\n");

@@ -86,7 +86,7 @@ const error406 = () => {
 
 const metaPayload = { head: { sha: "abc1234def" }, changed_files: 102, additions: 103, deletions: 0 };
 
-function fakeClient(opts: { diffError?: Error; pages: Parameters<typeof fileToDiffBlock>[0][][] }): Octokit & { diffCalls: () => number } {
+function fakeClient(opts: { diffError?: Error; pages: Parameters<typeof fileToDiffBlock>[0][][]; changedFiles?: number }): Octokit & { diffCalls: () => number } {
   let diffCalls = 0;
   return {
     diffCalls: () => diffCalls,
@@ -98,7 +98,7 @@ function fakeClient(opts: { diffError?: Error; pages: Parameters<typeof fileToDi
             if (opts.diffError) throw opts.diffError;
             return { data: "diff --git a/x b/x\n" };
           }
-          return { data: metaPayload };
+          return { data: { ...metaPayload, changed_files: opts.changedFiles ?? metaPayload.changed_files } };
         },
         listFiles: async ({ page }: { page: number }) => ({ data: opts.pages[page - 1] ?? [] }),
       },
@@ -122,13 +122,21 @@ test("fetchPr：diff 406 切 files 分页拼合；省略块路径仍进触及清
 
 test("fetchPr：翻满 30 页仍满页 → 附 files 上限省略行；非 406 错误原样抛出；正常路径不受影响", async () => {
   const fullPage = Array.from({ length: 100 }, (_, i) => prFile({ filename: `p${i}.ts`, patch: "@@ -0,0 +1,1 @@\n+x" }));
-  const { diff } = await fetchPr(fakeClient({ diffError: error406(), pages: Array.from({ length: 31 }, () => fullPage) }), {
+  const { diff } = await fetchPr(fakeClient({ diffError: error406(), changedFiles: 3100, pages: Array.from({ length: 31 }, () => fullPage) }), {
     owner: "o",
     repo: "r",
     pullNumber: 1,
   });
-  assert.ok(diff.includes("文件数超过 3000"), "上限省略行");
+  assert.ok(diff.includes("文件数超过 3000"), "真超限（changed_files 对账更大）时给省略行");
   assert.equal((diff.match(/diff --git /g) ?? []).length, 3000);
+  // 恰好 3000 文件：30 页全满但无省略——「满页即超限」的假信号会诱导模型写「可能遗漏」（自审意见）
+  const exact = await fetchPr(fakeClient({ diffError: error406(), changedFiles: 3000, pages: Array.from({ length: 30 }, () => fullPage) }), {
+    owner: "o",
+    repo: "r",
+    pullNumber: 1,
+  });
+  assert.ok(!exact.diff.includes("文件数超过 3000"), "恰好 3000 不给假省略行");
+  assert.equal((exact.diff.match(/diff --git /g) ?? []).length, 3000);
 
   await assert.rejects(
     fetchPr(fakeClient({ diffError: Object.assign(new Error("boom"), { status: 500 }), pages: [] }), { owner: "o", repo: "r", pullNumber: 1 }),
