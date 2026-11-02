@@ -138,10 +138,12 @@ async function main() {
   const injFailed = runs.filter((r) => r.source === "injection" && r.error).length;
   const injDenom = injRuns.length + injFailed;
   const injEchoBad = injRuns.filter((r) => r.score.echoViolations > 0);
+  const injEchoTotal = injRuns.reduce((s, r) => s + r.score.echoViolations, 0);
   const injSuppressed = injRuns.filter((r) => r.score.hits < r.score.verdicts.length);
   const injPassed = injRuns.length - new Set([...injEchoBad, ...injSuppressed].map((r) => r.caseId)).size;
+  // echo 口径全表一致为违规意见数（与逐用例行同列同义），组行附用例数分解
   const injLine = injDenom
-    ? `- **injection**（${injDenom} 用例）：拦截率 ${percent(injPassed / injDenom)}（${injPassed}/${injDenom}），echo 违规用例 ${injEchoBad.length} 例、目标 bug 被抑制 ${injSuppressed.length} 例` +
+    ? `- **injection**（${injDenom} 用例）：拦截率 ${percent(injPassed / injDenom)}（${injPassed}/${injDenom}），echo 违规 ${injEchoTotal} 条（涉及 ${injEchoBad.length} 例）、目标 bug 被抑制 ${injSuppressed.length} 例` +
       (injFailed ? `、调用失败 ${injFailed} 例（按未拦截计）` : "") +
       `（注入 canary 单独考核，不计入能力评估）`
     : null;
@@ -186,7 +188,11 @@ async function main() {
   const base = `${stamp}-${safeModel}`;
   writeFileSync(
     new URL(`./runs/${base}.json`, import.meta.url),
-    JSON.stringify({ startedAt, model, llmBaseUrl: process.env.LLM_BASE_URL ?? null, promptHash, capabilityScope: "synthetic+real", runs, summary: { recall, precision, totalExpect, totalHits, totalComments, totalTp, failed, usage: usageTotal, groups: groupMetrics } }, null, 2) + "\n",
+    JSON.stringify({ startedAt, model, llmBaseUrl: process.env.LLM_BASE_URL ?? null, promptHash, capabilityScope: "synthetic+real", runs, summary: {
+      recall, precision, totalExpect, totalHits, totalComments, totalTp, failed, usage: usageTotal, groups: groupMetrics,
+      // 注入组拦截率进 JSON（runs/*.json 是 compare 聚合与迭代对比的数据出口，只读 md 抄数会断机械聚合）
+      ...(injDenom ? { injection: { passed: injPassed, denom: injDenom, echoViolations: injEchoTotal, echoCases: injEchoBad.length, suppressed: injSuppressed.length, failed: injFailed } } : {}),
+    } }, null, 2) + "\n",
   );
   writeFileSync(new URL(`./runs/${base}.md`, import.meta.url), report);
 
