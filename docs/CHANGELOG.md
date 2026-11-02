@@ -179,3 +179,7 @@
 - `fetchPr` 热路径零改动（meta+diff 并行保留，`Promise.allSettled` 接管避免 unhandled rejection）；diff 形态超 GitHub 20,000 行硬上限 406 时切显式策略分支：files API 分页（100/页 × 30 页）拼合成可解析 diff——patch 字段即 unified hunk，包标准头后截断/行内定位/上下文触及清单原样消费，下游口径不变
 - patch 缺失的文件（超大单文件/二进制）发 D018 式省略块但保留 `diff --git` 头——路径仍进 `diffTouchedPaths`，zipball 上下文（D023）把全文兜进 prompt，传输层与上下文层盲区互补
 - 「前置预判路由」否决留档（D025）：context 放大系数随 hunk 散布 1×~11×，meta 自由字段没有安全阈值；可靠信号只有 406 本身。单测 +4（76 绿）；spec 见 `docs/plans/large-diff-fetch.md`
+
+### Changed（文档图示 mermaid 化）
+
+- README / docs/architecture.md / docs/plans/PLAN.md / 两份 spec（context-enhancement-phase1、large-diff-fetch）共 5 张 ASCII 流程图改写为 mermaid flowchart（GitHub 原生渲染），语义逐节点对齐原图；目录树类代码块保留原样

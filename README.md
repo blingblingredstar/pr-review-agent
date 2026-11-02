@@ -10,18 +10,13 @@
 
 ## 架构
 
-```
-GitHub PR 事件 (pull_request: opened/synchronize)
-      │ webhook (HMAC-SHA256 签名校验, secret 校验失败丢弃)
-      ▼
-Vercel API route ──立即返回 200，waitUntil 异步处理──┐
-      ▼                                            │
-拉取 PR diff (GitHub API)                          │
-      ▼                                            │
-LLM 审查（OpenAI 兼容端点）：generateText + Output   │
-      → { comments: [{file, line, severity, body}] }│
-      ▼                                            │
-GitHub API 回帖（逐条行内 PR review comment）◄──────┘
+```mermaid
+flowchart TD
+    A["GitHub PR 事件 (pull_request: opened/synchronize)"] -->|"webhook (HMAC-SHA256 签名校验, secret 校验失败丢弃)"| B["Vercel API route"]
+    B --> C["拉取 PR diff (GitHub API)"]
+    C --> D["LLM 审查（OpenAI 兼容端点）：generateText + Output → { comments: [{file, line, severity, body}] }"]
+    D --> E["GitHub API 回帖（逐条行内 PR review comment）"]
+    B -->|"立即返回 200，waitUntil 异步处理"| E
 ```
 
 ## 关键工程决策

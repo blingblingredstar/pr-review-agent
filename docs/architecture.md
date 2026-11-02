@@ -4,19 +4,14 @@
 
 ## 系统上下文
 
-```
-GitHub PR 事件 (pull_request: opened/synchronize)
-      │ webhook (HMAC-SHA256 签名校验, secret 校验失败丢弃)
-      ▼
-Vercel API route ──立即返回 200，waitUntil 异步处理──┐
-      ▼                                            │
-拉取 PR diff (GitHub API)                          │
-      ▼                                            │
-仓库上下文（D023 best-effort：head zipball → 触及文件全文 + 文件树）
-      ▼                                            │
-LLM 审查（OpenAI 兼容端点）：generateText + Output → { comments: [...] }     │
-      ▼                                            │
-GitHub API 回帖（逐条 PR review comment）◄──────────┘
+```mermaid
+flowchart TD
+    A["GitHub PR 事件 (pull_request: opened/synchronize)"] -->|"webhook (HMAC-SHA256 签名校验, secret 校验失败丢弃)"| B["Vercel API route"]
+    B --> C["拉取 PR diff (GitHub API)"]
+    C --> D["仓库上下文（D023 best-effort：head zipball → 触及文件全文 + 文件树）"]
+    D --> E["LLM 审查（OpenAI 兼容端点）：generateText + Output → { comments: [...] }"]
+    E --> F["GitHub API 回帖（逐条 PR review comment）"]
+    B -->|"立即返回 200，waitUntil 异步处理"| F
 ```
 
 ## 组件
