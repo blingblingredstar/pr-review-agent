@@ -349,14 +349,18 @@ export async function reviewDiff(diff: string, context?: string, opts?: ReviewDi
   // 大 prompt 跳过工具循环（本 PR 生产 dogfood 实测：~220KB prompt 第二段实测 ~240s，两段协议延迟 ≈ 2× 单段，
   // 叠加 zipball/续链会撞 285s 阶段墙钟，race 落「审查中断」）。120k 字符下第二段经验上界 ~130s，总预算留有余量；
   // 大 PR 本就靠 D018 截断 + D023 上下文覆盖，工具读取的边际价值最低，跳过不损失能力面
-  if (prompt.length > TOOL_PROMPT_MAX_CHARS && opts?.fileReader && fileToolMaxSteps() > 0) {
-    console.log(`[tools] prompt ${prompt.length} 字符超过 ${TOOL_PROMPT_MAX_CHARS}，跳过工具循环走单段（D027 后果）`);
-  }
-  if (opts?.fileReader && fileToolMaxSteps() > 0 && prompt.length <= TOOL_PROMPT_MAX_CHARS) {
-    // maxSteps=0 = 生产 kill switch：不发起第一段 probe，直接单段（文档语义「显式关闭」对直调同样成立，自审 minor）
-    // read_file 工具循环（D027）：端点实测 SDK tools + Output 组合不可行（response_format 抑制工具调用），
-    // 走 spec 回退形态「两段协议」，见 reviewDiffWithFileReader
-    return reviewDiffWithFileReader(llm, LLM_MODEL, prompt, opts.fileReader, abortSignal);
+  if (opts?.fileReader) {
+    // 工具循环启用闸单点合流（自审 nit：跳过日志与启用条件几乎相同，分写会漂移）：
+    // maxSteps=0 = 生产 kill switch（直调同样成立）；prompt 超 120k 规模闸走单段（D027 后果）
+    const maxSteps = fileToolMaxSteps();
+    if (maxSteps <= 0) console.log("[tools] FILE_TOOL_MAX_STEPS=0，工具循环关闭，走单段");
+    else if (prompt.length > TOOL_PROMPT_MAX_CHARS) {
+      console.log(`[tools] prompt ${prompt.length} 字符超过 ${TOOL_PROMPT_MAX_CHARS}，跳过工具循环走单段（D027 后果）`);
+    } else {
+      // read_file 工具循环（D027）：端点实测 SDK tools + Output 组合不可行（response_format 抑制工具调用），
+      // 走 spec 回退形态「两段协议」，见 reviewDiffWithFileReader
+      return reviewDiffWithFileReader(llm, LLM_MODEL, prompt, opts.fileReader, abortSignal);
+    }
   }
   // .chat() 强制走 /chat/completions：OpenAI 兼容端点（如 GLM）不实现 Responses API；
   // ai v7 起 generateObject 已废弃，结构化输出走 generateText + Output；
@@ -444,31 +448,34 @@ function extractBalancedJson(text: string): unknown {
   } catch {
     // 整段不是纯 JSON：继续扫描第一个平衡对象
   }
-  const start = text.indexOf("{");
-  if (start < 0) return null;
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-  for (let i = start; i < text.length; i++) {
-    const ch = text[i];
-    if (inString) {
-      if (escaped) escaped = false;
-      else if (ch === "\\") escaped = true;
-      else if (ch === '"') inString = false;
-      continue;
-    }
-    if (ch === '"') inString = true;
-    else if (ch === "{") depth++;
-    else if (ch === "}") {
-      depth--;
-      if (depth === 0) {
-        try {
-          return JSON.parse(text.slice(start, i + 1));
-        } catch {
-          return null;
+  let start = text.indexOf("{");
+  while (start >= 0) {
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let i = start; i < text.length; i++) {
+      const ch = text[i];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (ch === "\\") escaped = true;
+        else if (ch === '"') inString = false;
+        continue;
+      }
+      if (ch === '"') inString = true;
+      else if (ch === "{") depth++;
+      else if (ch === "}") {
+        depth--;
+        if (depth === 0) {
+          try {
+            return JSON.parse(text.slice(start, i + 1));
+          } catch {
+            // 该平衡块不可解析（模型先写了伪 JSON 等）：不是终局，继续找下一个平衡块
+            break;
+          }
         }
       }
     }
+    start = text.indexOf("{", start + 1);
   }
   return null;
 }
@@ -485,18 +492,24 @@ export function buildToolBlock(requests: string[], reader: (path: string) => str
       console.log(`[tools] step ${i + 1}: read ${path} (not found)`);
       continue;
     }
+    // 包装头尾计入预算（自审 minor：只算内容则实际注入块可超 FILE_TOOL_BLOCK_MAX_CHARS）
+    const wrapperHead = `=== read_file：${path}（截断）===\n`;
     const remaining = FILE_TOOL_BLOCK_MAX_CHARS - used;
     if (content.length <= remaining) {
       parts.push(`=== read_file：${path}（全文 ${content.length} 字符）===\n${content}`);
       used += content.length;
       console.log(`[tools] step ${i + 1}: read ${path} (${content.length} chars)`);
-    } else if (remaining > 0) {
+    } else if (remaining > wrapperHead.length + 20) {
+      // 码元安全截断（自审 minor）：slice 按 UTF-16 码元切，边界落在代理对中间会产生非法字符进 prompt，
+      // 尾位是高位代理（且下一单位是低位代理）时回退一个码元
+      let cut = remaining - wrapperHead.length - 20;
+      if (0xd800 <= content.charCodeAt(cut - 1)! && content.charCodeAt(cut - 1)! <= 0xdbff) cut -= 1;
       parts.push(
-        `=== read_file：${path}（截断）===\n${content.slice(0, remaining)}` +
-          `\n[read_file] ${path} 超出字符预算截断：仅注入前 ${remaining}/${content.length} 字符`,
+        `${wrapperHead}${content.slice(0, cut)}` +
+          `\n[read_file] ${path} 超出字符预算截断：仅注入前 ${cut}/${content.length} 字符`,
       );
-      used += remaining;
-      console.log(`[tools] step ${i + 1}: read ${path} (${remaining}/${content.length} chars, 截断)`);
+      used += wrapperHead.length + 20 + cut;
+      console.log(`[tools] step ${i + 1}: read ${path} (${cut}/${content.length} chars, 截断)`);
     } else {
       parts.push(`[read_file] ${path} 全文 ${content.length} 字符超出字符预算，未纳入`);
       console.log(`[tools] step ${i + 1}: read ${path} (0/${content.length} chars, 未纳入)`);
