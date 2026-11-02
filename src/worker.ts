@@ -11,7 +11,7 @@ import { verifySignature, header, type WebhookHeaders, type Dispatch } from "./w
 import { fetchPr, getOctokit, postReview, postTimeoutNotice, setReviewStatus, type PrRef } from "./github.ts";
 import { hasReviewed } from "./dedupe.ts";
 import { buildRepoContext, makeFileReader } from "./context.ts";
-import { fileToolEnabled, llmTimeoutMs, reviewDiff, TOOL_PROMPT_MAX_CHARS, truncateDiff, type ReviewDiffOpts, type ReviewOutcome } from "./review.ts";
+import { buildReviewPrompt, fileToolEnabled, llmTimeoutMs, reviewDiff, TOOL_PROMPT_MAX_CHARS, type ReviewDiffOpts, type ReviewOutcome } from "./review.ts";
 
 export type WorkerStage = "prepare" | "review" | "publish";
 
@@ -208,12 +208,10 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
       // 4.5MB 请求体上限），best-effort 失败返回 undefined → 不注入 → 单次调用原路径，绝不连垮审查。
       // 快照预判（自审 minor）：与 reviewDiff 的 TOOL_PROMPT_MAX_CHARS 规模闸同一阈值——大 prompt 场景
       // 工具循环必被跳过，先取快照白吃最多 25MB/10s 预算，且这正是最易撞阶段墙钟的超大 PR 路径。
-      // 用 truncateDiff 后的长度做预判（自审 minor 二轮：D018 先剔生成物再按预算装填，全生成物大 diff
-      // 截断后可远小于 120k，原始 diff 长度做预判会把闸会放行的场景错杀）——与 reviewDiff 闸内实际
-      // 输入完全同源，永不矛盾
-      const promptEstimate =
-        truncateDiff(state.diff).length + (typeof state.context === "string" ? state.context.length : 0);
-      const snapshotSkippedByGate = fileToolEnabled() && promptEstimate >= TOOL_PROMPT_MAX_CHARS;
+      // 用 buildReviewPrompt（与 reviewDiff 同一构造函数，自审三轮：曾用 diff+context 估算出现 +14 偏移
+      // 与 >=/> 比较符的边界分叉）——预判与闸吃同一字符串、同一比较符，永不矛盾
+      const promptEstimate = buildReviewPrompt(state.diff, typeof state.context === "string" ? state.context : undefined).length;
+      const snapshotSkippedByGate = fileToolEnabled() && promptEstimate > TOOL_PROMPT_MAX_CHARS;
       const fileReader =
         fileToolEnabled() && !snapshotSkippedByGate
           ? await makeFileReader(

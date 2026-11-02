@@ -314,6 +314,13 @@ export type ReviewOutcome = ReviewResult & { usage: TokenUsage };
 // worker 侧在重取快照前用同一阈值预判（自审 minor：大 prompt 快照取回不用，白吃预算）
 export const TOOL_PROMPT_MAX_CHARS = 120_000;
 
+// 审查 prompt 的唯一构造点（自审 minor：worker 预判与 reviewDiff 闸判定必须吃同一字符串——
+// 两处各自拼接曾出现 +14 偏移与比较符分叉，边界上判定相反）
+export function buildReviewPrompt(diff: string, context?: string): string {
+  const diffText = truncateDiff(diff);
+  return context ? `${context}\n\n[diff 开始]\n${diffText}` : diffText;
+}
+
 // reviewDiff 可选项（D027）：fileReader 注入即启用 read_file 工具循环（两段协议）；
 // 不传 = 单次调用原路径，prompt/system 字节级不变——eval 红线由构造保证
 export type ReviewDiffOpts = {
@@ -340,10 +347,9 @@ export async function reviewDiff(diff: string, context?: string, opts?: ReviewDi
     throw new Error("缺少环境变量 LLM_BASE_URL / LLM_API_KEY / LLM_MODEL（参照 .env.example 配置 .env）");
   }
   const llm = createOpenAI({ apiKey: LLM_API_KEY, baseURL: LLM_BASE_URL, fetch: withExtraBody(fetch, extraBody()) });
-  const diffText = truncateDiff(diff);
   // 上下文（D023，best-effort）放 diff 之前：diff（含截断省略行）保持在生成前最近位置，行号锚点不受影响；
   // eval 不传 context → prompt 字节级不变（promptHash 稳定是回归对照的前提）
-  const prompt = context ? `${context}\n\n[diff 开始]\n${diffText}` : diffText;
+  const prompt = buildReviewPrompt(diff, context);
   // 一个 abortSignal 贯穿全部步（D027）：调用方 timeoutMs 封顶的是整个工具循环（两段），不只是单次调用；
   // 不传走 LLM_TIMEOUT_MS（D011）
   const abortSignal = AbortSignal.timeout(opts?.timeoutMs ?? llmTimeoutMs());
