@@ -61,7 +61,7 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 
 部署：Vercel（Hobby 免费档即可），事件订阅 `pull_request`（opened / synchronize）。完整步骤（环境变量、webhook 配置、安全模型、排障分层）见 [docs/deployment.md](./docs/deployment.md)。
 
-环境变量：`LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`（OpenAI 兼容端点，换模型只改配置）、`GITHUB_TOKEN`（PAT，拉 diff + 回帖）、`WEBHOOK_SECRET`（验签）、`LLM_TIMEOUT_MS`（默认 270000）、`LLM_EXTRA_BODY`（端点扩展参数 JSON，如 GLM 关 thinking）、`DIFF_MAX_CHARS`（diff 截断预算，默认 300000）、`CONTEXT_MAX_CHARS`（仓库上下文预算，默认 100000，`0` 关闭）、`FILE_TOOL_MAX_STEPS`（read_file 工具循环步预算，默认 2，`0` 关闭）、`REVIEW_TRIGGER_USERS`（触发白名单，逗号分隔 GitHub 用户名，未设置 = 所有人）、`FILE_TOOL_MAX_STEPS`（read_file 工具循环读文件数上限，默认 2，`0` 关闭）、`WORKER_BASE_URL`（**生产必配**：worker 续链的公开可达域名，webhook 同款 URL 即可——`VERCEL_URL` 是部署专属 URL，会被 Standard Protection 403；D026）。
+环境变量：`LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`（OpenAI 兼容端点，换模型只改配置）、`GITHUB_TOKEN`（PAT，拉 diff + 回帖）、`WEBHOOK_SECRET`（验签）、`LLM_TIMEOUT_MS`（默认 270000）、`LLM_EXTRA_BODY`（端点扩展参数 JSON，如 GLM 关 thinking）、`DIFF_MAX_CHARS`（diff 截断预算，默认 300000）、`CONTEXT_MAX_CHARS`（仓库上下文预算，默认 100000，`0` 关闭）、`FILE_TOOL_MAX_STEPS`（read_file 工具循环步预算，默认 2，`0` 关闭）、`REVIEW_TRIGGER_USERS`（触发白名单，逗号分隔 GitHub 用户名，未设置 = 所有人）、`WORKER_BASE_URL`（**生产必配**：worker 续链的公开可达域名，webhook 同款 URL 即可——`VERCEL_URL` 是部署专属 URL，会被 Standard Protection 403；D026）。
 
 ## eval
 
