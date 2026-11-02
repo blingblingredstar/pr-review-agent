@@ -273,6 +273,8 @@ export async function chainWorker(envelope: WorkerEnvelope, deps?: Partial<Worke
         // 单次硬超时：自调用挂起（网络黑洞 / 冷启动卡死）时及时进入重试与落灯路径
         signal: AbortSignal.timeout(d.chainTimeoutMs),
       });
+      // 先消费/取消响应体再判 ok：undici 在 body 未读完前不归还底层连接，2 次重试即漏 2 个 socket（自审 minor）
+      await res.body?.cancel();
       if (res.ok) return;
       lastErr = new Error(`HTTP ${res.status}`);
       // 确定性 4xx（信封超限 413 / 结构非法 400 / 校验拒绝 403）重试必同败，不白等间隔直接终失败；
