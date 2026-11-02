@@ -359,7 +359,7 @@ export async function reviewDiff(diff: string, context?: string, opts?: ReviewDi
     } else {
       // read_file 工具循环（D027）：端点实测 SDK tools + Output 组合不可行（response_format 抑制工具调用），
       // 走 spec 回退形态「两段协议」，见 reviewDiffWithFileReader
-      return reviewDiffWithFileReader(llm, LLM_MODEL, prompt, opts.fileReader, abortSignal);
+      return reviewDiffWithFileReader(llm, LLM_MODEL, prompt, opts.fileReader, abortSignal, maxSteps);
     }
   }
   // .chat() 强制走 /chat/completions：OpenAI 兼容端点（如 GLM）不实现 Responses API；
@@ -496,8 +496,10 @@ export function buildToolBlock(requests: string[], reader: (path: string) => str
     const wrapperHead = `=== read_file：${path}（截断）===\n`;
     const remaining = FILE_TOOL_BLOCK_MAX_CHARS - used;
     if (content.length <= remaining) {
-      parts.push(`=== read_file：${path}（全文 ${content.length} 字符）===\n${content}`);
-      used += content.length;
+      // 与截断分支同口径：拼好片段按实际长度记账（包装头计入，自审 minor）
+      const part = `=== read_file：${path}（全文 ${content.length} 字符）===\n${content}`;
+      parts.push(part);
+      used += part.length;
       console.log(`[tools] step ${i + 1}: read ${path} (${content.length} chars)`);
     } else if (remaining > wrapperHead.length + 20) {
       // 码元安全截断（自审 minor）：slice 按 UTF-16 码元切，边界落在代理对中间会产生非法字符进 prompt，
@@ -529,8 +531,9 @@ async function reviewDiffWithFileReader(
   prompt: string,
   fileReader: (path: string) => string | null,
   abortSignal: AbortSignal,
+  // 调用方已读过并据此放行（启用闸单点合流），作参数下传消除两处读 env 的理论分叉（自审降级 nit）
+  maxSteps: number,
 ): Promise<ReviewOutcome> {
-  const maxSteps = fileToolMaxSteps();
   // system 追加指令来自 prompts/review-tools.md（仅 fileReader 注入时拼接）；review.md 一字不动
   const system = `${loadPrompt()}\n\n${loadToolsPrompt()}`;
   const probe = await generateText({ model: llm.chat(modelId), system, prompt, abortSignal });
