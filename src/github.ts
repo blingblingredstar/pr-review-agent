@@ -54,7 +54,7 @@ export async function fetchPr(
   if (metaSettled.status === "rejected") throw metaSettled.reason;
   const meta = metaSettled.value.data;
   console.log(
-    `[fetchPr] diff API 406（超大 PR），切 files 分页拼合：changed_files=${meta.changed_files} +${meta.additions}/-${meta.deletions}`,
+    `[fetchPr] diff API 406（超大 PR），切 files 分页拼合：changed_files=${meta.changed_files ?? "未知"} +${meta.additions ?? "?"}/-${meta.deletions ?? "?"}`,
   );
   const diff = await assembleDiffViaFiles(client, { owner, repo, pullNumber }, meta.changed_files);
   return { diff, headSha: meta.head.sha };
