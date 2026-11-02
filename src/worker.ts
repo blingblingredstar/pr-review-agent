@@ -11,7 +11,7 @@ import { verifySignature, header, type WebhookHeaders, type Dispatch } from "./w
 import { fetchPr, getOctokit, postReview, postTimeoutNotice, setReviewStatus, type PrRef } from "./github.ts";
 import { hasReviewed } from "./dedupe.ts";
 import { buildRepoContext, makeFileReader } from "./context.ts";
-import { fileToolEnabled, llmTimeoutMs, reviewDiff, TOOL_PROMPT_MAX_CHARS, type ReviewDiffOpts, type ReviewOutcome } from "./review.ts";
+import { fileToolEnabled, llmTimeoutMs, reviewDiff, TOOL_PROMPT_MAX_CHARS, truncateDiff, type ReviewDiffOpts, type ReviewOutcome } from "./review.ts";
 
 export type WorkerStage = "prepare" | "review" | "publish";
 
@@ -208,17 +208,25 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
       // 4.5MB 请求体上限），best-effort 失败返回 undefined → 不注入 → 单次调用原路径，绝不连垮审查。
       // 快照预判（自审 minor）：与 reviewDiff 的 TOOL_PROMPT_MAX_CHARS 规模闸同一阈值——大 prompt 场景
       // 工具循环必被跳过，先取快照白吃最多 25MB/10s 预算，且这正是最易撞阶段墙钟的超大 PR 路径。
-      // 预判与闸同向的证明：diff ≤ 300k（D018 闸内）时 prompt = diff+context+14 = est+14；diff > 300k 时
-      // prompt ≥ 300k > 本闸——即 est ≥ 120k ⟹ 实际 prompt ≥ 120k，此处跳过与 reviewDiff 的闸永不矛盾
-      const promptEstimate = state.diff.length + (typeof state.context === "string" ? state.context.length : 0);
+      // 用 truncateDiff 后的长度做预判（自审 minor 二轮：D018 先剔生成物再按预算装填，全生成物大 diff
+      // 截断后可远小于 120k，原始 diff 长度做预判会把闸会放行的场景错杀）——与 reviewDiff 闸内实际
+      // 输入完全同源，永不矛盾
+      const promptEstimate =
+        truncateDiff(state.diff).length + (typeof state.context === "string" ? state.context.length : 0);
+      const snapshotSkippedByGate = fileToolEnabled() && promptEstimate >= TOOL_PROMPT_MAX_CHARS;
       const fileReader =
-        fileToolEnabled() && promptEstimate < TOOL_PROMPT_MAX_CHARS
+        fileToolEnabled() && !snapshotSkippedByGate
           ? await makeFileReader(
               { headRepo: ref.headRepo ?? `${ref.owner}/${ref.repo}`, headSha: ref.headSha },
               deps.fetchImpl,
             )
           : undefined;
-      console.log(`[worker] ${key} review 阶段 fileReader ${fileReader ? "生效（D027 工具循环）" : "未注入（关闭或快照失败降级）"}`);
+      const fileReaderNote = fileReader
+        ? "生效（D027 工具循环）"
+        : snapshotSkippedByGate
+          ? "未注入（prompt 超规模闸，跳过快照与工具循环）"
+          : "未注入（关闭或快照失败降级）";
+      console.log(`[worker] ${key} review 阶段 fileReader ${fileReaderNote}`);
       const result = await deps.review(state.diff, state.context ?? undefined, {
         timeoutMs: effectiveLlmTimeoutMs,
         fileReader,
