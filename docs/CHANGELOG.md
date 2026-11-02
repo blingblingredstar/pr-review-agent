@@ -186,7 +186,7 @@
 
 ### Fixed（续链目标被 Standard Protection 挡掉，PR #30 dogfood 实证）
 
-- #29 合并后首次生产运行即「审查中断」：chainWorker 用 VERCEL_URL（部署专属 URL）自调，Vercel Standard Protection 403 秒败（确定性 4xx 直落灯，重试不白等的设计恰好把故障快速暴露）。续链目标改为三级：`WORKER_BASE_URL` 显式配置 > 信封自带 origin（webhook 从请求 Host 自发现公开入口，全链路传递）> VERCEL_URL 兜底；origin 不可信面评估见 D026 后果区
+- #29 合并后首次生产运行即「审查中断」：chainWorker 用 VERCEL_URL（部署专属 URL）自调，Vercel Standard Protection 403 秒败（确定性 4xx 直落灯，重试不白等的设计恰好把故障快速暴露）。续链目标定稿为 `WORKER_BASE_URL` 显式环境变量 > VERCEL_URL 兜底；中途的「信封 origin 自发现」方案被自审二轮否决回退（重放 webhook + 伪造 Host = 信封内 diff 外泄通道，评估漏了随信封直传的产物泄露面）——续链目标不含任何请求头派生输入；kill switch（FILE_TOOL_MAX_STEPS=0）语义对齐直调路径
 
 ### Added（真正异步化 worker 阶段机，D026）
 

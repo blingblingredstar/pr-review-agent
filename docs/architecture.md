@@ -75,7 +75,7 @@ schema 变更属于破坏性改动：必须同步改 `evals/run.ts` 的打分逻
 | `DIFF_MAX_CHARS` | diff 截断预算（字符） | 默认 300000；超预算按整文件块丢弃，生成物前置排除、其余小文件优先（D018/D020）；非法值告警回退默认 |
 | `CONTEXT_MAX_CHARS` | 仓库上下文预算（字符） | 默认 100000；触及文件全文 + 文件树的独立预算，`0` 显式关闭上下文注入（D023）；非法值告警回退默认 |
 | `FILE_TOOL_MAX_STEPS` | read_file 工具循环步预算（文件数） | 默认 2；数值 `0` 显式关闭工具循环（生产 kill switch，D027）；非法值告警回退默认 |
-| `WORKER_BASE_URL` | worker 续链显式入口（可选） | 默认从 webhook 请求 Host 自发现（origin 随信封传递），再回退 VERCEL_URL；仅部署 URL 被平台保护且自发现不可用时配置（D026 生产修正） |
+| `WORKER_BASE_URL` | worker 续链公开入口（生产必配） | VERCEL_URL 是部署专属 URL（Standard Protection 会挡），续链目标须为公开可达域名（webhook 同款 URL 即可）；不含任何请求头派生值（D026 生产修正 + 自审二轮回退记录） |
 | `REVIEW_TRIGGER_USERS` | 触发白名单 | 逗号分隔 GitHub 用户名，仅名单内 PR 作者触发审查；未设置 = 所有人，`*` = 显式全放行（D021） |
 
 ## 待定问题
