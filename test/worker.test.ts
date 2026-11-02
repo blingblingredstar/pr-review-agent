@@ -675,7 +675,9 @@ test("chainBase：WORKER_BASE_URL 合法生效（剥尾斜杠）、漏 scheme wa
     process.env.VERCEL_URL = "proj-abc.vercel.app";
     assert.equal(chainBase(), "https://proj-abc.vercel.app", "VERCEL_URL 兜底（Standard Protection 下会 403，仅作最后兜底）");
     process.env.WORKER_BASE_URL = "demo.vercel.app";
-    assert.equal(chainBase(), "https://proj-abc.vercel.app", "漏 scheme 不合法，warn 后回退 VERCEL_URL");
+    assert.equal(chainBase(), "https://proj-abc.vercel.app", "漏 scheme 不合法，warn 后按未配置处理");
+    process.env.WORKER_BASE_URL = "https://host?x=1";
+    assert.equal(chainBase(), "https://proj-abc.vercel.app", "带 query 不合法（URL 解析断言 pathname），回退 VERCEL_URL");
     process.env.WORKER_BASE_URL = "https://custom.example.com/";
     assert.equal(chainBase(), "https://custom.example.com", "显式配置最高优先（剥尾斜杠）");
   } finally {

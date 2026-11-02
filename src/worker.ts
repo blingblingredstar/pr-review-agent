@@ -397,12 +397,23 @@ function sleep(ms: number): Promise<void> {
 
 // 续链 base 选择：WORKER_BASE_URL（无路径 http(s) URL，不合法 warn 后视为未配置）> VERCEL_URL；
 // 不引任何请求头派生值（PR #30 自审二轮：origin 自发现是 diff 外泄通道，见 chainWorker 注释）
+// 无路径 http(s) 绝对 URL 校验：正则会放过 `?`/`#`（拼出来 query 在前打到错误路径），用 URL 解析断言
+// protocol 与空 pathname（自审 minor）
+function isValidChainBase(v: string): boolean {
+  try {
+    const u = new URL(v);
+    return (u.protocol === "http:" || u.protocol === "https:") && (u.pathname === "" || u.pathname === "/") && !u.search && !u.hash;
+  } catch {
+    return false;
+  }
+}
+
 export function chainBase(): string | undefined {
   const explicit = process.env.WORKER_BASE_URL?.trim();
   let explicitState: "ok" | "invalid" | "unset" = "unset";
   if (explicit) {
-    if (!/^https?:\/\/[^/\s]+$/.test(explicit.replace(/\/+$/, ""))) {
-      console.error(`[worker] WORKER_BASE_URL="${explicit}" 不是无路径的 http(s) URL，忽略，回退 VERCEL_URL`);
+    if (!isValidChainBase(explicit)) {
+      console.error(`[worker] WORKER_BASE_URL="${explicit}" 不是无路径的 http(s) URL，忽略，按未配置处理`);
       explicitState = "invalid";
     } else {
       return explicit.replace(/\/+$/, "");
