@@ -352,7 +352,8 @@ export async function reviewDiff(diff: string, context?: string, opts?: ReviewDi
   if (prompt.length > TOOL_PROMPT_MAX_CHARS && opts?.fileReader) {
     console.log(`[tools] prompt ${prompt.length} 字符超过 ${TOOL_PROMPT_MAX_CHARS}，跳过工具循环走单段（D027 后果）`);
   }
-  if (opts?.fileReader && prompt.length <= TOOL_PROMPT_MAX_CHARS) {
+  if (opts?.fileReader && fileToolMaxSteps() > 0 && prompt.length <= TOOL_PROMPT_MAX_CHARS) {
+    // maxSteps=0 = 生产 kill switch：不发起第一段 probe，直接单段（文档语义「显式关闭」对直调同样成立，自审 minor）
     // read_file 工具循环（D027）：端点实测 SDK tools + Output 组合不可行（response_format 抑制工具调用），
     // 走 spec 回退形态「两段协议」，见 reviewDiffWithFileReader
     return reviewDiffWithFileReader(llm, LLM_MODEL, prompt, opts.fileReader, abortSignal);

@@ -25,9 +25,6 @@ export type WorkerEnvelope = {
   ref: PrRef & { headSha: string; headRepo?: string };
   issuedAt: number; // Date.now()，新鲜度窗口校验
   state?: Record<string, unknown>; // prepare→review 带 diff/context；review→publish 累积带 result
-  // 自发现的公开入口（webhook 从请求 Host 取，首个续链沿用）：VERCEL_URL 是部署专属 URL，
-  // Standard Protection 下自调 403（生产实测，PR #30 dogfood）——优先级 WORKER_BASE_URL > origin > VERCEL_URL
-  origin?: string;
 };
 
 // hop 封顶：固定三跳理论上到不了，防御后续阶段扩展期（review 阶段内扩展轮数）的失控循环
@@ -84,8 +81,8 @@ export function defaultWorkerDeps(): WorkerDeps {
 
 // webhook 的调度对象（D026）：从「整个 runReview」改为「发 prepare 信封」——首个阶段也跑在新调用里，
 // 所有阶段共用同一条代码路径，没有「第一阶段特殊」的分支
-export function prepareEnvelope(ref: PrRef & { headSha: string; headRepo?: string }, origin?: string): WorkerEnvelope {
-  return { v: 1, stage: "prepare", hop: 0, ref, issuedAt: Date.now(), origin };
+export function prepareEnvelope(ref: PrRef & { headSha: string; headRepo?: string }): WorkerEnvelope {
+  return { v: 1, stage: "prepare", hop: 0, ref, issuedAt: Date.now() };
 }
 
 function stageKey(ref: PrRef & { headSha: string }): string {
@@ -201,7 +198,7 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
       const { diff } = await fetchPr(client, ref);
       // 仓库上下文（D023，best-effort）：失败返回 null、审查照旧，绝不连垮主流程
       const context = await buildRepoContext({ headRepo: ref.headRepo ?? `${ref.owner}/${ref.repo}`, headSha: ref.headSha, diff });
-      await deps.chain({ v: 1, stage: "review", hop: envelope.hop + 1, ref, issuedAt: Date.now(), state: { diff, context }, origin: envelope.origin });
+      await deps.chain({ v: 1, stage: "review", hop: envelope.hop + 1, ref, issuedAt: Date.now(), state: { diff, context } });
       return;
     }
     if (envelope.stage === "review") {
@@ -221,7 +218,7 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
         fileReader,
       });
       // state 累积传递：publish 的 postReview 仍需 diff 做行内预定位（splitByLocatable）
-      await deps.chain({ v: 1, stage: "publish", hop: envelope.hop + 1, ref, issuedAt: Date.now(), state: { ...state, result }, origin: envelope.origin });
+      await deps.chain({ v: 1, stage: "publish", hop: envelope.hop + 1, ref, issuedAt: Date.now(), state: { ...state, result } });
       return;
     }
     // publish（终态）：二次 dedupe 防重派——续链重试/信封重放会把 publish 再投一次（D026「明确不做」幂等键，
@@ -336,12 +333,12 @@ export async function chainWorker(envelope: WorkerEnvelope, deps?: Partial<Worke
     chain: deps?.chain ?? ((next) => chainWorker(next, deps)),
   };
   const key = stageKey(envelope.ref);
-  // 续链目标（优先级）：WORKER_BASE_URL 显式配置 > 信封自带 origin（webhook 从请求 Host 自发现的公开入口）
-  // > VERCEL_URL 兜底。VERCEL_URL 是部署专属 URL，Vercel Standard Protection 会挡它（生产实测 403 秒败，
-  // PR #30 dogfood 抓到）——alias 域名才公开可达。origin 形如 https://host，仅接受无路径的绝对 http(s) URL，
-  // 不合法一律回退 VERCEL_URL（origin 来自请求头，不可信面按「只能把我们自己的签名信封送到别处」评估：信封
-  // 需 secret 才能铸造，收方拿到也无法改写或伪造新信封，最坏是重放给真 worker，dedupe 吸收）
-  const base = chainBase(envelope);
+  // 续链目标：WORKER_BASE_URL 显式配置 > VERCEL_URL 兜底。VERCEL_URL 是部署专属 URL，Vercel Standard
+  // Protection 会挡它（生产实测 403 秒败，PR #30 dogfood 抓到）——alias 域名才公开可达。
+  // 曾实现「webhook 从请求 Host 自发现 origin 随信封传递」，自审二轮否决：重放的 webhook payload 带合法
+  // GitHub 签名、可伪造 Host 头，origin 即成「信封内 diff/context 送往攻击者服务器」的外泄通道——
+  // 续链目标里不能有任何请求头派生的输入，显式环境变量是唯一可信源
+  const base = chainBase();
   if (!base) {
     // 全部未设置（本地 scripts / 单测）→ 不走 HTTP，直接在本进程执行下一阶段（同 schedule 直调语义）——
     // 本地链路与生产行为一致、可单测
@@ -393,20 +390,17 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// 续链 base 选择：WORKER_BASE_URL > envelope.origin > VERCEL_URL；origin 必须是无路径的 http(s) 绝对 URL
-export function chainBase(envelope: Pick<WorkerEnvelope, "origin">): string | undefined {
+// 续链 base 选择：WORKER_BASE_URL（无路径 http(s) URL，不合法 warn 后视为未配置）> VERCEL_URL；
+// 不引任何请求头派生值（PR #30 自审二轮：origin 自发现是 diff 外泄通道，见 chainWorker 注释）
+export function chainBase(): string | undefined {
   const explicit = process.env.WORKER_BASE_URL?.trim();
   if (explicit) {
-    // 显式配置与 origin 同一合法性口径（PR #30 自审 minor）：漏 scheme 的值会拼出无效 URL，
-    // fetch 抛错走重试后落「审查中断」，排障只见网络异常看不到根因——不合法 warn 后回退下一级
     if (!/^https?:\/\/[^/\s]+$/.test(explicit.replace(/\/+$/, ""))) {
-      console.error(`[worker] WORKER_BASE_URL="${explicit}" 不是无路径的 http(s) URL，忽略，回退 origin/VERCEL_URL`);
+      console.error(`[worker] WORKER_BASE_URL="${explicit}" 不是无路径的 http(s) URL，忽略，回退 VERCEL_URL`);
     } else {
       return explicit.replace(/\/+$/, "");
     }
   }
-  const origin = envelope.origin?.trim();
-  if (origin && /^https?:\/\/[^/\s]+$/.test(origin)) return origin.replace(/\/+$/, "");
   const vercel = process.env.VERCEL_URL?.trim();
   return vercel ? `https://${vercel}` : undefined;
 }
