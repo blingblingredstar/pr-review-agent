@@ -649,24 +649,24 @@ test("worker review 阶段接线：快照重取失败 → fileReader undefined �
   assert.equal(received[0]!.fileReader, undefined, "快照失败返回 undefined → 不注入 → 单次调用原路径");
 });
 
-test("chainBase：WORKER_BASE_URL 合法生效（剥尾斜杠）、漏 scheme warn 后视为未配置、VERCEL_URL 兜底、全空 undefined（本地直调）", async () => {
-  const saved = { W: process.env.WORKER_BASE_URL, V: process.env.VERCEL_URL };
-  try {
-    delete process.env.WORKER_BASE_URL;
-    delete process.env.VERCEL_URL;
+test("chainBase：WORKER_BASE_URL 合法生效（剥尾斜杠）、非法（漏 scheme/带 query）按未配置处理、VERCEL_URL 兜底、全空 undefined（本地直调）", async () => {
+  const { client } = fakeClient();
+  await withEnv({ WORKER_BASE_URL: undefined, VERCEL_URL: undefined }, async () => {
     assert.equal(chainBase(), undefined, "全空 → 本地直调回退");
-    process.env.VERCEL_URL = "proj-abc.vercel.app";
+  });
+  await withEnv({ WORKER_BASE_URL: undefined, VERCEL_URL: "proj-abc.vercel.app" }, async () => {
     assert.equal(chainBase(), "https://proj-abc.vercel.app", "VERCEL_URL 兜底（Standard Protection 下会 403，仅作最后兜底）");
-    process.env.WORKER_BASE_URL = "demo.vercel.app";
+  });
+  await withEnv({ WORKER_BASE_URL: "demo.vercel.app", VERCEL_URL: "proj-abc.vercel.app" }, async () => {
     assert.equal(chainBase(), "https://proj-abc.vercel.app", "漏 scheme 不合法，warn 后按未配置处理");
-    process.env.WORKER_BASE_URL = "https://host?x=1";
+  });
+  await withEnv({ WORKER_BASE_URL: "https://host?x=1", VERCEL_URL: "proj-abc.vercel.app" }, async () => {
     assert.equal(chainBase(), "https://proj-abc.vercel.app", "带 query 不合法（URL 解析断言 pathname），回退 VERCEL_URL");
-    process.env.WORKER_BASE_URL = "https://custom.example.com/";
+  });
+  await withEnv({ WORKER_BASE_URL: "https://custom.example.com/", VERCEL_URL: "proj-abc.vercel.app" }, async () => {
     assert.equal(chainBase(), "https://custom.example.com", "显式配置最高优先（剥尾斜杠）");
-  } finally {
-    if (saved.W === undefined) delete process.env.WORKER_BASE_URL; else process.env.WORKER_BASE_URL = saved.W;
-    if (saved.V === undefined) delete process.env.VERCEL_URL; else process.env.VERCEL_URL = saved.V;
-  }
+  });
+  void client;
 });
 
 
