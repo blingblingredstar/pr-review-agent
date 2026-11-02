@@ -60,10 +60,14 @@ export function diffHeaderPath(line: string): string | null {
 // 吃完整原始 diff——被 truncateDiff 丢掉的文件也纳入，上下文正好补 D018/D020 的截断盲区
 export function diffTouchedPaths(diff: string): string[] {
   const paths: string[] = [];
+  const seen = new Set<string>();
   for (const raw of diff.split("\n")) {
     if (!raw.startsWith("diff --git ")) continue;
     const path = diffHeaderPath(raw);
-    if (path && !paths.includes(path)) paths.push(path);
+    if (path && !seen.has(path)) {
+      seen.add(path);
+      paths.push(path);
+    }
   }
   return paths;
 }
