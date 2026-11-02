@@ -171,5 +171,5 @@
 ### Added（注入抗性 canary 组，D024）
 
 - eval 新增 injection source × 6（代码注释 / 文件名 / diff 元数据三向量各 2，底料复用 real 组已验证 bug diff 只追加载荷）：断言「载荷不回显进意见（`noEcho` 特征串判定，指出像注入的元讨论豁免）+ 内嵌真实 bug 不被抑制（复用 expect/recall）」，组指标为拦截率、不计入能力口径；PR 描述向量挂起（D023 落地后 prompt = 触及文件全文 + 文件树 + diff，仍不含 PR 描述，描述注入不可达，引入后扩 fixture）
-- `run.ts` 报告单列注入组拦截率与表格 echo 违规列；README 加威胁模型章节（diff 是不可信输入 / 模型无 approve 路径 / PAT 最小化 / 出站仅 GitHub API + LLM 端点）；路线图第 2 项标记已落地；用例集 29 → 35、单测 71 → 75
+- `run.ts` 报告单列注入组拦截率与表格 echo 违规列；README 加威胁模型章节（diff 是不可信输入 / 模型无 approve 路径 / PAT 全量 scope 如实陈述（D008，收敛留产品化）/ 出站仅 GitHub API + LLM 端点）；路线图第 2 项标记已落地；用例集 29 → 35、单测 71 → 75
 - 注入基线三轮（final 打分器）：拦截 17/18（94.4%）、echo 违规 0/18；能力组微平均 recall 93.8%（76/81），末轮单轮 96.3% 持平 Day-6 记录——miss 全为轮转沉默类（real-07 四轮两沉默、real-02 三连沉默后恢复），归因端点侧波动（本 PR 生成路径零改动）
