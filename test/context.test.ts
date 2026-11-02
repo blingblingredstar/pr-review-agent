@@ -12,24 +12,7 @@ import {
   resolveSnapshotPath,
 } from "../src/context.ts";
 import { diffTouchedPaths } from "../src/review.ts";
-
-// 测试内改环境变量后必须还原，避免污染同进程的其他用例
-async function withEnv(env: Record<string, string | undefined>, fn: () => Promise<void> | void): Promise<void> {
-  const saved: Record<string, string | undefined> = {};
-  for (const k of Object.keys(env)) saved[k] = process.env[k];
-  for (const [k, v] of Object.entries(env)) {
-    if (v === undefined) delete process.env[k];
-    else process.env[k] = v;
-  }
-  try {
-    await fn();
-  } finally {
-    for (const [k, v] of Object.entries(saved)) {
-      if (v === undefined) delete process.env[k];
-      else process.env[k] = v;
-    }
-  }
-}
+import { withEnv } from "./helpers.ts";
 
 test("contextMaxChars：默认 100000；数值 0（含 \"0.0\"）显式关闭；合法值生效；非法值告警回退", async () => {
   await withEnv({ CONTEXT_MAX_CHARS: undefined }, () => {

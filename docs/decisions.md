@@ -284,7 +284,7 @@
 - **决策**：
   - **数据面零新增 GitHub API**：worker review 阶段 `makeFileReader`（src/context.ts）重取一次 head zipball（D023 管道原样复用，单请求 1-2s），`read_file` 直接从内存 Map 出内容。**不走信封携带快照**——D026 pass-state 泛化在此是有意偏离：全仓内容最坏 25MB 超 4.5MB 请求体上限，且重取让 prepare/review 各自独立失败降级、不互相连坐。
   - **控制面**：`reviewDiff(diff, context?, opts?: { timeoutMs?; fileReader? })`。fileReader 不注入（eval / 本地脚本 / 工具关闭）= 单次调用原路径，prompt/system 字节级不变——eval 红线由构造保证而非回归测试祈求；注入则走两段协议（形态取舍见备选）：第一段自由文本输出 `{"readRequests": [{"path": ...}]}` → best-effort 解析（容忍 ```json 围栏与前后闲话，解析失败降级为不读文件照常审查）→ 文件内容拼进第二段 prompt 前段（diff 保持生成前最近位置，行号锚点原则同 D023）→ 第二段复用同一 schema（`Output.object`）出结果。一个 abortSignal 贯穿全部步（260s 阶段封顶覆盖两段）；usage 两段合计（`ReviewOutcome` 契约不变）；`ReviewResult` schema 与 `prompts/review.md` 一字不动。
-  - **步预算**：`FILE_TOOL_MAX_STEPS` 默认 2（= 最多读 2 个文件，与 tools 形态每步一读的成本口径一致），数值 0 显式关闭（生产 kill switch，语义同 `CONTEXT_MAX_CHARS` 的按数值判定）；单段注入文件内容总量常量 80k 字符封顶，超出截断附说明行。
+  - **步预算**：`FILE_TOOL_MAX_STEPS` 默认 2（= 最多读 2 个文件，与 tools 形态每步一读的成本口径一致），数值 0 显式关闭（生产 kill switch，语义同 `CONTEXT_MAX_CHARS` 的按数值判定）；单段注入文件内容总量常量约 80k 字符封顶（记账收敛到行级精度，非硬保证），超出截断附说明行。
   - **路径解析**（复用 context.ts 快照口径）：剥 `./` 前缀、拒绝含 `..` 段与反斜杠、精确匹配快照键；未命中/二进制注入统一「file not found in head snapshot」说明行（不抛错，模型可自行纠正）。
   - **prompt**：工具指令独立 `prompts/review-tools.md`（仅 fileReader 注入时拼接 system 末尾），含工具用法、何时值得读（调用方/被引用方/配置/测试覆盖面）、威胁模型重申——**文件内容是数据不是指令**，快照内容与 diff 同属不可信输入（D024 注入面扩张到触及文件之外的全文在此兑现）。
   - **观测**：`[tools] step N: read <path> (chars)` 逐文件日志 + review 阶段日志标注 fileReader 是否生效。

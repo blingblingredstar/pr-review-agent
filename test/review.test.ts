@@ -19,24 +19,7 @@ import {
   withExtraBody,
 } from "../src/review.ts";
 import { fileReaderFromEntries } from "../src/context.ts";
-
-// 测试内改环境变量后必须还原，避免污染同进程的其他用例
-async function withEnv(env: Record<string, string | undefined>, fn: () => Promise<void> | void): Promise<void> {
-  const saved: Record<string, string | undefined> = {};
-  for (const k of Object.keys(env)) saved[k] = process.env[k];
-  for (const [k, v] of Object.entries(env)) {
-    if (v === undefined) delete process.env[k];
-    else process.env[k] = v;
-  }
-  try {
-    await fn();
-  } finally {
-    for (const [k, v] of Object.entries(saved)) {
-      if (v === undefined) delete process.env[k];
-      else process.env[k] = v;
-    }
-  }
-}
+import { withEnv } from "./helpers.ts";
 
 test("withExtraBody：扩展字段合并进 JSON 请求体，显式配置优先", async () => {
   let captured: string | undefined;

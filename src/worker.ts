@@ -415,12 +415,18 @@ function isValidChainBase(v: string): boolean {
   }
 }
 
+let warnedInvalidWorkerBase = false;
+
 export function chainBase(): string | undefined {
   const explicit = process.env.WORKER_BASE_URL?.trim();
   let explicitState: "ok" | "invalid" | "unset" = "unset";
   if (explicit) {
     if (!isValidChainBase(explicit)) {
-      console.error(`[worker] WORKER_BASE_URL="${explicit}" 不是无路径的 http(s) URL，忽略，按未配置处理`);
+      // 一次审查至少两跳、每跳最多 2 次重试——同一配置错误会重复走到，告警一次即可（自审 minor）
+      if (!warnedInvalidWorkerBase) {
+        console.error(`[worker] WORKER_BASE_URL="${explicit}" 不是无路径的 http(s) URL，忽略，按未配置处理`);
+        warnedInvalidWorkerBase = true;
+      }
       explicitState = "invalid";
     } else {
       return explicit.replace(/\/+$/, "");

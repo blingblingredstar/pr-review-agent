@@ -17,6 +17,7 @@ import {
 import { handleWebhook } from "../src/webhook.ts";
 import { reviewMarker } from "../src/dedupe.ts";
 import { llmTimeoutMs, type ReviewDiffOpts, type ReviewOutcome } from "../src/review.ts";
+import { withEnv } from "./helpers.ts";
 
 const SECRET = "test-secret";
 process.env.WEBHOOK_SECRET ??= SECRET;
@@ -25,24 +26,6 @@ process.env.CONTEXT_MAX_CHARS ??= "0";
 // worker 接线的工具循环默认开（D027）——除专属接线用例外统一关闭，避免默认路径发 zipball 请求
 process.env.FILE_TOOL_MAX_STEPS ??= "0";
 delete process.env.VERCEL_URL;
-
-// 测试内改环境变量后必须还原，避免污染同进程的其他用例
-async function withEnv(env: Record<string, string | undefined>, fn: () => Promise<void> | void): Promise<void> {
-  const saved: Record<string, string | undefined> = {};
-  for (const k of Object.keys(env)) saved[k] = process.env[k];
-  for (const [k, v] of Object.entries(env)) {
-    if (v === undefined) delete process.env[k];
-    else process.env[k] = v;
-  }
-  try {
-    await fn();
-  } finally {
-    for (const [k, v] of Object.entries(saved)) {
-      if (v === undefined) delete process.env[k];
-      else process.env[k] = v;
-    }
-  }
-}
 
 const REF = { owner: "acme", repo: "demo", pullNumber: 7, headSha: "abc123def4567890" };
 
