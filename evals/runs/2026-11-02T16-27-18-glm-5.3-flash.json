@@ -4,6 +4,7 @@
   "llmBaseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
   "promptHash": "d399f9d4ed17",
   "capabilityScope": "synthetic+real",
+  "schemaVersion": 0,
   "runs": [
     {
       "caseId": "bug-01-pagination-off-by-one",

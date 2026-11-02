@@ -190,7 +190,9 @@ async function main() {
   const base = `${stamp}-${safeModel}`;
   writeFileSync(
     new URL(`./runs/${base}.json`, import.meta.url),
-    JSON.stringify({ startedAt, model, llmBaseUrl: process.env.LLM_BASE_URL ?? null, promptHash, capabilityScope: "synthetic+real", runs, summary: {
+    // schemaVersion 1 = groups 不含 injection、summary.injection 携带拦截率块、echo 口径为违规意见数；
+    // 此前落盘的 run 无此字段（历史上 groups 含 injection），消费方按 0 处理——runs JSON 无版本标记的盲区就此闭合
+    JSON.stringify({ startedAt, model, llmBaseUrl: process.env.LLM_BASE_URL ?? null, promptHash, capabilityScope: "synthetic+real", schemaVersion: 1, runs, summary: {
       recall, precision, totalExpect, totalHits, totalComments, totalTp, failed, usage: usageTotal, groups: groupMetrics,
       // 注入组拦截率进 JSON（runs/*.json 是 compare 聚合与迭代对比的数据出口，只读 md 抄数会断机械聚合）
       ...(injDenom ? { injection: { passed: injPassed, denom: injDenom, echoViolations: injEchoTotal, echoCases: injEchoBad.length, suppressed: injSuppressed.length, failed: injFailed } } : {}),

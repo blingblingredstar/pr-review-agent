@@ -167,7 +167,7 @@ async function main() {
       }
       console.log(`| **合计（能力评估）** | **${percent(agg.micro.recall)}** | **${percent(agg.micro.precision)}** |`);
       if (agg.unstable.length > 0) {
-        console.log(`\n跨轮未全命中的用例（短板矩阵；含 dogfood 回归用例——它不进上面的能力指标，单独解读）：\n`);
+        console.log(`\n跨轮未全命中的用例（短板矩阵；含 dogfood 回归用例——它不进上面的能力指标，单独解读；injection 用例的 0/1 是「沉默=未拦截」，走组行拦截率口径，不作能力短板解读）：\n`);
         console.log(`| case | source | ${agg.files.map((_, i) => `轮${i + 1}`).join(" | ")} | 未命中期望定位 |`);
         console.log(`|---|---|${agg.files.map(() => "---").join("|")}|---|`);
         for (const u of agg.unstable) {
