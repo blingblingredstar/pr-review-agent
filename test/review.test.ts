@@ -554,6 +554,36 @@ test("两段协议与单段同享 withExtraBody：两段请求体都合并 LLM_E
   }
 });
 
+test("两段协议不丢 plan：prompt 在分支前构造，第二段请求体含计划块（fileReader+plan 并存场景，自审 major 留证）", async () => {
+  const fake = await startFakeLLM((i) => {
+    if (i === 0) return { content: '{"readRequests":["src/a.ts"]}', usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } };
+    return { content: REVIEW_JSON, usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 } };
+  });
+  const plan = {
+    focusAreas: [{ area: "并发安全", files: ["src/a.ts"], why: "diff 触及共享状态" }],
+    riskAreas: [{ area: "测试盲区", why: "无并发用例" }],
+    readPaths: ["src/a.ts"],
+    strategy: "先核对其余调用方",
+  };
+  try {
+    await withEnv(
+      { LLM_BASE_URL: fake.url, LLM_API_KEY: "test", LLM_MODEL: "fake", LLM_EXTRA_BODY: undefined, LLM_TIMEOUT_MS: undefined, FILE_TOOL_MAX_STEPS: "2" },
+      async () => {
+        await reviewDiff("DIFF_TEXT", "CTX", { timeoutMs: 10_000, fileReader: () => "content", plan });
+        assert.equal(fake.calls.length, 2);
+        // 第一段：计划块已在 prompt 内（buildReviewPrompt 分支前构造）
+        const firstUser = messagesOf(fake.calls[0]!.body).find((m) => m.role === "user")!;
+        assert.ok(firstUser.content.includes("并发安全"), "第一段 prompt 含计划块");
+        // 第二段：工具块 + 原 prompt（计划块仍在）
+        const secondUser = messagesOf(fake.calls[1]!.body).find((m) => m.role === "user")!;
+        assert.ok(secondUser.content.includes("并发安全"), "第二段 prompt 含计划块（plan 未被两段路径丢弃）");
+      },
+    );
+  } finally {
+    await fake.close();
+  }
+});
+
 test("reviewDiff：fileReader 注入 = 两段协议（第一段 readRequests 无 response_format，第二段注入工具结果复用同一 schema，usage 两段合计）", async () => {
   const fake = await startFakeLLM((i) => {
     if (i === 0) {
