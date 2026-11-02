@@ -514,7 +514,8 @@ export function buildToolBlock(requests: string[], reader: (path: string) => str
     const wrapperHead = `=== read_file：${path}（截断）===\n`;
     const remaining = FILE_TOOL_BLOCK_MAX_CHARS - used;
     const fullPart = `=== read_file：${path}（全文 ${content.length} 字符）===\n${content}`;
-    if (fullPart.length <= remaining) {
+    // 判定与记账同口径（含 join 分隔换行，自审 minor）
+    if (fullPart.length + 1 <= remaining) {
       // 先拼再量（自审 minor：判定与记账统一含包装头，与截断分支同口径）
       parts.push(fullPart);
       used += fullPart.length + 1;
