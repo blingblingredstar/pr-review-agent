@@ -31,7 +31,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
 // 签名校验必须用原始字节，不能碰 req.body（@vercel/node 的惰性解析会消费流）
 // 上限 25MB = GitHub webhook payload 官方上限，超限返回 null 由调用方 413
-const MAX_BODY_BYTES = 25_000_000; // 十进制 25MB = GitHub webhook payload 官方上限；GitHub 发送侧同样强限，本闸是防御性兜底（发送侧 GitHub 自身也强限，正常到不了这里）
+// 防御闸取宽松侧 25MiB：GitHub 文档口径未明（MB/MiB），取宽避免「官方照发、自闸 413」的静默丢弃区间；
+// 发送侧 GitHub 自身强限，本闸正常到不了（自审 nit）
+const MAX_BODY_BYTES = 25 * 1024 * 1024;
 async function readRawBody(req: IncomingMessage): Promise<string | null> {
   const chunks: Buffer[] = [];
   let total = 0;

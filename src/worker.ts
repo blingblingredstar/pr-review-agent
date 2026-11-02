@@ -341,7 +341,10 @@ export async function chainWorker(envelope: WorkerEnvelope, deps?: Partial<Worke
       if (res.ok) return;
       lastErr = new Error(`HTTP ${res.status}`);
       // 确定性 4xx（信封超限 413 / 结构非法 400 / 校验拒绝 403）重试必同败，不白等间隔直接终失败；
-      // 仅网络异常（含上面的超时）与 5xx / 429 / 408 值得再试——408 与网络异常同属瞬态故障，冷启动/高负载时常见（自审 minor）
+      // 仅网络异常（含上面的超时）与 5xx / 429 / 408 值得再试——408 与网络异常同属瞬态故障，冷启动/高负载时常见（自审 minor）。
+      // 重试语义是 at-least-once：超时≠未送达，重试可能同一阶段双跑（review 双份 LLM，上界 1 次额外调用）——
+      // 零基建约束下无 exactly-once（D026 备选否决外部存储），回帖副作用由 prepare/publish dedupe 吸收，
+      // 成本上界可接受；省 token 的「review 跳过重试」会引入假 failure 灯，取舍维持可用性优先
       if (res.status < 500 && res.status !== 429 && res.status !== 408) break;
     } catch (err) {
       lastErr = err;
