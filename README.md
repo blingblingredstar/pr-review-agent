@@ -53,7 +53,7 @@ flowchart TD
 ```bash
 npm install
 cp .env.example .env   # 填 LLM_BASE_URL / LLM_API_KEY / LLM_MODEL / GITHUB_TOKEN
-npm test               # 113 例单测
+npm test               # 138 例单测
 npm run review:local   # hardcode 样例 diff 冒烟
 npm run review:pr -- owner/repo#N [--post]   # 真实 PR 试跑（默认只打印）
 npm run eval           # 35 用例打分表，结果落盘 evals/runs/

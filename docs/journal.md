@@ -496,7 +496,9 @@
   - eval 回归硬证据：promptHash `d399f9d4ed17` 不变，35 用例输入 tokens 与基线（16-36-56/16-43-56/16-55-00）逐位一致、合计 23,376（node 脚本逐用例比对，非只看合计）；本轮 recall 92.6%（25/27，linked-08/real-02 沉默——均为基线记录过的轮转沉默类）、injection 拦截 5/6（inj-06 echo 违规 1 条，首次出现，特征串进了意见 body——挂生产观察）；run 22-54-23 落盘入库
 - **下一步**：PR 过 bot 自审与双硬闸门合并；生产配 `DECISION_MODEL` dogfood，`[router] tokens` 日志积累消融表数据；多 agent 分发/`compare.ts` 消融扩展等数据说话后另立
 
-## 2026-11-03 · 会话 29：夜间批量实现（D026 异步化 / D027 工具循环 / D028 决策模型路由，PR #28–#31）
+## 2026-11-03 · 会话 31：夜间批量编排收尾（D026 异步化 / D027 工具循环 / D028 决策模型路由，PR #28–#31）
+
+> 编号说明：本条是夜间批量会话的编排者收尾件；会话 29（D027，PR #30）/ 会话 30（D028，PR #31）是各实现 subagent 落的条目（PR #29 的 D026 随其实现 commit 并入会话 28 序列外、未单列条目）。撞号按合并序顺延重编为 31。
 
 - **目标**：用户睡前指令——把路线图剩余项全部实现、严格串行（一个 PR 全流程闭环再开下一个）、每功能先写 spec（不审批，只留档）、夜间免费 token 一次性用完；点名「真正异步 + read file + super agent（路由/决策模型）」，目标是仓库整体视角的完整 CR。附增需求：文档 ASCII 图 mermaid 化。
 - **完成**（4 个 PR 全部走完 bot 自审 → 意见闭环 → 双硬闸门 → 合并）：
@@ -509,10 +511,10 @@
   - **夜间自主流程的轮询间隙漏洞**：#29 收尾 `--yes` 时 bot 第 11 轮意见刚好落地被批量 resolve 未及裁定——发现后逐条补核全采纳。教训：收尾 `--yes` 前必须确认最新 review 已读
   - **编排者自身两次用嵌套 replace 改坏源文件**（`r.replace(old, r.replace(old, new))` 自复制；`open('w')` 先截断后求值抛错清空文件）——都靠 git checkout 恢复。教训：批量文本编辑必须单步 replace + 每步 assert
   - **bot 意见的「翻旧账」再锚定**：行内线程随 push 重新锚定到新 SHA，按 commit_id 过滤会重复看到旧意见——按 created_at + id 双重去重
-  - eval 红线三次全守住（promptHash `d399f9d4ed17` + 35 例输入 tokens 23,376 逐位一致），单测 76 → 138；inj-06 在 D028 run 里 echo 违规 1 条（基线外首现，挂观察）
+  - eval 红线三次全守住（promptHash `d399f9d4ed17` + 35 例输入 tokens 23,376 逐位一致），单测 76 → 138（npm test 实测，README 快速开始已同步）；inj-06 在 D028 run 里 echo 违规 1 条（基线外首现，挂观察）
   - 手动补审的「生产等价」口径：main 工作树 + 相同调用链（fetchPr → context → reader）——但 #31 的 router 只能等合并后 dogfood，脚本错拿分支 API 即刻暴露（这是特性不是缺陷）
 - **下一步**：
-  1. **睡醒必做（生产启用）**：Vercel 环境变量配 `WORKER_BASE_URL=https://pr-review-agent-mauve.vercel.app`（webhook 同款 URL；不配则续链回退 VERCEL_URL 403，审查全落「审查中断」——代码已有显式 warn）；可选配 `DECISION_MODEL`（与 LLM_MODEL 同名即可）启用路由
+  1. **睡醒必做（生产启用）**：Vercel 环境变量配 `WORKER_BASE_URL=https://<project>.vercel.app（见 Vercel dashboard）`（webhook 同款 URL；不配则续链回退 VERCEL_URL 403，审查全落「审查中断」——代码已有显式 warn）；可选配 `DECISION_MODEL`（与 LLM_MODEL 同名即可）启用路由
   2. 生产观测：三段日志行（prepare/review/publish）、`[router] tokens`、D027 工具循环的实际读取行为；inj-06 echo 挂观察
   3. PR-32 对抗 fixture 扩充（路线图第 5 项）：需要真实 fix 反转构造，留专注会话——夜间赶工出低质 fixture 会污染 eval 集（D015 教训）
   4. 消融表（路线图第 3 项余下）：生产 run 数据积累后 compare.ts 扩展
