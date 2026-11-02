@@ -153,6 +153,13 @@ test("worker 入口：篡改 body / GitHub 头名代打均 403 不调度（x-wor
   assert.equal(tasks.length, 0);
 });
 
+test("worker 入口：issuedAt 明显超前（未来值）同样 403，重放窗不为负时钟开口", async () => {
+  const future = JSON.stringify({ ...prepareEnvelope(REF), issuedAt: Date.now() + 10 * 60 * 1000 });
+  const tasks: Array<() => Promise<void>> = [];
+  assert.equal(handleWorker(workerHeaders(future), future, { schedule: (t) => tasks.push(t) }).status, 403);
+  assert.equal(tasks.length, 1, "落灯任务照常调度（签名合法链路断在入口）");
+});
+
 test("worker 入口：issuedAt 超新鲜窗口 403 不调度阶段、落 failure status（发送方可能已死，链路断在这）；窗口内放行；缺失按过期拒绝", async () => {
   const stale = JSON.stringify({ ...prepareEnvelope(REF), issuedAt: Date.now() - 10 * 60 * 1000 - 1 });
   const staleTasks: Array<() => Promise<void>> = [];
@@ -174,7 +181,15 @@ test("worker 入口：issuedAt 超新鲜窗口 403 不调度阶段、落 failure
   assert.equal(freshTasks.length, 1);
 
   const noIssuedAt = JSON.stringify({ v: 1, stage: "prepare", hop: 0, ref: REF });
-  assert.equal(handleWorker(workerHeaders(noIssuedAt), noIssuedAt).status, 403);
+  // 闸门拒绝路径会调度落灯任务（round: 自审 major）：必须注入 deps，默认 waitUntil/getOctokit 在测试环境会出网
+  const { client: gateClient, calls: gateCalls } = fakeClient();
+  const gateTasks: Array<() => Promise<void>> = [];
+  assert.equal(
+    handleWorker(workerHeaders(noIssuedAt), noIssuedAt, { schedule: (t) => gateTasks.push(t), client: () => gateClient }).status,
+    403,
+  );
+  await gateTasks[0]!();
+  assert.deepEqual(gateCalls.statuses.map((s) => s.state), ["failure"]);
 });
 
 test("worker 入口：hop 超上限 403 且落 failure status「审查中断」（防御性）；边界 hop=MAX_HOPS 放行", async () => {

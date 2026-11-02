@@ -31,6 +31,8 @@ export type WorkerEnvelope = {
 export const MAX_HOPS = 4;
 // 新鲜度窗口：信封只能由内部铸造（需 WEBHOOK_SECRET），窗口限的是合法信封被截获后的重放面
 const ENVELOPE_FRESH_MS = 10 * 60 * 1000;
+// 未来时间戳容差：issuedAt 取未来值等效把重放窗拉成无限，60s 覆盖跨机钟差（自审 nit）
+const CLOCK_SKEW_MS = 60 * 1000;
 // 续链最多尝试次数、间隔与单次硬超时（D026）：终失败由当前调用 best-effort 落 failure status，不静默。
 // 硬超时必须远小于本函数 300s 墙钟——自调用挂起会占满 waitUntil 直到平台强杀，重试与落灯都到不了，
 // 恰是本机制要消灭的永久 pending 黄灯（PR #29 自审 major）。10s 内：自调用无公网往返，冷启动排队
@@ -44,6 +46,9 @@ const REVIEW_STAGE_LLM_CAP_MS = 260_000;
 // （octokit 分页/回帖等）到线即落 failure「审查中断」，不把 waitUntil 占满到强杀（永久 pending，自审 major）。
 // 迟到的阶段工作若最终完成，success 覆盖 failure（status last-write-wins），语义自愈
 const STAGE_DEADLINE_MS = 285_000;
+// 终态 status 写入的限时：落灯路径（闸门拒绝/墙钟兜底）在 race 覆盖之外，GitHub API 挂起会绕过全部
+// 兜底直通永久 pending——写入超过 10s 即放弃等待（调用悬空无害，status 平台侧要么成了要么没成）
+const STATUS_WRITE_TIMEOUT_MS = 10_000;
 
 // 依赖注入（生产默认、测试传 mock）：schedule 调度后台任务；client 工厂延迟构造（缺 token 不炸 handler）；
 // review / chain / fetchImpl 可替换——chain 默认即 chainWorker，测试传 spy 观察信封
@@ -134,8 +139,9 @@ export function handleWorker(headers: WebhookHeaders, rawBody: string, deps?: Pa
   // 与 hop 闸同样要落 failure status：信封过期意味着链路断在这里（发送方可能已死）——pending 黄灯比红灯误导（D017）。
   // 落灯安全的前提是已过验签闸（签名合法才可能是内部铸造的合法链路）；上方签名/解析两闸在认证前，
   // 落灯会给伪造请求开出「用别人的 SHA 写 status」的面，故保持无副作用
-  if (!Number.isFinite(envelope.issuedAt) || Date.now() - envelope.issuedAt > ENVELOPE_FRESH_MS) {
-    console.error(`[worker] ${key} 信封过期（issuedAt 超窗），拒绝续链`);
+  const skew = Date.now() - envelope.issuedAt;
+  if (!Number.isFinite(envelope.issuedAt) || skew > ENVELOPE_FRESH_MS || skew < -CLOCK_SKEW_MS) {
+    console.error(`[worker] ${key} 信封过期（issuedAt 超窗或明显超前 ${skew}ms），拒绝续链`);
     d.schedule(() => markTerminalAfterGate(d.client, key, envelope.ref));
     return { status: 403, note: "stale worker envelope" };
   }
@@ -264,10 +270,15 @@ function getFallbackClient(deps: WorkerDeps, client: Octokit | undefined): Octok
 }
 
 // failure status 落定独立于任何其他动作成败——永久 pending（「审查在途」的黄灯）比红灯更具误导性（D017）。
-// client 走工厂：构造本身可能失败（缺 token），一并吞进 best-effort 语义
+// client 走工厂：构造本身可能失败（缺 token），一并吞进 best-effort 语义；写入限时见 STATUS_WRITE_TIMEOUT_MS
 async function markFailed(client: () => Octokit, key: string, ref: PrRef & { headSha: string }, description: string): Promise<void> {
   try {
-    await setReviewStatus(client(), { ...ref, sha: ref.headSha }, "failure", description);
+    await Promise.race([
+      setReviewStatus(client(), { ...ref, sha: ref.headSha }, "failure", description),
+      sleep(STATUS_WRITE_TIMEOUT_MS).then(() => {
+        throw new Error(`status 写入超 ${STATUS_WRITE_TIMEOUT_MS}ms 未返回`);
+      }),
+    ]);
   } catch (statusErr) {
     console.error(`[worker] ${key} failure status 写失败`, statusErr);
   }
@@ -284,12 +295,16 @@ async function markTerminalAfterGate(client: () => Octokit, key: string, ref: Pr
   } catch (dedupeErr) {
     console.error(`[worker] ${key} 闸门路径 dedupe 查询失败，按未审落 failure`, dedupeErr);
   }
+  const write = reviewed
+    ? setReviewStatus(client(), { ...ref, sha: ref.headSha }, "success", "完成（重派路径补落终态）")
+    : setReviewStatus(client(), { ...ref, sha: ref.headSha }, "failure", "审查中断");
   try {
-    if (reviewed) {
-      await setReviewStatus(client(), { ...ref, sha: ref.headSha }, "success", "完成（重派路径补落终态）");
-    } else {
-      await setReviewStatus(client(), { ...ref, sha: ref.headSha }, "failure", "审查中断");
-    }
+    await Promise.race([
+      write,
+      sleep(STATUS_WRITE_TIMEOUT_MS).then(() => {
+        throw new Error(`status 写入超 ${STATUS_WRITE_TIMEOUT_MS}ms 未返回`);
+      }),
+    ]);
   } catch (statusErr) {
     console.error(`[worker] ${key} 闸门终态 status 写失败`, statusErr);
   }
