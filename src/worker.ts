@@ -10,8 +10,8 @@ import type { Octokit } from "octokit";
 import { verifySignature, header, type WebhookHeaders, type Dispatch } from "./webhook.ts";
 import { fetchPr, getOctokit, postReview, postTimeoutNotice, setReviewStatus, type PrRef } from "./github.ts";
 import { hasReviewed } from "./dedupe.ts";
-import { buildRepoContext } from "./context.ts";
-import { llmTimeoutMs, reviewDiff, type ReviewOutcome } from "./review.ts";
+import { buildRepoContext, makeFileReader } from "./context.ts";
+import { buildReviewPrompt, fileToolEnabled, llmTimeoutMs, reviewDiff, TOOL_PROMPT_MAX_CHARS, type ReviewDiffOpts, type ReviewOutcome } from "./review.ts";
 
 export type WorkerStage = "prepare" | "review" | "publish";
 
@@ -55,7 +55,7 @@ const STATUS_WRITE_TIMEOUT_MS = 10_000;
 export type WorkerDeps = {
   schedule: (task: () => Promise<void>) => void;
   client: () => Octokit;
-  review: (diff: string, context?: string, opts?: { timeoutMs?: number }) => Promise<ReviewOutcome>;
+  review: (diff: string, context?: string, opts?: ReviewDiffOpts) => Promise<ReviewOutcome>;
   chain: (envelope: WorkerEnvelope) => Promise<void>;
   fetchImpl: typeof fetch;
   chainRetryDelayMs: number;
@@ -204,8 +204,34 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
     if (envelope.stage === "review") {
       const state = (envelope.state ?? {}) as { diff?: string; context?: string | null };
       if (typeof state.diff !== "string") throw new Error("review 信封缺 state.diff");
+      // read_file 工具循环（D027）：review 阶段重取 head 快照（不走信封携带——全仓内容最坏 25MB 超
+      // 4.5MB 请求体上限），best-effort 失败返回 undefined → 不注入 → 单次调用原路径，绝不连垮审查。
+      // 快照预判（自审 minor）：与 reviewDiff 的 TOOL_PROMPT_MAX_CHARS 规模闸同一阈值——大 prompt 场景
+      // 工具循环必被跳过，先取快照白吃最多 25MB/10s 预算，且这正是最易撞阶段墙钟的超大 PR 路径。
+      // 用 buildReviewPrompt（与 reviewDiff 同一构造函数，自审三轮：曾用 diff+context 估算出现 +14 偏移
+      // 与 >=/> 比较符的边界分叉）——预判与闸吃同一字符串、同一比较符，永不矛盾
+      const promptEstimate = buildReviewPrompt(state.diff, typeof state.context === "string" ? state.context : undefined).length;
+      const snapshotSkippedByGate = fileToolEnabled() && promptEstimate > TOOL_PROMPT_MAX_CHARS;
+      // 快照耗时从 LLM 预算中扣掉（自审 minor）：D026 的墙钟账「LLM 打满 + 续链 + 落灯」此前没算
+      // makeFileReader 这段（上限 10s），小 prompt + 慢快照组合仍在账外；下限 60s 防御性兜底
+      const snapshotStart = Date.now();
+      const fileReader =
+        fileToolEnabled() && !snapshotSkippedByGate
+          ? await makeFileReader(
+              { headRepo: ref.headRepo ?? `${ref.owner}/${ref.repo}`, headSha: ref.headSha },
+              deps.fetchImpl,
+            )
+          : undefined;
+      effectiveLlmTimeoutMs = Math.max(effectiveLlmTimeoutMs - (Date.now() - snapshotStart), 60_000);
+      const fileReaderNote = fileReader
+        ? "生效（D027 工具循环）"
+        : snapshotSkippedByGate
+          ? "未注入（prompt 超规模闸，跳过快照与工具循环）"
+          : "未注入（关闭或快照失败降级）";
+      console.log(`[worker] ${key} review 阶段 fileReader ${fileReaderNote}`);
       const result = await deps.review(state.diff, state.context ?? undefined, {
         timeoutMs: effectiveLlmTimeoutMs,
+        fileReader,
       });
       // state 累积传递：publish 的 postReview 仍需 diff 做行内预定位（splitByLocatable）
       await deps.chain({ v: 1, stage: "publish", hop: envelope.hop + 1, ref, issuedAt: Date.now(), state: { ...state, result } });
@@ -323,14 +349,19 @@ export async function chainWorker(envelope: WorkerEnvelope, deps?: Partial<Worke
     chain: deps?.chain ?? ((next) => chainWorker(next, deps)),
   };
   const key = stageKey(envelope.ref);
-  // VERCEL_URL 未设置（本地 scripts / 单测）→ 不走 HTTP，直接在本进程执行下一阶段（同 schedule 直调语义）——
-  // 本地链路与生产行为一致、可单测
-  const base = process.env.VERCEL_URL;
+  // 续链目标：WORKER_BASE_URL 显式配置 > VERCEL_URL 兜底。VERCEL_URL 是部署专属 URL，Vercel Standard
+  // Protection 会挡它（生产实测 403 秒败，PR #30 dogfood 抓到）——alias 域名才公开可达。
+  // 曾实现「webhook 从请求 Host 自发现 origin 随信封传递」，自审二轮否决：重放的 webhook payload 带合法
+  // GitHub 签名、可伪造 Host 头，origin 即成「信封内 diff/context 送往攻击者服务器」的外泄通道——
+  // 续链目标里不能有任何请求头派生的输入，显式环境变量是唯一可信源
+  const base = chainBase();
   if (!base) {
+    // 全部未设置（本地 scripts / 单测）→ 不走 HTTP，直接在本进程执行下一阶段（同 schedule 直调语义）——
+    // 本地链路与生产行为一致、可单测
     await runStage(d, envelope);
     return;
   }
-  const url = `https://${base}/api/worker`;
+  const url = `${base}/api/worker`;
   const secret = process.env.WEBHOOK_SECRET;
   if (!secret) {
     // 缺 secret 理论上到不了（webhook/worker 入口验签用的就是同一 secret），但本函数跑在 waitUntil 里，
@@ -373,6 +404,47 @@ export async function chainWorker(envelope: WorkerEnvelope, deps?: Partial<Worke
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// 续链 base 选择：WORKER_BASE_URL（无路径 http(s) URL，不合法 warn 后视为未配置）> VERCEL_URL；
+// 不引任何请求头派生值（PR #30 自审二轮：origin 自发现是 diff 外泄通道，见 chainWorker 注释）
+// 无路径 http(s) 绝对 URL 校验：正则会放过 `?`/`#`（拼出来 query 在前打到错误路径），用 URL 解析断言
+// protocol 与空 pathname（自审 minor）
+function isValidChainBase(v: string): boolean {
+  try {
+    const u = new URL(v);
+    return (u.protocol === "http:" || u.protocol === "https:") && (u.pathname === "" || u.pathname === "/") && !u.search && !u.hash;
+  } catch {
+    return false;
+  }
+}
+
+let warnedInvalidWorkerBase = false;
+
+export function chainBase(): string | undefined {
+  const explicit = process.env.WORKER_BASE_URL?.trim();
+  let explicitState: "ok" | "invalid" | "unset" = "unset";
+  if (explicit) {
+    if (!isValidChainBase(explicit)) {
+      // 一次审查至少两跳、每跳最多 2 次重试——同一配置错误会重复走到，告警一次即可（自审 minor）
+      if (!warnedInvalidWorkerBase) {
+        console.error(`[worker] WORKER_BASE_URL="${explicit}" 不是无路径的 http(s) URL，忽略，按未配置处理`);
+        warnedInvalidWorkerBase = true;
+      }
+      explicitState = "invalid";
+    } else {
+      return explicit.replace(/\/+$/, "");
+    }
+  }
+  const vercel = process.env.VERCEL_URL?.trim();
+  if (!vercel) return undefined;
+  if (process.env.VERCEL_ENV === "production") {
+    // 显式 warn：生产走 VERCEL_URL 兜底大概率是 WORKER_BASE_URL 缺席/非法（部署专属 URL 被 Standard
+    // Protection 403），失败只体现在 PR 状态灯上不易归因（自审降级 minor；措辞区分两种成因，自审 nit）
+    const reason = explicitState === "invalid" ? "WORKER_BASE_URL 非法被忽略" : "未配置 WORKER_BASE_URL";
+    console.error(`[worker] 生产环境${reason}，续链回退 VERCEL_URL（部署专属 URL，Standard Protection 下会 403）——请在部署环境变量配置公开可达域名`);
+  }
+  return `https://${vercel}`;
 }
 
 // 带 deadline 的 Promise.race：胜负一定即清理定时器——正常完成不留悬空 timer 占着 waitUntil 的存续时长

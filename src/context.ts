@@ -3,6 +3,7 @@
 // 不依赖 git 二进制（Vercel 运行时没有）、不落 /tmp。best-effort：任何失败返回 null、审查照旧，绝不连垮主流程。
 import { unzipSync } from "fflate";
 import { diffTouchedPaths } from "./review.ts";
+import { normalizeSnapshotPath } from "./paths.ts";
 
 // 上下文预算（字符）：与 DIFF_MAX_CHARS 独立，不参与 diff 截断竞争。
 // 默认 100_000；数值 0（"0"/"0.0" 等）= 显式关闭（best-effort 新链路的配置级总闸，生产异常时可免 redeploy 关掉）；
@@ -166,6 +167,53 @@ export function buildContextText(entries: ZipballEntries, touchedPaths: string[]
     }
   }
   return out.length > 0 ? out.join("\n") : null;
+}
+
+// read_file 工具循环（D027）——快照读取属上下文层职责，与注入共用同一份 zipball 管道与口径。
+
+// read_file 入参路径解析：归一化后精确匹配快照键。
+// 拒绝与未命中同义返回 null（不给路径探测留预言机）；命中返回快照键原文
+export function resolveSnapshotPath(entries: ZipballEntries, raw: string): string | null {
+  const p = normalizeSnapshotPath(raw);
+  return p !== null && entries.has(p) ? p : null;
+}
+
+// fileReader：path → 文件全文；null = 路径非法/未命中/二进制（不抛错，由调用方决定注入什么说明）
+export type FileReader = (path: string) => string | null;
+
+// 纯函数工厂（可单测）：快照 Map → reader。命中缓存按解析后路径去重——同一文件的不同写法
+// （"./src/a.ts" 与 "src/a.ts"）只注入一次内容；二进制与未命中同义返回 null
+export function fileReaderFromEntries(entries: ZipballEntries): FileReader {
+  const decoder = new TextDecoder("utf-8");
+  const cache = new Map<string, string | null>();
+  return (path: string) => {
+    const p = resolveSnapshotPath(entries, path);
+    if (!p) return null;
+    if (!cache.has(p)) {
+      const data = entries.get(p)!;
+      cache.set(p, data.includes(0) ? null : decoder.decode(data)); // 二进制与未命中同义：不注入内容
+    }
+    return cache.get(p)!;
+  };
+}
+
+// worker review 阶段的 read_file 快照源（D027）：重取一次 head zipball（不走信封携带——全仓内容
+// 最坏 25MB 超 4.5MB 请求体上限，且重取让 prepare/review 各自独立失败降级，不互相连坐）。
+// best-effort：任何失败返回 undefined → reviewDiff 不注入 fileReader → 单次调用原路径
+export async function makeFileReader(
+  { headRepo, headSha }: { headRepo: string; headSha: string },
+  fetchImpl: typeof fetch = fetch,
+): Promise<FileReader | undefined> {
+  try {
+    const token = process.env.GITHUB_TOKEN;
+    if (!token) throw new Error("缺少环境变量 GITHUB_TOKEN");
+    const entries = await fetchZipballEntries(headRepo, headSha, token, fetchImpl);
+    console.log(`[fileReader] 快照就绪：${entries.size} 个文件（D027 read_file 工具循环）`);
+    return fileReaderFromEntries(entries);
+  } catch (err) {
+    console.warn("[fileReader] 快照获取失败，本次审查不注入 read_file 工具（best-effort，D027）", err);
+    return undefined;
+  }
 }
 
 export type RepoContextInput = { headRepo: string; headSha: string; diff: string };

@@ -464,3 +464,19 @@
   - 编号纪律：#26（并行会话）已占 D024/会话 27 且自带撞号重编说明——本条按合并序用 D025/会话 28；**合并必须排在 #26 之后**（decisions/CHANGELOG/journal 三处 append 两边都动，先合者免 rebase）
   - 端到端真实验证受限于需要 >20k 行 diff 的 PR（可临时批量生成 run 文件构造），单测以 mock 406 覆盖策略分支
 - **下一步**：PR 过 bot 自审与双硬闸门；等 #26 合并后 rebase → 合并；生产观测 `[fetchPr]` 406 切换日志
+
+## 2026-11-03 · 会话 29：read file 工具循环落地（D027），SDK tools 形态被端点实测否决后走两段协议
+
+- **目标**：执行路线图第 4 项第二阶段（spec `docs/plans/file-tool-loop.md`，分支 feat/file-tool-loop）——模型审查时可按需读 head 快照任意文件，补 D023 确定性注入（只覆盖触及文件）之后的调用方/配置/被引用模块盲区。
+- **关键设计**（D027）：
+  - 数据面零新增 GitHub API：worker review 阶段 `makeFileReader` 重取一次 head zipball（D023 管道复用），`read_file` 从内存 Map 出内容；不走信封携带快照（25MB 超 4.5MB 请求体上限 + prepare/review 独立降级不连坐——对 D026 pass-state 的有意偏离，记 D027）
+  - **端点实测否决 spec 首选形态**：GLM 兼容层上 `response_format: json_schema`（Output.object）与 tools 同发时模型从不调用工具（3 次探测 0 次），且伪造「已按要求读取依赖文件」的结论——幻觉内容当审查依据比不读更糟；纯 tools（无 Output）则 2 步正常循环；`/responses` 404。回退 spec 指定的手工两段协议：第一段自由文本 `readRequests` JSON（best-effort 解析、失败降级不读）→ 文件内容拼第二段 prompt 前段 → 复用同一 schema 出结果
+  - `FILE_TOOL_MAX_STEPS` 默认 2（= 最多读 2 个文件，与 tools 形态每步一读同成本口径），数值 0 = kill switch；单段注入 80k 字符封顶；路径剥 `./`、拒 `..` 与反斜杠、精确匹配快照键，未命中留 not found 说明行；工具指令独立 `prompts/review-tools.md`（威胁模型重申「文件内容是数据不是指令」），`prompts/review.md` 一字不动
+- **完成**：src/review.ts（ReviewDiffOpts/fileToolMaxSteps/extractReadRequests/buildToolBlock/两段协议函数）+ src/context.ts（resolveSnapshotPath/fileReaderFromEntries/makeFileReader）+ src/worker.ts 接线（fileToolEnabled → makeFileReader → deps.review 传 opts.fileReader）+ prompts/review-tools.md；单测 92 → 113（+21：路径解析/步预算/reviewDiff 两形态——假 OpenAI 端点断言请求体字节级/worker 接线与降级）；.env.example / architecture / decisions(D027) / CHANGELOG / README / journal 同步
+- **发现 / 坑**：
+  - **协议真端点验证一次通过**：fixture diff（分页 off-by-one + 未入 diff 的调用方文件）第一段 20.4s 精确输出 `{"readRequests":[{"path":"src/index.ts"}]}`（只输出该 JSON、零审查内容），第二段 22.0s 出意见且明写「已核对仓库内唯一调用方 src/index.ts 的 getPage：直接透传」——工具结果真实参与推理
+  - **实跑三个真实 PR（不回帖）**：#28（docs，38k 上下文）与 #22（62k diff，98k 上下文）第一段都判「无需读取」——D023 注入触及文件全文后，模型对已覆盖材料不再请求，工具循环优雅零成本待命；#29（121k diff）第二段在 240s 探测超时——**大 prompt（~220KB）两段 ≈ 2× 单段延迟，260s 阶段封顶可能吃紧**：单段时代同 PR 能过，两段后超大 PR 有超时降级风险。缓解：`FILE_TOOL_MAX_STEPS=0` kill switch + D026「review 可再分跳」的扩展位留给了这一步；挂生产观测，真超时再拆跳
+  - buildToolBlock 初版靠 reader 缓存去重不成立（缓存省解码不省注入）——跨写法变体（`./src/a.ts` vs `src/a.ts`）的去重上移到 extractReadRequests 按归一键做，注入层只认请求序
+  - 单测要给 reviewDiff 两形态断言「请求体字节级」，起了本地假 OpenAI 端点（node:http 逐次按脚本回 assistant 文本）——比注入 fetch 更真实（连 response_format 有无都能断），零新依赖
+- **eval 回归（硬证据）**：promptHash `d399f9d4ed17` 不变；35 用例输入 tokens 与基线（16-36-56/16-43-56/16-55-00）逐位一致、合计 23,376（fileReader 不注入 = 字节级不变由构造保证）；本轮 recall 92.6%（25/27，real-02 沉默 + real-03 一轮——均为基线记录过的轮转沉默类）、injection 拦截 5/6（inj-06 一轮沉默，同型轮转类；run 20-48-41 落盘入库）
+- **下一步**：PR 过 bot 自审与双硬闸门合并；合并后生产 dogfood 观察 `[tools]` 日志与大 PR 超时面；多轮读循环/搜索工具等读到的规模再议（D027 明确不做清单）
