@@ -39,7 +39,7 @@ reviewDiff(diff, context?) ──► prompt = context ? `${context}\n\n[diff 开
 2. **确定性选择，零模糊判断**：触及文件清单由 diff 头解析（`diffTouchedPaths`，复用 `diffHeaderPath` 口径），
    全文按 diff 顺序、逐文件全有或全无；装不下留一行说明。D020 否决运行时模糊过滤的理由直接适用——
    非确定性撞 eval 回归与 synchronize 重审一致性。
-3. **独立预算**：`CONTEXT_MAX_CHARS`（默认 100_000 字符，`"0"` = 显式关闭作为生产总闸），与 `DIFF_MAX_CHARS` 分离。
+3. **独立预算**：`CONTEXT_MAX_CHARS`（默认 100_000 字符，数值 0 = 显式关闭作为生产总闸），与 `DIFF_MAX_CHARS` 分离。
    合计最坏情形 ≈ 300k 字符 diff + 100k 字符上下文 ≈ 11 万 token，200k 窗口模型内安全。
 4. **best-effort 失败语义**：下载超时（10s 硬上限）/ 超大仓库（zipball 压缩 > 25MB）/ API 错误 / 解压失败
    → 一律返回 null，审查照旧。上下文增强绝不连垮主流程。

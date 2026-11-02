@@ -22,13 +22,15 @@ async function withEnv(env: Record<string, string | undefined>, fn: () => Promis
   }
 }
 
-test("contextMaxChars：默认 100000；\"0\" 显式关闭；合法值生效；非法值告警回退", async () => {
+test("contextMaxChars：默认 100000；数值 0（含 \"0.0\"）显式关闭；合法值生效；非法值告警回退", async () => {
   await withEnv({ CONTEXT_MAX_CHARS: undefined }, () => {
     assert.equal(contextMaxChars(), 100_000);
   });
-  await withEnv({ CONTEXT_MAX_CHARS: "0" }, () => {
-    assert.equal(contextMaxChars(), 0);
-  });
+  for (const off of ["0", "0.0", "00"]) {
+    await withEnv({ CONTEXT_MAX_CHARS: off }, () => {
+      assert.equal(contextMaxChars(), 0, `数值 0 写法 "${off}" 应关闭而非回退默认`);
+    });
+  }
   await withEnv({ CONTEXT_MAX_CHARS: "5000" }, () => {
     assert.equal(contextMaxChars(), 5000);
   });

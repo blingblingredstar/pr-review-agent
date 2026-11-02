@@ -5,13 +5,13 @@ import { unzipSync } from "fflate";
 import { diffTouchedPaths } from "./review.ts";
 
 // 上下文预算（字符）：与 DIFF_MAX_CHARS 独立，不参与 diff 截断竞争。
-// 默认 100_000；"0" = 显式关闭（best-effort 新链路的配置级总闸，生产异常时可免 redeploy 关掉）；其余非法值告警回退默认
+// 默认 100_000；数值 0（"0"/"0.0" 等）= 显式关闭（best-effort 新链路的配置级总闸，生产异常时可免 redeploy 关掉）；
+// 关闭语义按数值而非字符串形态判定——"0.0" 走非法回退会把「想关」静默变成「开着」（PR #25 自审意见）；其余非法值告警回退默认
 export function contextMaxChars(): number {
   const raw = process.env.CONTEXT_MAX_CHARS;
   if (raw === undefined || raw.trim() === "") return 100_000;
-  if (raw.trim() === "0") return 0;
   const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) {
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 0) {
     console.warn(`CONTEXT_MAX_CHARS="${raw}" 不是非负整数，回退默认 100000`);
     return 100_000;
   }
