@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { severityLabels, splitByLocatable } from "../src/github.ts";
+import type { Octokit } from "octokit";
+import { fetchPr, fileToDiffBlock, severityLabels, splitByLocatable } from "../src/github.ts";
 import type { ReviewResult } from "../src/review.ts";
+import { diffCoveredLines, diffTouchedPaths } from "../src/review.ts";
 
 const comment = (severity: ReviewResult["comments"][number]["severity"]) => ({
   file: "a.ts",
@@ -40,11 +42,6 @@ test("splitByLocatable：行号在 diff 内行内发，变体对照命中，幻�
 });
 
 // ===== 超大 PR diff 406 兜底（D025）=====
-
-import { fetchPr, fileToDiffBlock } from "../src/github.ts";
-import { diffTouchedPaths } from "../src/review.ts";
-import { diffCoveredLines } from "../src/review.ts";
-import type { Octokit } from "octokit";
 
 const prFile = (over: Partial<Parameters<typeof fileToDiffBlock>[0]> = {}): Parameters<typeof fileToDiffBlock>[0] => ({
   filename: "src/a.ts",
