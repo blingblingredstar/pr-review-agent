@@ -35,7 +35,6 @@ const ENVELOPE_FRESH_MS = 10 * 60 * 1000;
 // 硬超时必须远小于本函数 300s 墙钟——自调用挂起会占满 waitUntil 直到平台强杀，重试与落灯都到不了，
 // 恰是本机制要消灭的永久 pending 黄灯（PR #29 自审 major）。10s 内：自调用无公网往返，冷启动排队
 // 超 10s 时第 2 次尝试命中的已是热函数（排队耗在首次上），重试即天然冷启动兜底
-const CHAIN_ATTEMPTS = 2;
 const CHAIN_TIMEOUT_MS = 10_000;
 // review 阶段 LLM 上限（PR #29 自审 major 的墙钟算账）：最坏路径 = LLM 打满 + 续链 2×10s+2s + 落灯 ~2s，
 // 260 + 22 + 2 ≈ 284s < 300s 平台强杀线（留 ~16s 平台开销余量）；现端点 20s 级，封顶只在慢端点场景生效；
@@ -56,6 +55,7 @@ export type WorkerDeps = {
   fetchImpl: typeof fetch;
   chainRetryDelayMs: number;
   chainTimeoutMs: number;
+  chainAttempts: number;
   // 阶段墙钟：阶段内任何挂起（octokit 调用无超时等）超线即落 failure，不等平台 300s 强杀
   stageDeadlineMs: number;
 };
@@ -69,6 +69,7 @@ export function defaultWorkerDeps(): WorkerDeps {
     fetchImpl: fetch,
     chainRetryDelayMs: 2_000,
     chainTimeoutMs: CHAIN_TIMEOUT_MS,
+    chainAttempts: 2,
     stageDeadlineMs: STAGE_DEADLINE_MS,
   };
 }
@@ -326,7 +327,7 @@ export async function chainWorker(envelope: WorkerEnvelope, deps?: Partial<Worke
   const body = JSON.stringify(envelope);
   const signature = `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`;
   let lastErr: unknown;
-  for (let attempt = 1; attempt <= CHAIN_ATTEMPTS; attempt++) {
+  for (let attempt = 1; attempt <= d.chainAttempts; attempt++) {
     try {
       const res = await d.fetchImpl(url, {
         method: "POST",
@@ -349,9 +350,9 @@ export async function chainWorker(envelope: WorkerEnvelope, deps?: Partial<Worke
     } catch (err) {
       lastErr = err;
     }
-    if (attempt < CHAIN_ATTEMPTS) await sleep(d.chainRetryDelayMs);
+    if (attempt < d.chainAttempts) await sleep(d.chainRetryDelayMs);
   }
-  console.error(`[worker] ${key} 续链 ${url} 失败（${CHAIN_ATTEMPTS} 次），best-effort 落 failure status`, lastErr);
+  console.error(`[worker] ${key} 续链 ${url} 失败（${d.chainAttempts} 次），best-effort 落 failure status`, lastErr);
   await markFailed(d.client, key, envelope.ref, "审查中断");
 }
 
