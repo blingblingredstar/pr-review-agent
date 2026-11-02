@@ -50,7 +50,7 @@ export async function fetchPr(
   const diffErr = diffSettled.reason;
   if (!isStatus(diffErr, 406)) throw diffErr;
   // 超大 PR 兜底（D025）：diff 形态有 20,000 行硬上限，超限 406 too_large——审查原本只能失败告终。
-  // 判断依据只有 406 本身（meta 的增删行数与含上下文的 diff 行数之间没有安全换算，hunk 散布可放大 ~7 倍）
+  // 判断依据只有 406 本身（meta 的增删行数与含上下文的 diff 行数之间没有安全换算，hunk 散布的 context 放大 1×~11×，与 D025/spec 口径一致）
   if (metaSettled.status === "rejected") throw metaSettled.reason;
   const meta = metaSettled.value.data;
   console.log(
