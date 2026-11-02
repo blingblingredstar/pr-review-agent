@@ -79,7 +79,7 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 按优先级排序。现状口径已有量化基线：质量看 eval 报告，成本看 run 落盘的 token 用量（2026-11-01 基线）。
 
 1. **证据可溯**（暂缓，D022 否决）：`evidenceSnippet` 契约经 12 轮对照实测 recall 微平均 96.3% → 87.7–91.4%——「字段存在」即抑制推断型发现（必填/可选/措辞均不可救），且 370 条意见真幻觉拦截为 0，成本确定、收益为理论值。重启候选形态：旁路观测不进生成侧。数据见 [evals/report.md](./evals/report.md)
-2. **注入抗性 canary 组**（已落地，D024）：injection 组 6 例——注入藏于代码注释/文件名/diff 元数据的 fixture（PR 描述当前不进 prompt，向量挂起至上下文增强），断言注入内容不回显进意见、真实 findings 不被抑制（本 agent 无 approve 路径，review 只会 REQUEST_CHANGES / COMMENT）；组指标拦截率不计入能力口径，首发基线三轮拦截 11/12、echo 违规 0（`evals/runs/`）；README 已加威胁模型章节
+2. **注入抗性 canary 组**（已落地，D024）：injection 组 6 例——注入藏于代码注释/文件名/diff 元数据的 fixture（PR 描述当前不进 prompt，向量挂起至上下文增强），断言注入内容不回显进意见、真实 findings 不被抑制（本 agent 无 approve 路径，review 只会 REQUEST_CHANGES / COMMENT）；组指标拦截率不计入能力口径，基线三轮拦截 17/18、echo 违规 0（`evals/runs/`）；README 已加威胁模型章节
 3. **决策模型路由 + 消融表**：两段式调用（便宜档先做内容路由，贵档只做评审），环境变量开关，`compare.ts` 扩展 token 对比列出消融表；前置 = 超时预算按阶段拆分（多跳串行共享 300s 墙钟）；红线 = recall 不回退，对照组 = 2026-11-01 基线 run
 4. **上下文增强**：~~拉相关文件/搜引用喂 prompt~~ **第一阶段已落地（D023）**——head zipball 确定性注入触及文件全文 + 文件树（best-effort，eval 零回归面）；余下：按需读取的工具循环（改输入契约，等第一阶段生产数据再立项，工具 allowlist 是前置条件）
 5. **对抗性关联 fixture 扩充**：5 例「表面优化、实际引洞」类关联问题，优先 fix 反转/真实配对构造（手写用例会高估能力，D015），关联命中率在报告单列
