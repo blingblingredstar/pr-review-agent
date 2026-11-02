@@ -197,23 +197,51 @@ export function fileReaderFromEntries(entries: ZipballEntries): FileReader {
   };
 }
 
-// worker review 阶段的 read_file 快照源（D027）：重取一次 head zipball（不走信封携带——全仓内容
-// 最坏 25MB 超 4.5MB 请求体上限，且重取让 prepare/review 各自独立失败降级，不互相连坐）。
-// best-effort：任何失败返回 undefined → reviewDiff 不注入 fileReader → 单次调用原路径
-export async function makeFileReader(
+// worker review 阶段的快照获取（D028 自 makeFileReader 提升）：重取一次 head zipball（不走信封携带——
+// 全仓内容最坏 25MB 超 4.5MB 请求体上限，且重取让 prepare/review 各自独立失败降级，不互相连坐）。
+// 一次下载同时服务两个消费方：read_file 工具循环（fileReaderFromEntries 拿内容）与决策模型路由
+// （snapshotTree 拿文件树）——快照只取一次。best-effort：任何失败返回 undefined，两个消费方一并降级
+export async function makeSnapshot(
   { headRepo, headSha }: { headRepo: string; headSha: string },
   fetchImpl: typeof fetch = fetch,
-): Promise<FileReader | undefined> {
+): Promise<ZipballEntries | undefined> {
   try {
     const token = process.env.GITHUB_TOKEN;
     if (!token) throw new Error("缺少环境变量 GITHUB_TOKEN");
     const entries = await fetchZipballEntries(headRepo, headSha, token, fetchImpl);
-    console.log(`[fileReader] 快照就绪：${entries.size} 个文件（D027 read_file 工具循环）`);
-    return fileReaderFromEntries(entries);
+    console.log(`[snapshot] 快照就绪：${entries.size} 个文件（D027 read_file / D028 router 共用）`);
+    return entries;
   } catch (err) {
-    console.warn("[fileReader] 快照获取失败，本次审查不注入 read_file 工具（best-effort，D027）", err);
+    console.warn("[snapshot] 快照获取失败（best-effort：reader 与 router 都不注入，审查照旧）", err);
     return undefined;
   }
+}
+
+// worker review 阶段的 read_file 快照源（D027）：makeSnapshot 之上的 reader 视图
+export async function makeFileReader(
+  input: { headRepo: string; headSha: string },
+  fetchImpl: typeof fetch = fetch,
+): Promise<FileReader | undefined> {
+  const entries = await makeSnapshot(input, fetchImpl);
+  return entries ? fileReaderFromEntries(entries) : undefined;
+}
+
+// 决策路由用的仓库文件树（D028）：快照键字母序、字符预算封顶（router 输入控制在便宜档窗口内）。
+// 超预算「先落说明再装前缀」——说明先占位永不被挤，模型始终知道看到的是非全量（buildContextText 文件树段同款）
+export function snapshotTree(entries: ZipballEntries, budget = 20_000): string {
+  const paths = [...entries.keys()].sort();
+  if (paths.length === 0) return "";
+  const total = paths.reduce((s, p) => s + p.length + 1, 0) - 1;
+  if (total <= budget) return paths.join("\n");
+  const head = `[文件树截断] 共 ${paths.length} 个文件，仅显示装得下的前缀`;
+  let used = head.length;
+  const lines: string[] = [head];
+  for (const p of paths) {
+    if (used + p.length + 1 > budget) break;
+    lines.push(p);
+    used += p.length + 1;
+  }
+  return lines.join("\n");
 }
 
 export type RepoContextInput = { headRepo: string; headSha: string; diff: string };

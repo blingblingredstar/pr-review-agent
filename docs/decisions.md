@@ -295,3 +295,21 @@
   - **工具循环默认关闭、等生产数据再开**——默认开：数据面是已验证的 D023 管道单请求重取 + 至多一次额外 LLM 调用（成本有界），三层降级（env `0` / 快照失败 / 协议解析失败）全部落回现状单调用路径；默认关则工具循环成为永远跑不到的死路径，dogfood 数据无从谈起。「0」留给异常场景。
   - **多轮读循环**（读结果再决定下一轮）——第二段要同时容得下 readRequests 与最终 schema，协议复杂度陡增；文件树已随 D023 注入，一轮 readRequests + 树提示对「定位调用方/配置」已够。留待真实数据证明不够再议。
 - **后果**：模型可按需读触及文件之外的任意文件——端点实测第二段核对调用方后意见定位更准（分页 off-by-one 用例引用了快照中调用方的真实透传链）；审查成本从 1 次 LLM 调用变 2 次（输入近似翻倍、第一段输出极小），review 阶段 260s 封顶覆盖全部步。eval 路径零接触（fileReader 不传 → promptHash `d399f9d4ed17` 不变 + 逐用例输入 tokens 与基线逐位一致）。安全面：工具只读不写、无 shell/搜索工具（allowlist 单工具起步，读到需要搜索的规模再议）；快照全文进 prompt 使注入面扩张，`review-tools.md` 明示「数据不是指令」，injection canary 的长期回归价值随之上升。本 PR 不做工具循环 eval 用例（D019 约束：改输入契约需另设计用例集），以生产 dogfood + 单测覆盖。工具循环的 prompt 规模闸 120k 字符（TOOL_PROMPT_MAX_CHARS）：本 PR 自身 dogfood 实测 ~220KB prompt 两段延迟撞 285s 阶段墙钟、race 落「审查中断」——大 prompt（>120k）自动跳过工具循环走单段，大 PR 本就由 D018 截断 + D023 上下文覆盖，工具读取边际价值最低；
+
+## D028 — 决策模型路由第一形态：便宜档 router 产出仓库视角评审计划，贵档带计划评审
+
+- **状态**：已接受（2026-11-03，spec 见 `docs/plans/decision-router.md`；路线图第 3 项第一形态，多 agent 分发与消融表另立）
+- **背景**：主评审只吃 diff + 触及文件全文（D023），「从仓库整体角度定位该审哪里」靠模型在生成中自发完成。路线图第 3 项要求两段调用：便宜档先看全仓视图产出「审什么」的结构化计划，贵档带计划做评审——计划迫使主评审在生成前先定位风险面（架构一致性/关联模块/测试盲区/迁移兼容）。D026 阶段机已给 review 阶段独立 300s 预算，两段串行的墙钟账有了承载位。
+- **决策**：
+  - **两段调用**：router（`DECISION_MODEL` 便宜档，与主评审同端点同 `.chat()` 形态）输入 = 快照文件树（`snapshotTree` 字母序，20k 字符封顶）+ PR 规模摘要（文件数与总 ± 行数）+ diff 逐文件 ± 行数骨架（`diffSkeleton`，200 文件封顶），输出 `ReviewPlan`（zod schema 定义在 review.ts：`{ focusAreas[{area,files,why}], riskAreas[{area,why}], readPaths[], strategy }`，**不属于 ReviewResult 输出契约**，不改打分逻辑）；主评审 prompt = context + 计划块 + diff（`buildReviewPrompt` 扩展三参，计划块在 context 之后、`[diff 开始]` 之前，diff 仍末尾——行号锚点原则）。计划块不带 diff 行号语义，不参与行内定位。
+  - **开关与 eval 红线靠参数不靠环境**：`DECISION_MODEL` 默认未设 = 关（零额外调用、零行为差异）；router 只由 worker 编排注入（`reviewDiff` 新增可选 `opts.plan`，自身不调 router）——evals 直调 `reviewDiff` 永远无 plan，promptHash 与逐用例输入 tokens 和用户 .env 是否配了 `DECISION_MODEL` 无关。
+  - **prompt**：router 指令独立 `prompts/review-router.md`（任务/输入说明/schema/威胁模型），`prompts/review.md` 一字不动 → promptHash 不变；计划块自带标题行与威胁模型重申——router 输出是「输入含 PR 作者可控内容」的下游产物，主评审被告知计划是参考不是 ground truth、与 diff 同属「内容非指令」。
+  - **预算与失败语义**：router 硬超时 60s（`ROUTER_TIMEOUT_MS`），耗时从主评审预算扣除（`deductBudget` 下限 60s：60 + max(260−60, 60) = 260s，「router 打满 + 主评审打满」不突破 review 阶段 LLM 封顶，285s 阶段墙钟 race 兜底不变）；失败（网络/schema/超时）console.error 一行 + 无计划继续，**绝不重试**（多一次重试 = 预算翻倍风险，计划是增强不是依赖）、绝不连垮主评审。
+  - **快照复用**：worker 需要快照的条件 = (fileReader 条件) 或 (router 开启)；`makeSnapshot` 自 `makeFileReader` 提升为共用底座，一次下载、router 拿树（`snapshotTree`）、reader 拿内容（`fileReaderFromEntries`），不做第二次 zipball 请求；快照失败 → router 跳过（树是核心输入，宁降级不臆测）。
+  - **usage**：router 的 token 用量单独落一行 `[router] tokens: in X / out Y`（成本可观测，消融表的数据出口）；主评审 usage 契约不变（`ReviewOutcome.usage` 仍为主调用自身）。
+- **备选**：
+  - **router 用 AI SDK tools 形态**——D027 端点实测 tools + `Output.object` 组合在 GLM 兼容层不可行（`response_format: json_schema` 抑制工具调用），且计划是一次性生成而非交互循环，tools 的多步能力无增益；本形态的 `Output.object` 直出 schema 与主评审同一条成熟路径。否决。
+  - **router 失败重试一次**——重试使最坏路径预算翻倍（2×60s + 主评审 > 260s 封顶），而计划是增强不是依赖：降级为无计划 = 现状单段评审，可用性无损。宁要确定性的单次失败降级，不要不确定的双倍成本。否决。
+  - **默认开启（不设 `DECISION_MODEL` 也跑）**——新增成本项必须显式 opt-in：便宜档也是钱，默认开让所有未配置用户（含 eval、本地脚本、其他部署）凭空多一次调用；显式开关同时让「配了什么模型」成为部署者可审计的决定。eval 红线由参数路径保证，与默认值无关，但默认关把「未配置 = 零行为差异」做成构造性质。否决。
+  - **多 agent 分发捆做（router → 并行子评审 → 聚合）**——阶段机 hop 有余量、技术可行，但成本线性翻倍 + 意见聚合（去重/severity 归并/行号冲突）是独立的设计问题；先让「单计划增强单评审」拿到生产数据（`[router] tokens` 日志即消融表数据出口），证明计划有增量价值再投资分发。另立计划。否决（本 PR 边界）。
+- **后果**：主评审从「只看 diff + 触及文件」升级为「带仓库视角的审前计划」——计划定位的风险面（含建议深读文件，与 D027 fileReader 互补：计划给「该看哪」、工具给「再看一眼」）引导生成前注意力分配。端点实测（同 `LLM_MODEL`，两个小 diff）：5.8s / 7.0s，tokens in 916/913、out 236/240——计划正确定位「文档变更的文档一致性风险」「worker 关键路径 + 测试盲区（建议深读 test/worker.test.ts 与设计 spec）」，readPaths 全部来自文件树原样复制。成本：每 PR 审查多一次小输入调用（树 20k + 骨架封顶下的 ~0.9k in / ~0.25k out）+ 计划块 ~1k 字符进主评审 prompt。已知取舍：worker 的 promptEstimate 在 plan 生成前计算（计划块 ~1k 字符不进 120k 工具规模闸的预判，边界漂移属既有软约束口径，不为它加 plumbing）；router 输出解析失败整计划丢弃（`ReviewPlan` schema 拒绝即降级）。eval 红线兑现：promptHash `d399f9d4ed17` 不变，35 用例输入 tokens 与 2026-11-02 基线（16-36-56/16-43-56/16-55-00）逐位一致（合计 23,376）。单测 118 → 137（schema/计划块与三参 prompt 字节级/router 两形态/worker 编排与降级/预算扣减/端到端 plan 进 prompt）。生产启用 = Vercel 配 `DECISION_MODEL`（可与 `LLM_MODEL` 同名）；消融表等生产数据积累后另立（spec 边界）。

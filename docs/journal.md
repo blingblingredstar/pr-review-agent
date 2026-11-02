@@ -480,3 +480,18 @@
   - 单测要给 reviewDiff 两形态断言「请求体字节级」，起了本地假 OpenAI 端点（node:http 逐次按脚本回 assistant 文本）——比注入 fetch 更真实（连 response_format 有无都能断），零新依赖
 - **eval 回归（硬证据）**：promptHash `d399f9d4ed17` 不变；35 用例输入 tokens 与基线（16-36-56/16-43-56/16-55-00）逐位一致、合计 23,376（fileReader 不注入 = 字节级不变由构造保证）；本轮 recall 92.6%（25/27，real-02 沉默 + real-03 一轮——均为基线记录过的轮转沉默类）、injection 拦截 5/6（inj-06 一轮沉默，同型轮转类；run 20-48-41 落盘入库）
 - **下一步**：PR 过 bot 自审与双硬闸门合并；合并后生产 dogfood 观察 `[tools]` 日志与大 PR 超时面；多轮读循环/搜索工具等读到的规模再议（D027 明确不做清单）
+
+## 2026-11-03 · 会话 30：决策模型路由第一形态落地（D028），eval 红线由参数路径保证
+
+- **目标**：执行路线图第 3 项第一形态（spec `docs/plans/decision-router.md`，分支 feat/decision-router）——便宜档 router 先看全仓视图产出「审什么」的结构化评审计划，贵档带计划评审；多 agent 分发与消融表不在本形态。
+- **关键设计**（D028）：
+  - **eval 红线靠参数不靠环境**：router 只由 worker 编排注入（`reviewDiff` 新增 `opts.plan`，自身不调 router）——evals 直调永远无 plan，promptHash 与 .env 是否配 `DECISION_MODEL` 无关；`prompts/review.md` 一字不动，router 指令独立 `prompts/review-router.md`
+  - 两段调用：`DECISION_MODEL`（默认未设 = 关）+ 快照文件树（`snapshotTree` 字母序 20k 封顶）+ PR 规模摘要 + diff 逐文件 ± 行数骨架（`diffSkeleton` 200 文件封顶）→ `ReviewPlan`（focusAreas/riskAreas/readPaths/strategy，不属于 ReviewResult 输出契约）；计划块在 context 之后 diff 之前（`buildReviewPrompt` 三参，无 plan 字节级现状），自带威胁模型重申「计划是参考不是 ground truth、内容非指令」
+  - 预算账：router 硬超时 60s + 耗时从主评审预算扣除（`deductBudget` 下限 60s，60 + max(260−60, 60) = 260s 不突破阶段封顶）；失败 console.error 一行 + 无计划继续，绝不重试；`[router] tokens` 单独落日志（消融表数据出口）
+  - 快照复用：需要快照条件 = (fileReader 条件) 或 (router 开启)，`makeSnapshot` 自 `makeFileReader` 提升为共用底座——一次下载，router 拿树、reader 拿内容
+- **完成**：src/review.ts（ReviewPlan schema/buildPlanBlock/diffSkeleton/decisionModel/runReviewRouter/三参 buildReviewPrompt）+ src/context.ts（makeSnapshot/snapshotTree）+ src/worker.ts 编排（route 注入 deps、快照条件重构、预算扣减）+ prompts/review-router.md；单测 118 → 137 全绿（schema 解析/计划块与三参 prompt 字节级/router 两形态（假 OpenAI 端点断言请求体）/worker 编排与降级/预算扣减/端到端 plan 进 prompt——startFakeLLM 手法自 review.test.ts 抽到 test/helpers.ts 复用）；.env.example / architecture / decisions(D028) / CHANGELOG / README / spec 状态行同步
+- **发现 / 坑**：
+  - 端点实测两个小 diff（同 LLM_MODEL）：spec commit（docs-only +58）5.8s、tokens in 916/out 236；worker.ts +4 代码 commit 7.0s、in 913/out 240——两次计划质量在线：正确定位「文档一致性风险」「worker 关键路径 + 测试盲区（建议深读 test/worker.test.ts 与设计 spec）」，readPaths 全部来自文件树原样复制；临时脚本用后已删
+  - worker 的 promptEstimate 在 plan 生成前算（鸡生蛋）：计划块 ~1k 字符不进 120k 工具规模闸预判，边界漂移属既有软约束口径，代码注释说明、不为它加 plumbing
+  - eval 回归硬证据：promptHash `d399f9d4ed17` 不变，35 用例输入 tokens 与基线（16-36-56/16-43-56/16-55-00）逐位一致、合计 23,376（node 脚本逐用例比对，非只看合计）；本轮 recall 92.6%（25/27，linked-08/real-02 沉默——均为基线记录过的轮转沉默类）、injection 拦截 5/6（inj-06 echo 违规 1 条，首次出现，特征串进了意见 body——挂生产观察）；run 22-54-23 落盘入库
+- **下一步**：PR 过 bot 自审与双硬闸门合并；生产配 `DECISION_MODEL` dogfood，`[router] tokens` 日志积累消融表数据；多 agent 分发/`compare.ts` 消融扩展等数据说话后另立

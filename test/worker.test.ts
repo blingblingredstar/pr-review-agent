@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { test } from "node:test";
+import { readFileSync } from "node:fs";
 import { zipSync, strToU8 } from "fflate";
 import type { Octokit } from "octokit";
 import {
   chainBase,
   chainWorker,
   defaultWorkerDeps,
+  deductBudget,
   handleWorker,
   MAX_HOPS,
   prepareEnvelope,
@@ -16,8 +18,8 @@ import {
 } from "../src/worker.ts";
 import { handleWebhook } from "../src/webhook.ts";
 import { reviewMarker } from "../src/dedupe.ts";
-import { llmTimeoutMs, type ReviewDiffOpts, type ReviewOutcome } from "../src/review.ts";
-import { withEnv } from "./helpers.ts";
+import { buildPlanBlock, llmTimeoutMs, loadPrompt, type ReviewDiffOpts, type ReviewOutcome, type ReviewPlan } from "../src/review.ts";
+import { messagesOf, startFakeLLM, withEnv } from "./helpers.ts";
 
 const SECRET = "test-secret";
 process.env.WEBHOOK_SECRET ??= SECRET;
@@ -667,6 +669,205 @@ test("chainBase：WORKER_BASE_URL 合法生效（剥尾斜杠）、非法（漏 
     assert.equal(chainBase(), "https://custom.example.com", "显式配置最高优先（剥尾斜杠）");
   });
   void client;
+});
+
+// ============ 决策模型路由编排（D028）============
+
+const ROUTER_PLAN: ReviewPlan = {
+  focusAreas: [{ area: "空指针", files: ["src/a.ts"], why: "a 可能为 null" }],
+  riskAreas: [{ area: "调用方未同步", why: "missing.method 的调用方" }],
+  readPaths: ["src/a.ts"],
+  strategy: "先核对空引用再扫调用方",
+};
+
+test("worker review 阶段接线：DECISION_MODEL 注入 → mock router 拿文件树/diff 骨架，plan 进 deps.review；快照只为 router 取（D028）", async () => {
+  const { client } = fakeClient();
+  const received: ReviewDiffOpts[] = [];
+  const routed: { tree: string; skeleton: string }[] = [];
+  let zipFetches = 0;
+  const zipFetch = (async () => {
+    zipFetches++;
+    return new Response(new Uint8Array(FIXTURE_ZIP), { status: 200 });
+  }) as unknown as typeof fetch;
+  await withEnv({ DECISION_MODEL: "cheap-model", FILE_TOOL_MAX_STEPS: "0", GITHUB_TOKEN: "t" }, async () => {
+    await runStage(
+      fullDeps({
+        client: () => client,
+        fetchImpl: zipFetch,
+        chain: boomChain,
+        route: async (args) => {
+          routed.push(args);
+          return ROUTER_PLAN;
+        },
+        review: async (diff, context, opts) => {
+          received.push(opts ?? {});
+          return REVIEW_RESULT;
+        },
+      }),
+      { v: 1, stage: "review", hop: 1, ref: REF, issuedAt: Date.now(), state: { diff: DIFF, context: null } },
+    );
+  });
+  assert.equal(zipFetches, 1, "router 开启即需要快照（FILE_TOOL_MAX_STEPS=0 也取，快照只取一次）");
+  assert.equal(routed.length, 1, "router 恰好一次调用");
+  assert.ok(routed[0]!.tree.includes("src/a.ts"), "router 拿到快照文件树");
+  assert.ok(routed[0]!.skeleton.includes("src/demo.ts (+1/-0)"), "router 拿到 diff 骨架（逐文件 ± 行数）");
+  assert.equal(received[0]!.plan, ROUTER_PLAN, "deps.review 收到 plan");
+  assert.equal(received[0]!.fileReader, undefined, "工具循环关闭时 reader 不注入（快照只为 router 取）");
+});
+
+test("worker review 阶段接线：DECISION_MODEL 未注入 → 零 router 调用、零快照请求（关闭 = 零行为差异，D028）", async () => {
+  const { client } = fakeClient();
+  const received: ReviewDiffOpts[] = [];
+  let routerCalls = 0;
+  const spy = (async () => {
+    throw new Error("zipball 不应被请求");
+  }) as unknown as typeof fetch;
+  await withEnv({ DECISION_MODEL: undefined, FILE_TOOL_MAX_STEPS: "0" }, async () => {
+    await runStage(
+      fullDeps({
+        client: () => client,
+        fetchImpl: spy,
+        chain: boomChain,
+        route: async () => {
+          routerCalls++;
+          return null;
+        },
+        review: async (diff, context, opts) => {
+          received.push(opts ?? {});
+          return REVIEW_RESULT;
+        },
+      }),
+      { v: 1, stage: "review", hop: 1, ref: REF, issuedAt: Date.now(), state: { diff: DIFF } },
+    );
+  });
+  assert.equal(routerCalls, 0, "未注入 DECISION_MODEL → 零 router 调用");
+  assert.equal(received[0]!.plan, undefined, "无 plan");
+});
+
+test("worker review 阶段接线：router 失败 → 无计划继续，主评审照常（best-effort 降级，绝不连垮，D028）", async () => {
+  const { client } = fakeClient();
+  const received: ReviewDiffOpts[] = [];
+  await withEnv({ DECISION_MODEL: "cheap-model", FILE_TOOL_MAX_STEPS: "0", GITHUB_TOKEN: "t" }, async () => {
+    await runStage(
+      fullDeps({
+        client: () => client,
+        fetchImpl: (async () => new Response(new Uint8Array(FIXTURE_ZIP), { status: 200 })) as unknown as typeof fetch,
+        chain: boomChain,
+        route: async () => {
+          throw new Error("端点 500");
+        },
+        review: async (diff, context, opts) => {
+          received.push(opts ?? {});
+          return REVIEW_RESULT;
+        },
+      }),
+      { v: 1, stage: "review", hop: 1, ref: REF, issuedAt: Date.now(), state: { diff: DIFF } },
+    );
+  });
+  assert.equal(received[0]!.plan, undefined, "router 失败 → 无计划");
+  assert.ok(received[0]!.timeoutMs, "主评审照常带预算执行");
+});
+
+test("worker review 阶段接线：router 开启但快照失败 → 跳过 router（无文件树），审查照常（D028 best-effort 链）", async () => {
+  const { client } = fakeClient();
+  const received: ReviewDiffOpts[] = [];
+  let routerCalls = 0;
+  await withEnv({ DECISION_MODEL: "cheap-model", FILE_TOOL_MAX_STEPS: "0", GITHUB_TOKEN: "t" }, async () => {
+    await runStage(
+      fullDeps({
+        client: () => client,
+        fetchImpl: (async () => new Response(null, { status: 500 })) as unknown as typeof fetch,
+        chain: boomChain,
+        route: async () => {
+          routerCalls++;
+          return null;
+        },
+        review: async (diff, context, opts) => {
+          received.push(opts ?? {});
+          return REVIEW_RESULT;
+        },
+      }),
+      { v: 1, stage: "review", hop: 1, ref: REF, issuedAt: Date.now(), state: { diff: DIFF } },
+    );
+  });
+  assert.equal(routerCalls, 0, "无文件树不跑 router");
+  assert.equal(received[0]!.plan, undefined);
+});
+
+test("worker review 阶段接线：router 耗时从主评审预算扣除（D028 墙钟账，快照扣减同款）", async () => {
+  const { client } = fakeClient();
+  const received: ReviewDiffOpts[] = [];
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  await withEnv({ DECISION_MODEL: "cheap-model", FILE_TOOL_MAX_STEPS: "0", GITHUB_TOKEN: "t" }, async () => {
+    await runStage(
+      fullDeps({
+        client: () => client,
+        fetchImpl: (async () => new Response(new Uint8Array(FIXTURE_ZIP), { status: 200 })) as unknown as typeof fetch,
+        chain: boomChain,
+        route: async () => {
+          await sleep(100);
+          return null;
+        },
+        review: async (diff, context, opts) => {
+          received.push(opts ?? {});
+          return REVIEW_RESULT;
+        },
+      }),
+      { v: 1, stage: "review", hop: 1, ref: REF, issuedAt: Date.now(), state: { diff: DIFF } },
+    );
+  });
+  const base = Math.min(llmTimeoutMs(), 260_000);
+  const timeout = received[0]!.timeoutMs!;
+  assert.ok(timeout <= base - 100, `router 睡 100ms 应被扣除（${timeout} vs 基线 ${base}）`);
+  assert.ok(timeout > base - 2_000, "快照 mock 即时，扣减后仍贴近原预算（2s 容差防 CI 时序抖动）");
+});
+
+test("deductBudget：纯线性扣减不触底（触底在 deps.review 调用点统一一次，D028 自审 major）", () => {
+  assert.equal(deductBudget(260_000, 10_000), 250_000, "线性扣减");
+  assert.equal(deductBudget(90_000, 40_000), 50_000, "可为负值/低于 60s——触底交给调用点单次处理");
+  assert.equal(deductBudget(30_000, 40_000), -10_000, "超耗返回负值，由统一触底截断");
+});
+
+test("worker 编排端到端：DECISION_MODEL + mock route → 真实 reviewDiff 收到 plan，主评审 prompt 含计划块、system 仍只有 review.md（D028）", async () => {
+  const fake = await startFakeLLM(() => ({
+    content: JSON.stringify({ comments: REVIEW_RESULT.comments }),
+    usage: { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 },
+  }));
+  try {
+    const { client } = fakeClient();
+    await withEnv(
+      {
+        DECISION_MODEL: "cheap-model",
+        FILE_TOOL_MAX_STEPS: "0",
+        GITHUB_TOKEN: "t",
+        LLM_BASE_URL: fake.url,
+        LLM_API_KEY: "test",
+        LLM_MODEL: "fake",
+        LLM_EXTRA_BODY: undefined,
+        LLM_TIMEOUT_MS: undefined,
+      },
+      async () => {
+        await runStage(
+          fullDeps({
+            client: () => client,
+            fetchImpl: (async () => new Response(new Uint8Array(FIXTURE_ZIP), { status: 200 })) as unknown as typeof fetch,
+            chain: boomChain,
+            route: async () => ROUTER_PLAN,
+          }),
+          { v: 1, stage: "review", hop: 1, ref: REF, issuedAt: Date.now(), state: { diff: DIFF, context: null } },
+        );
+      },
+    );
+    assert.equal(fake.calls.length, 1, "主评审单次调用（router 被 mock，不占用假端点）");
+    const body = fake.calls[0]!.body;
+    const sys = messagesOf(body).find((m) => m.role === "system")!;
+    const user = messagesOf(body).find((m) => m.role === "user")!;
+    assert.equal(sys.content, loadPrompt(), "主评审 system = review.md（router prompt 不掺入）");
+    assert.ok(user.content.startsWith(buildPlanBlock(ROUTER_PLAN)), "计划块在 prompt 前段（context=null 时在 diff 之前）");
+    assert.ok(user.content.endsWith(DIFF), "diff 保持在末尾（行号锚点原则）");
+  } finally {
+    await fake.close();
+  }
 });
 
 
