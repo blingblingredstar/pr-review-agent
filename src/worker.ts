@@ -158,7 +158,14 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
     if (envelope.stage === "prepare") {
       client ??= deps.client();
       if (await hasReviewed(client, ref, ref.headSha)) {
-        console.log(`[worker] ${key} 已有同 SHA 审查，跳过（幂等，D010）`);
+        // 重派命中（webhook 重投/信封重试）：审查已存在——与 publish 二次 dedupe 同语义，补落 success 终态。
+        // 静默跳过会把「上次 postReview 成功但 status 未落定」的重派永久留在 pending 黄灯（自审 minor，PR #29）
+        console.log(`[worker] ${key} prepare dedupe：已有同 SHA 审查，补落 success status（幂等，D010）`);
+        try {
+          await setReviewStatus(client, { ...ref, sha: ref.headSha }, "success", "完成（重派路径补落终态）");
+        } catch (statusErr) {
+          console.error(`[worker] ${key} success status 写失败`, statusErr);
+        }
         return;
       }
       // 审查生命周期 status（D017）：开始即 pending，补上「review 尚未发布」的合并窗口期；

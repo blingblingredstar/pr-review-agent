@@ -243,11 +243,14 @@ test("publish 二次 dedupe：不回帖（防重派），补落 success status�
   );
 });
 
-test("prepare dedupe：已有同 SHA 审查静默结束，不写 pending 不拉 diff 不续链", async () => {
+test("prepare dedupe：已有同 SHA 审查，不拉 diff 不续链，补落 success status（重派路径终态）", async () => {
   const { client, calls } = fakeClient([{ body: reviewMarker(REF.headSha) }]);
   await runStage(fullDeps({ client: () => client, chain: boomChain }), prepareEnvelope(REF));
-  assert.equal(calls.statuses.length, 0);
   assert.equal(calls.paginateCalls, 1);
+  assert.deepEqual(
+    calls.statuses.map((s) => [s.state, s.description]),
+    [["success", "完成（重派路径补落终态）"]],
+  );
 });
 
 test("review 阶段超时：降级通知（D011）+ failure status「审查超时，重推 commit 可重试」", async () => {
