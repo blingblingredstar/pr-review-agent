@@ -38,7 +38,7 @@ type WorkerEnvelope = {
 
 - `reviewDiff` 本阶段仍是单调用（20s 级）；PR-30/31 的多轮工具循环 / 路由+评审两段调用在 `review` 阶段内扩展轮数，逼近本阶段预算时以 `publish` 收口——阶段机是给它们用的底座，本 PR 不改 LLM 调用形态。
 - 失败语义与现状对齐：`review` 阶段超时 → `postTimeoutNotice`（D011）+ failure status「审查超时，重推 commit 可重试」；其他异常 → failure status「审查失败，见 Vercel 日志」。`isTimeoutError` 随迁。
-- **续链失败不静默**：`chainWorker`（POST 信封到自部署）最多 2 次尝试（间隔 2s），终失败由当前调用 best-effort 落 failure status「审查中断」——避免永久 pending 黄灯（D017 窗口期语义）。续链 POST 用 `waitUntil` 调度，当前函数立刻 200。
+- **续链失败不静默**：`chainWorker`（POST 信封到自部署）单次 30s 硬超时 + 最多 2 次尝试（间隔 2s；仅网络异常/5xx/429 重试，确定性 4xx 直接终失败——重试必同败不白等），终失败由当前调用 best-effort 落 failure status「审查中断」——避免永久 pending 黄灯（D017 窗口期语义；PR #29 自审 major+minor 采纳）。续链 POST 用 `waitUntil` 调度，当前函数立刻 200。
 - 失败 status 落定动作集中在各阶段 catch，与现状逐字一致（「永久 pending 比红灯更具误导性」）。
 
 ### 续链目标与本地回退

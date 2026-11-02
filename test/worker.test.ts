@@ -306,6 +306,47 @@ test("续链失败：2 次尝试（请求体带签名头）后 best-effort 落 f
   }
 });
 
+test("续链 4xx 确定性失败：不重试直接终失败（重试必同败，不白等间隔）", async () => {
+  process.env.VERCEL_URL = "test-deploy.vercel.app";
+  try {
+    const { client, calls } = fakeClient();
+    let attempts = 0;
+    const notFoundFetch = (async () => {
+      attempts++;
+      return new Response("envelope rejected", { status: 403 });
+    }) as unknown as typeof fetch;
+    await chainWorker(prepareEnvelope(REF), { client: () => client, fetchImpl: notFoundFetch, chainRetryDelayMs: 1 });
+    assert.equal(attempts, 1, "403 只打一次，不进重试");
+    assert.deepEqual(
+      calls.statuses.map((s) => [s.state, s.description]),
+      [["failure", "审查中断"]],
+    );
+  } finally {
+    delete process.env.VERCEL_URL;
+  }
+});
+
+test("续链 429 可重试：2 次尝试后落 failure status；单次请求带硬超时 signal", async () => {
+  process.env.VERCEL_URL = "test-deploy.vercel.app";
+  try {
+    const { client, calls } = fakeClient();
+    let attempts = 0;
+    const throttledFetch = (async (_input: unknown, init?: { signal?: AbortSignal }) => {
+      attempts++;
+      assert.ok(init?.signal instanceof AbortSignal, "fetch 带硬超时 signal");
+      return new Response("slow down", { status: 429 });
+    }) as unknown as typeof fetch;
+    await chainWorker(prepareEnvelope(REF), { client: () => client, fetchImpl: throttledFetch, chainRetryDelayMs: 1 });
+    assert.equal(attempts, 2, "429 属可重试类，最多 2 次尝试");
+    assert.deepEqual(
+      calls.statuses.map((s) => [s.state, s.description]),
+      [["failure", "审查中断"]],
+    );
+  } finally {
+    delete process.env.VERCEL_URL;
+  }
+});
+
 test("续链成功：POST 到自部署 /api/worker 后即返回，不在本进程执行阶段", async () => {
   process.env.VERCEL_URL = "test-deploy.vercel.app";
   try {

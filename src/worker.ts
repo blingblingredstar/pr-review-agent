@@ -31,8 +31,11 @@ export type WorkerEnvelope = {
 export const MAX_HOPS = 4;
 // 新鲜度窗口：信封只能由内部铸造（需 WEBHOOK_SECRET），窗口限的是合法信封被截获后的重放面
 const ENVELOPE_FRESH_MS = 10 * 60 * 1000;
-// 续链最多尝试次数与间隔（D026）：终失败由当前调用 best-effort 落 failure status，不静默
+// 续链最多尝试次数、间隔与单次硬超时（D026）：终失败由当前调用 best-effort 落 failure status，不静默。
+// 硬超时必须远小于本函数 300s 墙钟——自调用挂起会占满 waitUntil 直到平台强杀，重试与落灯都到不了，
+// 恰是本机制要消灭的永久 pending 黄灯（PR #29 自审 major）
 const CHAIN_ATTEMPTS = 2;
+const CHAIN_TIMEOUT_MS = 30_000;
 
 // 依赖注入（生产默认、测试传 mock）：schedule 调度后台任务；client 工厂延迟构造（缺 token 不炸 handler）；
 // review / chain / fetchImpl 可替换——chain 默认即 chainWorker，测试传 spy 观察信封
@@ -43,6 +46,7 @@ export type WorkerDeps = {
   chain: (envelope: WorkerEnvelope) => Promise<void>;
   fetchImpl: typeof fetch;
   chainRetryDelayMs: number;
+  chainTimeoutMs: number;
 };
 
 export function defaultWorkerDeps(): WorkerDeps {
@@ -53,6 +57,7 @@ export function defaultWorkerDeps(): WorkerDeps {
     chain: chainWorker,
     fetchImpl: fetch,
     chainRetryDelayMs: 2_000,
+    chainTimeoutMs: CHAIN_TIMEOUT_MS,
   };
 }
 
@@ -228,7 +233,8 @@ async function markFailed(client: () => Octokit, key: string, ref: PrRef & { hea
 }
 
 // 续链（D026）：POST 信封到自部署的 /api/worker。目标 URL 用平台自动注入的 VERCEL_URL（preview 与 production
-// 各自自洽；webhook 挂 production，链自然全在 production）。最多 2 次尝试（间隔 chainRetryDelayMs），
+// 各自自洽；webhook 挂 production，链自然全在 production）。最多 2 次尝试（间隔 chainRetryDelayMs、
+// 单次硬超时 chainTimeoutMs；仅网络异常/5xx/429 重试，确定性 4xx 直接终失败），
 // 终失败由当前调用 best-effort 落 failure status「审查中断」——续链失败不静默，避免永久 pending 黄灯（D017）。
 // 本函数不抛出：失败语义已闭环（落灯 + 日志），抛出只会变成上游 waitUntil 的 unhandled rejection
 export async function chainWorker(envelope: WorkerEnvelope, deps?: Partial<WorkerDeps>): Promise<void> {
@@ -258,9 +264,14 @@ export async function chainWorker(envelope: WorkerEnvelope, deps?: Partial<Worke
         method: "POST",
         headers: { "content-type": "application/json", "x-worker-signature": signature },
         body,
+        // 单次硬超时：自调用挂起（网络黑洞 / 冷启动卡死）时及时进入重试与落灯路径
+        signal: AbortSignal.timeout(d.chainTimeoutMs),
       });
       if (res.ok) return;
       lastErr = new Error(`HTTP ${res.status}`);
+      // 确定性 4xx（信封超限 413 / 结构非法 400 / 校验拒绝 403）重试必同败，不白等间隔直接终失败；
+      // 仅网络异常（含上面的超时）与 5xx / 429 值得再试（PR #29 自审 minor）
+      if (res.status < 500 && res.status !== 429) break;
     } catch (err) {
       lastErr = err;
     }
