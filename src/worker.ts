@@ -33,16 +33,21 @@ export const MAX_HOPS = 4;
 const ENVELOPE_FRESH_MS = 10 * 60 * 1000;
 // 续链最多尝试次数、间隔与单次硬超时（D026）：终失败由当前调用 best-effort 落 failure status，不静默。
 // 硬超时必须远小于本函数 300s 墙钟——自调用挂起会占满 waitUntil 直到平台强杀，重试与落灯都到不了，
-// 恰是本机制要消灭的永久 pending 黄灯（PR #29 自审 major）
+// 恰是本机制要消灭的永久 pending 黄灯（PR #29 自审 major）。10s 内：自调用无公网往返，冷启动排队
+// 超 10s 时第 2 次尝试命中的已是热函数（排队耗在首次上），重试即天然冷启动兜底
 const CHAIN_ATTEMPTS = 2;
-const CHAIN_TIMEOUT_MS = 30_000;
+const CHAIN_TIMEOUT_MS = 10_000;
+// review 阶段 LLM 上限（PR #29 自审 major 的墙钟算账）：最坏路径 = LLM 打满 + 续链 2×10s+2s + 落灯 ~2s，
+// 260 + 22 + 2 ≈ 284s < 300s 平台强杀线（留 ~16s 平台开销余量）；现端点 20s 级，封顶只在慢端点场景生效；
+// 慢端点的预算压力由阶段机天然可拆（review 可再分跳）吸收，不动 LLM_TIMEOUT_MS 语义（D011）
+const REVIEW_STAGE_LLM_CAP_MS = 260_000;
 
 // 依赖注入（生产默认、测试传 mock）：schedule 调度后台任务；client 工厂延迟构造（缺 token 不炸 handler）；
 // review / chain / fetchImpl 可替换——chain 默认即 chainWorker，测试传 spy 观察信封
 export type WorkerDeps = {
   schedule: (task: () => Promise<void>) => void;
   client: () => Octokit;
-  review: (diff: string, context?: string) => Promise<ReviewOutcome>;
+  review: (diff: string, context?: string, opts?: { timeoutMs?: number }) => Promise<ReviewOutcome>;
   chain: (envelope: WorkerEnvelope) => Promise<void>;
   fetchImpl: typeof fetch;
   chainRetryDelayMs: number;
@@ -172,7 +177,9 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
     if (envelope.stage === "review") {
       const state = (envelope.state ?? {}) as { diff?: string; context?: string | null };
       if (typeof state.diff !== "string") throw new Error("review 信封缺 state.diff");
-      const result = await deps.review(state.diff, state.context ?? undefined);
+      const result = await deps.review(state.diff, state.context ?? undefined, {
+        timeoutMs: Math.min(llmTimeoutMs(), REVIEW_STAGE_LLM_CAP_MS),
+      });
       // state 累积传递：publish 的 postReview 仍需 diff 做行内预定位（splitByLocatable）
       await deps.chain({ v: 1, stage: "publish", hop: envelope.hop + 1, ref, issuedAt: Date.now(), state: { ...state, result } });
       return;

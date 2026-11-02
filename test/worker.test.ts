@@ -14,7 +14,7 @@ import {
 } from "../src/worker.ts";
 import { handleWebhook } from "../src/webhook.ts";
 import { reviewMarker } from "../src/dedupe.ts";
-import type { ReviewOutcome } from "../src/review.ts";
+import { llmTimeoutMs, type ReviewOutcome } from "../src/review.ts";
 
 const SECRET = "test-secret";
 process.env.WEBHOOK_SECRET ??= SECRET;
@@ -482,4 +482,24 @@ test("续链 408 可重试：与网络异常同属瞬态，2 次尝试后落灯"
   } finally {
     delete process.env.VERCEL_URL;
   }
+});
+
+test("review 阶段传给 LLM 的超时 = min(LLM_TIMEOUT_MS, 260s 阶段封顶)——把 LLM 打满 + 续链 + 落灯整体关进墙钟（自审 major）", async () => {
+  const { client } = fakeClient();
+  const received: ({ timeoutMs?: number } | undefined)[] = [];
+  await runStage(
+    fullDeps({
+      client: () => client,
+      review: async (diff, context, opts) => {
+        received.push(opts);
+        return REVIEW_RESULT;
+      },
+      chain: boomChain,
+    }),
+    { v: 1, stage: "review", hop: 1, ref: REF, issuedAt: Date.now(), state: { diff: DIFF, context: null } },
+  );
+  const opts = received[0];
+  assert.ok(opts && typeof opts.timeoutMs === "number", "deps.review 收到 timeoutMs 覆写");
+  assert.equal(opts!.timeoutMs, Math.min(llmTimeoutMs(), 260_000));
+  assert.ok(opts!.timeoutMs! + 22_000 + 2_000 < 300_000, "LLM 打满 + 续链最坏 22s + 落灯 ~2s 关进 300s 墙钟");
 });
