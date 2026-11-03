@@ -33,13 +33,9 @@ index 4b8bab18040..7c097678a29 100644
       "line": 325,
       "mustMention": [
         "findroute",
-        "find",
-        "head",
         "already declared",
-        "重复",
-        "查找",
-        "约束",
         "constraints",
+        "重复声明",
         "清理"
       ]
     }
