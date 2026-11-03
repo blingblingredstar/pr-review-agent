@@ -545,3 +545,16 @@
   - 课程「selective context 胜全库 dump」的对照组是稻草人：本仓库 D023 形态（触及文件全文，而非全库或向量检索）天然位于两者之外；玩具库 + 循环评测的课程数字只作方向参考
   - **勘误（PR #35）**：笔记 §五原写「eval 加 precision 口径、现打分 recall 导向」——错误。`evals/score.ts` 一直同时算 precision（命中任一期望的意见/总意见），compare.ts 跨轮微平均、Day 6 报告即消融报告；本仓库 eval 框架先于调研即完整。分析课程代码后没回头核对自家 score.ts，想当然了；§五已改为真实可参考的三点（消融矩阵形态 / prompt 措辞分层实验 / context-aware eval 双联用例模板）
 - **下一步**：本 PR 过 bot 自审与双闸门合并；ticket 注入已立项（D029，路线图第 3 项，spec 待实现）；「prompt 同因合并/低置信不发措辞实验（按 severity 分层）」「compare.ts 消融矩阵扩展（等生产数据）」仍按优先级另行安排（见笔记 §五勘误版）；embedding 结论已写入笔记 §六防重复讨论
+
+## 2026-11-03 · 会话 34：仓库重构评估（结论：整体不重构，D030 拆分绑定 D029）+ 路线图执行计划落库
+
+- **目标**：用户问「当前仓库是否需要重构一下了」→ 全面评估并给结论；随后按 roadmap 生成 step-by-step 执行计划；两者落库（本 PR）。
+- **完成**：
+  - **重构评估**：src/ 共 ~1900 行 / 7 文件、138 测试全绿、`shortcut:` 债零条、模块边界与 architecture.md 逐条对得上、worker.ts（514 行）内聚不拆——**整体不需要结构性重构**。唯一真实压力点 `src/review.ts`（724 行）：混六个关注点（diff 解析 / D018-D020 截断 / LLM 管道 / prompt 组装 / D027 工具循环 / D028 router），是每个路线图项的堆积点；D029 将给 `buildReviewPrompt` 加任务块维度，「第三个理由才动手」凑齐
+  - **D030**（decisions.md）：拆分绑定 D029 动工、不单独立项，但落成两个串行 PR（纯搬移 refactor PR 先行 + D029 feat PR 紧随——分开过闸为自审可读性，混 PR 会把功能 diff 噪音化）；两刀 + 签名改选项对象，全部字节级不变；红线 = promptHash `d399f9d4ed17` + 逐用例 tokens 合计 23,376 逐位不变，`npm test` + `npm run eval` 双确认
+  - **执行计划** `docs/plans/roadmap-execution.md`：7 个 Step（拆分 → D029 → 数据/消融 → fixture → 增量审查 → 多模型 → 产品化），执行序按就绪度与依赖排并显式声明与 README 优先级的分歧理由；每步带触发条件 / 细步 / 验收闸门；文末「与既有决策的衔接」钉住 D019/D022/D023/D028/D029 的翻案或兑现关系，防重复讨论
+- **发现 / 坑**：
+  - review.ts 的 diff 纯函数引用面已核对（写进 D030）：`context.ts`（diffTouchedPaths）、`github.ts`（diffCoveredLines/pathVariants）、`evals/score.ts`（类型）、context/github/schema/worker/review 五个测试文件——搬移面收敛，机械可做
+  - 执行序 ≠ 优先级序必须在计划里讲清理由（D029 spec 就绪 + 拆分绑定 + `[task]` 日志早积累；fixture 要专注会话），否则下个会话读 README 路线图会疑惑为什么不从第 1 项做起
+  - 消融对照（路线图第 2 项）现状无事可做：生产 run 无 eval 分数，对照指标（采纳率/沉默率等）只能等 `[router]` 日志积累后按数据形态定——计划里如实标「等待/并行」，不过度预设指标
+- **下一步**：本 PR 合并后按执行计划 **Step 1（refactor PR）** 动工；Step 2（D029）紧随
