@@ -581,3 +581,28 @@
   - router.ts 需要 extraBody（runReviewRouter 与 reviewDiff 共用 LLM_EXTRA_BODY 解析），它不在 D030 搬移清单里 → 停在 review.ts 加 export，成环 import（调用期绑定，ESM 安全，webhook ↔ worker 先例）；「把 extraBody/withExtraBody 一并搬走」属顺手扩圈，未做
   - 逐字节核验方法：HEAD 版 review.ts 按注释锚点切段与 diff.ts / router.ts 对应段 diff（全 IDENTICAL）；测试文件 sed 提取后 diff（全 IDENTICAL）——「机械搬移」的声明要有机械证据
 - **下一步**：PR 闭环合并后 Step 2（D029 任务上下文注入）在干净基线上动工
+
+## 2026-11-04 · 会话 36（夜间批量二号）编排者收尾件：Step 1-3 全闭环 + Step 5 fixture + Step 6 spec 留档
+
+> 编排模式：同会话 31——用户睡前指令「按 roadmap-execution 尽可能多完成、限时免费 token 用完、不打扰」；编排者做计划归档（PR #39）与收尾（本条），Step 1 为实现 subagent 独立条目（见上），Step 2/3/A/B 由各自 subagent 落 PR 与文档随行、不单列 journal 条目（细节见各 PR 描述与 decisions）。
+
+- **完成**（7 个 PR 全部走完 bot 自审 → 意见逐条闭环 → 双硬闸门 → 合并，严格串行零并行）：
+  - **#39**（docs）：本夜执行计划归档 `overnight-execution-2026-11-03.md`——Step 固化 + 红线继承 + 回退预案，仅归档无新决策
+  - **#40**（D030）：review.ts 机械拆分（见上条 subagent 条目）
+  - **#41**（D029）：任务上下文注入——`src/task.ts` + closing keywords 解析（含 and/& 分隔、PR 引用跳过、上限 5）+ `TASK_CONTEXT_MAX_CHARS` + 信封 taskContext 字段 + 任务块置顶 + inj-07 canary；bot 4 轮 4 条意见（关联拉取无上限 major 级风险、残余噪音、截断置位时序等）全闭环
+  - **#42**（D031）：search_files——快照内存 grep + 两段协议扩为工具请求（searchRequests/readRequests 并列）+ review-tools.md 行为指令 + repo fixture 组 7 例（含 FP 对照与诱饵文件）+ `expectClean`；首轮 repo 组 recall/precision 4/5
+  - **#43**（D032）：增量审查 spec 先行留档（仅 spec 未实现，实现等 Step 4/5 触发）——bot 5 轮 8 条意见全修（含 1 major：验收闸门例数写死 35 已失真）
+  - **#44**（路线图第 1 项）：对抗性关联 fixture 5 例（fastify/undici/axios 真实引入+修复 commit 配对，provenance 全程可溯），correlation 独立口径首轮 recall 20%（1/5）如实落库——miss 是 prompt 迭代靶子不是 fixture 缺陷，未应试调 fixture；放弃 10+ 不合纪律候选
+  - **#45**（Step 3 清单第 10 条收尾）：`[tools] probe tokens` 单独落行（消融数据出口与 `[router]` 同型），usage 契约不变
+- **红线总账**：能力组 promptHash `d399f9d4ed17` 全夜 4 轮 eval 逐位不变；能力 29 例 + injection 7 例 inputTokens 与基线 0 mismatch（口径澄清：「35 例合计 23,376」= 当时的 29 能力 + 6 injection，能力口径本身是 29 例 19,246）；单测 138 → 174；eval 用例 35 → 48；injection 本夜末轮 7/7 拦截零回显
+- **发现 / 坑**：
+  - **subagent 失活**：Step 1 首派 600s 无工具调用被挂起（分支已建、零改动）——重派加「小步工具调用、不憋大招」约束后一次成功；长思考型任务要显式约束工作节奏
+  - **沙箱网络分叉**：node fetch 出站 TLS 被拦（ECONNRESET）但 curl 放行、git push（SSH）正常——GitHub API 全程 curl + python3 构造 JSON；给 subagent 的环境说明里这条必须写明
+  - bot 审查延迟全夜稳定 90s-3min；PR #45 首次出现「无 body 无意见的空 review」产物（#42 也遇过），按 created_at+id 去重取末轮既定纪律消化
+  - eval 红线核验用 python 机械比对 run JSON 逐用例 inputTokens（比较对象=最新基线 run 文件），比「合计对上」强一档——合计相同也可能此消彼长
+- **token 账**（限时免费 token 实验数据）：subagent 合计 ~87M tokens（Step 2 最重 28M），另有编排者会话 + 4 轮全量 eval（每轮 ~53-64k LLM tokens）+ bot 每轮审查的真实生产调用
+- **下一步**：
+  1. 睡醒观测：Vercel 日志回收 `[router]` / `[task]` / `[tools]`（含 probe tokens）三路生产数据（Step 4 数据门槛：≥10 个真实 run）——本夜 #39-#45 的 bot 审查已是第一批带路由/任务块/工具的生产 run
+  2. Step 6 增量审查实现：spec 已留档（#43），触发条件 = Step 4 数据门槛达成（Step 5 已完）
+  3. Step 7 多模型对比：等第二家端点 key（用户侧）
+  4. correlation 组 miss 三类形态（#44 已记录）作下批 prompt 迭代靶子；repo-03 词法 DRY miss 留生产 dogfood 验证 search 实际使用率
