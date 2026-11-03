@@ -95,7 +95,7 @@ Spec 见 `docs/plans/search-files.md`（已合并），本节只列执行序：
 
 > 状态：**spec 已留档（PR #43），实现待触发**——`docs/plans/incremental-review.md`（D032）已回答本节全部设计点（base 取法 / dedupe 键扩展 / D019 翻案 / block 继承 / compare 拉取 / 报告门槛 / eval 红线）；实现 + 测试 + eval 回归等 Step 4/5 收尾后按本节执行序动工。
 
-1. **先写 spec**（`docs/plans/incremental-review.md`，不审批只留档），关键设计点至少回答：
+1. **先写 spec**（`docs/plans/incremental-review.md`，不审批只留档）——**已完成（PR #43，D032）**，下列设计点已全部落进 spec（实现会话直接按 spec §二动工，不再重写 spec）：
    - base 选择：上次已审 SHA 从哪取（review 内嵌标记已存 SHA，D010 语义扩展）；
    - dedupe 键扩展：head SHA 单键 → （PR, 已审 SHA 集合）；
    - 与 D019（synchronize 维持全量）的衔接：本项即当年延后的 v2 形态，spec 里显式引用翻案；
