@@ -36,7 +36,7 @@ export function getOctokit(): Octokit {
 export async function fetchPr(
   client: Octokit,
   { owner, repo, pullNumber }: PrRef,
-): Promise<{ diff: string; headSha: string }> {
+): Promise<{ diff: string; headSha: string; title: string; body: string }> {
   // meta 与 diff 并行（正常 PR 行为与延迟不变）。Promise.allSettled 全程接管两个 Promise：
   // 非 406 抛出路径上不会留下无人接管的 meta rejection（unhandled rejection 会砸掉 Vercel 函数）
   const [metaSettled, diffSettled] = await Promise.allSettled([
@@ -45,7 +45,9 @@ export async function fetchPr(
   ]);
   if (diffSettled.status === "fulfilled") {
     if (metaSettled.status === "rejected") throw metaSettled.reason;
-    return { diff: String(diffSettled.value.data), headSha: metaSettled.value.data.head.sha };
+    const meta = metaSettled.value.data;
+    // title/body 随 meta 免费带回（D029 任务上下文的原料）；GitHub 类型 body 可为 null
+    return { diff: String(diffSettled.value.data), headSha: meta.head.sha, title: meta.title ?? "", body: meta.body ?? "" };
   }
   const diffErr = diffSettled.reason;
   if (!isStatus(diffErr, 406)) throw diffErr;
@@ -57,7 +59,7 @@ export async function fetchPr(
     `[fetchPr] diff API 406（超大 PR），切 files 分页拼合：changed_files=${meta.changed_files ?? "未知"} +${meta.additions ?? "?"}/-${meta.deletions ?? "?"}`,
   );
   const diff = await assembleDiffViaFiles(client, { owner, repo, pullNumber }, meta.changed_files);
-  return { diff, headSha: meta.head.sha };
+  return { diff, headSha: meta.head.sha, title: meta.title ?? "", body: meta.body ?? "" };
 }
 
 // files API 单页容量与翻页上限：GitHub 端 files 列表硬上限 3000 文件（30 页 × 100）
@@ -253,4 +255,33 @@ export async function postTimeoutNotice(
     issue_number: pullNumber,
     body: `🤖 pr-review-agent 审查超时：LLM 端点 ${Math.round(timeoutMs / 1000)}s 未返回，本次跳过。重推 commit 或重投 webhook 可重试。`,
   });
+}
+
+// 单 issue 拉取硬上限（D029）：任务上下文是增强不是依赖，单个 issue 不能占满 prepare 阶段墙钟
+//（CONTEXT_TIMEOUT_MS 10s 同思路；逐个拉取、通常 0-1 个，5s 足够 GitHub API 正常往返）
+export const ISSUE_FETCH_TIMEOUT_MS = 5_000;
+
+// 任务上下文的 issue 拉取（D029，best-effort）：只取标题与正文（评论噪音大，spec 非目标）。
+// 任何失败（网络 / 404 / 超时）返回 null 由编排层跳过该 issue——绝不连垮主流程；
+// 指向 PR 的引用（issues API 对 PR 同样返回，带 pull_request 键）不是 issue，跳过防把 PR 描述当需求注入
+export async function fetchIssue(
+  client: Octokit,
+  { owner, repo, issueNumber }: { owner: string; repo: string; issueNumber: number },
+): Promise<{ number: number; title: string; body: string } | null> {
+  try {
+    const { data } = await client.rest.issues.get({
+      owner,
+      repo,
+      issue_number: issueNumber,
+      request: { signal: AbortSignal.timeout(ISSUE_FETCH_TIMEOUT_MS) },
+    });
+    if ("pull_request" in data) {
+      console.log(`[task] #${issueNumber} 是 PR 不是 issue，跳过`);
+      return null;
+    }
+    return { number: data.number, title: data.title ?? "", body: data.body ?? "" };
+  } catch (err) {
+    console.warn(`[task] issue #${issueNumber} 拉取失败（best-effort，跳过该 issue）`, err);
+    return null;
+  }
 }

@@ -80,21 +80,26 @@ export const TOOL_PROMPT_MAX_CHARS = 120_000;
 // 两处各自拼接曾出现 +14 偏移与比较符分叉，边界上判定相反）。
 // D028 扩展 opts.plan：计划块放 context 之后、`[diff 开始]` 之前（无 context 时在 diff 之前）——diff 仍最末尾
 // （行号锚点原则）。无 plan → 字节级现状（eval 红线由构造保证，opts.plan 只有 worker 编排注入这一条路径）。
-// D030：位置参数收敛为选项对象（D029 的 taskContext 届时落进同一 opts，不再加位置参数），输出字节级不变
-export function buildReviewPrompt(diff: string, opts?: { context?: string; plan?: ReviewPlan }): string {
+// D030：位置参数收敛为选项对象，输出字节级不变。
+// D029 扩展 opts.taskContext：任务块置顶（需求是最高层信号，在 context/计划块之前），diff 仍末尾；
+// 无 taskContext → 字节级现状（evals 直调永无任务块，红线由构造保证，opts.taskContext 只有 worker 编排注入这一条路径）
+export function buildReviewPrompt(diff: string, opts?: { context?: string; plan?: ReviewPlan; taskContext?: string }): string {
   const diffText = truncateDiff(diff);
+  const taskBlock = opts?.taskContext ? `${opts.taskContext}\n\n` : "";
   const planBlock = opts?.plan ? `${buildPlanBlock(opts.plan)}\n\n` : "";
-  if (opts?.context) return `${opts.context}\n\n${planBlock}[diff 开始]\n${diffText}`;
-  return `${planBlock}${diffText}`;
+  if (opts?.context) return `${taskBlock}${opts.context}\n\n${planBlock}[diff 开始]\n${diffText}`;
+  return `${taskBlock}${planBlock}${diffText}`;
 }
 
 // reviewDiff 可选项（D027）：fileReader 注入即启用 read_file 工具循环（两段协议）；
 // 不传 = 单次调用原路径，prompt/system 字节级不变——eval 红线由构造保证。
-// D028：plan 由 worker 编排注入（router 产物），reviewDiff 自身不调 router——evals 直调永远无 plan
+// D028：plan 由 worker 编排注入（router 产物），reviewDiff 自身不调 router——evals 直调永远无 plan。
+// D029：taskContext 由 worker 编排注入（任务块），reviewDiff 自身不做关联解析/issue 拉取——evals 直调永远无任务块
 export type ReviewDiffOpts = {
   timeoutMs?: number;
   fileReader?: (path: string) => string | null;
   plan?: ReviewPlan;
+  taskContext?: string;
 };
 
 // 多次调用求和：字段独立判空——端点只回部分字段时不被其他 null 拖成全空
@@ -117,8 +122,9 @@ export async function reviewDiff(diff: string, context?: string, opts?: ReviewDi
   }
   const llm = createOpenAI({ apiKey: LLM_API_KEY, baseURL: LLM_BASE_URL, fetch: withExtraBody(fetch, extraBody()) });
   // 上下文（D023，best-effort）放 diff 之前：diff（含截断省略行）保持在生成前最近位置，行号锚点不受影响；
-  // eval 不传 context / 无 plan（router 只由 worker 编排注入）→ prompt 字节级不变（promptHash 稳定是回归对照的前提）
-  const prompt = buildReviewPrompt(diff, { context, plan: opts?.plan });
+  // eval 不传 context / 无 plan / 无 taskContext（router 与任务块只由 worker 编排注入）→ prompt 字节级不变
+  //（promptHash 稳定是回归对照的前提）
+  const prompt = buildReviewPrompt(diff, { context, plan: opts?.plan, taskContext: opts?.taskContext });
   // 一个 abortSignal 贯穿全部步（D027）：调用方 timeoutMs 封顶的是整个工具循环（两段），不只是单次调用；
   // 不传走 LLM_TIMEOUT_MS（D011）
   const abortSignal = AbortSignal.timeout(opts?.timeoutMs ?? llmTimeoutMs());

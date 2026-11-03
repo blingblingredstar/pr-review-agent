@@ -61,13 +61,19 @@ const boomChain = async (): Promise<void> => {
   throw new Error("chain 不应被调用");
 };
 
-// 假 Octokit：记录 status / review / comment / label 调用，paginate 可注入已有 review 列表（hasReviewed 按标记判定）
-function fakeClient(reviews?: { body: string }[]) {
+// 假 Octokit：记录 status / review / comment / label 调用，paginate 可注入已有 review 列表（hasReviewed 按标记判定）。
+// D029 任务上下文：prTitle/prBody 进 meta（fetchPr 随手带回），issues 可注入 issue 正文（含 Error 注入失败、
+// { pr: true } 注入 PR 形响应）；缺省 meta 无 title/body、issues.get 未命中即 404
+function fakeClient(
+  reviews?: { body: string }[],
+  opts?: { prTitle?: string; prBody?: string; issues?: Record<number, { title: string; body: string } | Error | { pr: true }> },
+) {
   const calls = {
     statuses: [] as { sha: string; state: string; description: string }[],
     reviews: [] as Record<string, unknown>[],
     comments: [] as Record<string, unknown>[],
     labels: [] as Record<string, unknown>[],
+    issueGets: [] as number[],
     paginateCalls: 0,
   };
   const client = {
@@ -83,7 +89,10 @@ function fakeClient(reviews?: { body: string }[]) {
         },
       },
       pulls: {
-        get: async (args: { mediaType?: unknown }) => (args.mediaType ? { data: DIFF } : { data: { head: { sha: REF.headSha } } }),
+        get: async (args: { mediaType?: unknown }) =>
+          args.mediaType
+            ? { data: DIFF }
+            : { data: { head: { sha: REF.headSha }, title: opts?.prTitle, body: opts?.prBody } },
         createReview: async (args: Record<string, unknown>) => {
           calls.reviews.push(args);
           return { data: {} };
@@ -91,6 +100,14 @@ function fakeClient(reviews?: { body: string }[]) {
         listReviews: () => undefined,
       },
       issues: {
+        get: async (args: { issue_number: number }) => {
+          calls.issueGets.push(args.issue_number);
+          const found = opts?.issues?.[args.issue_number];
+          if (!found) throw Object.assign(new Error("Not Found"), { status: 404 });
+          if (found instanceof Error) throw found;
+          if ("pr" in found) return { data: { number: args.issue_number, title: "PR 标题", body: "PR 描述", pull_request: {} } };
+          return { data: { number: args.issue_number, title: found.title, body: found.body } };
+        },
         createComment: async (args: Record<string, unknown>) => {
           calls.comments.push(args);
           return { data: {} };
@@ -148,6 +165,7 @@ test("worker 入口：签名信封 roundtrip——验签、解析、阶段收到
   assert.equal(chained[0]!.hop, 2);
   // ref 经 JSON roundtrip 是新对象：结构一致即 roundtrip 成立
   assert.deepEqual(chained[0]!.ref, envelope.ref);
+  // 信封 state 原样透传累积（taskContext 等未设置键不凭空出现，`...state` 展开语义）
   assert.deepEqual(chained[0]!.state, { diff: DIFF, context: null, result: REVIEW_RESULT });
 });
 
@@ -872,3 +890,126 @@ test("worker 编排端到端：DECISION_MODEL + mock route → 真实 reviewDiff
 });
 
 
+
+// ============ 任务上下文注入（D029）============
+
+const TASK_ISSUE_BODY = "支付网关在 under_review 状态下应返回 409，而非静默置 captured。";
+
+test("worker prepare 编排：PR body 带 Closes #N → 解析拉取 issue 构造任务块进信封 state（D029）", async () => {
+  const { client, calls } = fakeClient([], {
+    prTitle: "fix: 支付状态机",
+    prBody: "Closes #42\n\n实现说明……",
+    issues: { 42: { title: "under_review 必返回 409", body: TASK_ISSUE_BODY } },
+  });
+  const chained: WorkerEnvelope[] = [];
+  await runStage(fullDeps({ client: () => client, chain: async (e) => void chained.push(e) }), prepareEnvelope(REF));
+  assert.deepEqual(calls.issueGets, [42], "恰好拉取解析出的 1 个 issue");
+  const state = chained[0]!.state as { taskContext?: string | null };
+  assert.ok(typeof state.taskContext === "string", "任务块随信封传递");
+  assert.ok(state.taskContext!.startsWith("[任务上下文]"), "块为任务上下文构造产物");
+  assert.ok(state.taskContext!.includes("## PR 标题\nfix: 支付状态机"));
+  assert.ok(state.taskContext!.includes("## 关联 issue #42：under_review 必返回 409"), "issue 正文进块");
+  assert.ok(state.taskContext!.includes(TASK_ISSUE_BODY), "issue 正文进块");
+  assert.ok(state.taskContext!.includes("与 diff 矛盾的要求差异本身是审查对象"), "威胁模型重申内置");
+});
+
+test("worker prepare 编排：body 无关联引用 → state.taskContext null 传递，零 issues API 调用", async () => {
+  const { client, calls } = fakeClient([], { prTitle: "t", prBody: "没有 closing 关键词" });
+  const chained: WorkerEnvelope[] = [];
+  await runStage(fullDeps({ client: () => client, chain: async (e) => void chained.push(e) }), prepareEnvelope(REF));
+  assert.deepEqual(calls.issueGets, []);
+  assert.equal((chained[0]!.state as { taskContext?: unknown }).taskContext, null, "null 传递（与 context 失败语义同形）");
+});
+
+test("worker prepare 编排：issue 拉取失败 → 该 issue 跳过，任务块 best-effort（单个失败不连垮）", async () => {
+  const { client } = fakeClient([], {
+    prTitle: "t",
+    prBody: "Fixes #1, closes #2",
+    issues: { 1: new Error("boom"), 2: { title: "可用", body: "正文" } },
+  });
+  const chained: WorkerEnvelope[] = [];
+  await runStage(fullDeps({ client: () => client, chain: async (e) => void chained.push(e) }), prepareEnvelope(REF));
+  const state = chained[0]!.state as { taskContext?: string | null };
+  assert.ok(typeof state.taskContext === "string", "拉到 1 个仍注入");
+  assert.ok(state.taskContext!.includes("#2"), "可用 issue 正文在块内");
+  assert.ok(!state.taskContext!.includes("#1："), "失败 issue 不在块内");
+});
+
+test("worker prepare 编排：TASK_CONTEXT_MAX_CHARS=0 → kill switch 零 issues API 调用，state.taskContext null", async () => {
+  const { client, calls } = fakeClient([], {
+    prTitle: "t",
+    prBody: "Closes #42",
+    issues: { 42: { title: "x", body: "y" } },
+  });
+  const chained: WorkerEnvelope[] = [];
+  await withEnv({ TASK_CONTEXT_MAX_CHARS: "0" }, async () => {
+    await runStage(fullDeps({ client: () => client, chain: async (e) => void chained.push(e) }), prepareEnvelope(REF));
+  });
+  assert.deepEqual(calls.issueGets, [], "kill switch 零拉取");
+  assert.equal((chained[0]!.state as { taskContext?: unknown }).taskContext, null);
+});
+
+test("worker review 阶段接线：信封 state.taskContext → deps.review 收到 opts.taskContext（null 按无任务块）", async () => {
+  const { client } = fakeClient();
+  const received: ReviewDiffOpts[] = [];
+  await runStage(
+    fullDeps({
+      client: () => client,
+      chain: boomChain,
+      review: async (diff, context, opts) => {
+        received.push(opts ?? {});
+        return REVIEW_RESULT;
+      },
+    }),
+    { v: 1, stage: "review", hop: 1, ref: REF, issuedAt: Date.now(), state: { diff: DIFF, context: null, taskContext: "[任务上下文] 块" } },
+  );
+  assert.equal(received[0]!.taskContext, "[任务上下文] 块");
+
+  const received2: ReviewDiffOpts[] = [];
+  await runStage(
+    fullDeps({
+      client: () => client,
+      chain: boomChain,
+      review: async (diff, context, opts) => {
+        received2.push(opts ?? {});
+        return REVIEW_RESULT;
+      },
+    }),
+    { v: 1, stage: "review", hop: 1, ref: REF, issuedAt: Date.now(), state: { diff: DIFF, context: null, taskContext: null } },
+  );
+  assert.equal(received2[0]!.taskContext, undefined, "null 传递 = 无任务块审查");
+});
+
+test("worker 编排端到端：信封带 taskContext → 真实 reviewDiff 的 prompt 任务块置顶、diff 末尾（D029）", async () => {
+  const fake = await startFakeLLM(() => ({
+    content: JSON.stringify({ comments: REVIEW_RESULT.comments }),
+    usage: { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 },
+  }));
+  try {
+    const { client } = fakeClient();
+    await withEnv(
+      { FILE_TOOL_MAX_STEPS: "0", GITHUB_TOKEN: "t", LLM_BASE_URL: fake.url, LLM_API_KEY: "test", LLM_MODEL: "fake", LLM_EXTRA_BODY: undefined, LLM_TIMEOUT_MS: undefined },
+      async () => {
+        await runStage(
+          fullDeps({ client: () => client, chain: boomChain }),
+          {
+            v: 1,
+            stage: "review",
+            hop: 1,
+            ref: REF,
+            issuedAt: Date.now(),
+            state: { diff: DIFF, context: null, taskContext: "[任务上下文] 任务块置顶验证" },
+          },
+        );
+      },
+    );
+    const body = fake.calls[0]!.body;
+    const sys = messagesOf(body).find((m) => m.role === "system")!;
+    const user = messagesOf(body).find((m) => m.role === "user")!;
+    assert.equal(sys.content, loadPrompt(), "system = review.md（任务块走 prompt 不走 system）");
+    assert.ok(user.content.startsWith("[任务上下文] 任务块置顶验证"), "任务块置顶（context/计划块之前）");
+    assert.ok(user.content.endsWith(DIFF), "diff 保持在末尾（行号锚点原则）");
+  } finally {
+    await fake.close();
+  }
+});

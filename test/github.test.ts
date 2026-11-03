@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Octokit } from "octokit";
-import { fetchPr, fileToDiffBlock, severityLabels, splitByLocatable } from "../src/github.ts";
+import { fetchIssue, fetchPr, fileToDiffBlock, severityLabels, splitByLocatable } from "../src/github.ts";
 import type { ReviewResult } from "../src/review.ts";
 import { diffCoveredLines, diffTouchedPaths } from "../src/diff.ts";
 
@@ -145,4 +145,53 @@ test("fetchPr：翻满 30 页仍满页 → 附 files 上限省略行；非 406 �
   const ok = await fetchPr(fakeClient({ pages: [] }), { owner: "o", repo: "r", pullNumber: 1 });
   assert.equal(ok.diff, "diff --git a/x b/x\n");
   assert.equal(ok.headSha, "abc1234def");
+});
+
+// ===== 任务上下文的 issue 拉取（D029）=====
+
+function issueClient(responses: Record<number, unknown>): Octokit & { calls: () => number[] } {
+  const calls: number[] = [];
+  return {
+    calls: () => calls,
+    rest: {
+      issues: {
+        get: async (args: { issue_number: number }) => {
+          calls.push(args.issue_number);
+          const res = responses[args.issue_number];
+          if (res instanceof Error) throw res;
+          if (typeof res === "number") throw Object.assign(new Error("err"), { status: res });
+          return { data: res };
+        },
+      },
+    },
+  } as unknown as Octokit & { calls: () => number[] };
+}
+
+test("fetchIssue：取标题与正文（body null 归一空串）；PR 形响应跳过；失败/404/超时 null（best-effort）", async () => {
+  const ok = issueClient({ 1: { number: 1, title: "需求标题", body: "需求正文" } });
+  assert.deepEqual(await fetchIssue(ok, { owner: "o", repo: "r", issueNumber: 1 }), {
+    number: 1,
+    title: "需求标题",
+    body: "需求正文",
+  });
+
+  const nullBody = issueClient({ 2: { number: 2, title: "t", body: null } });
+  assert.equal((await fetchIssue(nullBody, { owner: "o", repo: "r", issueNumber: 2 }))!.body, "", "body null → 空串");
+
+  const prShape = issueClient({ 3: { number: 3, title: "PR", body: "PR 描述", pull_request: { html_url: "x" } } });
+  const logs: string[] = [];
+  const origLog = console.log;
+  console.log = (...args: unknown[]) => logs.push(args.join(" "));
+  try {
+    assert.equal(await fetchIssue(prShape, { owner: "o", repo: "r", issueNumber: 3 }), null, "指向 PR 的引用不是 issue");
+  } finally {
+    console.log = origLog;
+  }
+  assert.ok(logs.some((l) => l.includes("[task] #3 是 PR 不是 issue，跳过")), "跳过留日志");
+
+  const missing = issueClient({});
+  assert.equal(await fetchIssue(missing, { owner: "o", repo: "r", issueNumber: 404 }), null, "404 → null 不抛出");
+
+  const failing = issueClient({ 5: new Error("network down") });
+  assert.equal(await fetchIssue(failing, { owner: "o", repo: "r", issueNumber: 5 }), null, "网络异常 → null 不抛出");
 });

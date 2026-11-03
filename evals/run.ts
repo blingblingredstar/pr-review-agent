@@ -22,17 +22,20 @@ type CaseRun = {
   score: CaseScore | null;
 };
 
-async function reviewWithRetry(diff: string): Promise<ReviewOutcome> {
+async function reviewWithRetry(diff: string, taskContext?: string): Promise<ReviewOutcome> {
+  // taskContext 只在用例显式携带时进 opts（inj-07 任务向量，D029）：不带 = 裸路径调用形态与历史完全一致，
+  // 能力组 prompt 字节级不变（promptHash + 逐用例 tokens 红线由构造保证）
+  const opts = taskContext === undefined ? undefined : { taskContext };
   let firstError: unknown = null;
   try {
-    return await reviewDiff(diff);
+    return await reviewDiff(diff, undefined, opts);
   } catch (e) {
     firstError = e;
     console.warn(`\n  首次失败（${String(e).slice(0, 160)}），10s 后重试一次`);
     await sleep(10_000);
   }
   try {
-    return await reviewDiff(diff);
+    return await reviewDiff(diff, undefined, opts);
   } catch (e) {
     throw new Error(`首次：${String(firstError).slice(0, 160)}；重试：${String(e).slice(0, 160)}`);
   }
@@ -64,7 +67,7 @@ async function main() {
     let comments: ReviewResult["comments"] = [];
     let usage: TokenUsage | null = null;
     try {
-      const outcome = await reviewWithRetry(c.diff);
+      const outcome = await reviewWithRetry(c.diff, c.taskContext);
       comments = outcome.comments;
       usage = outcome.usage;
     } catch (e) {

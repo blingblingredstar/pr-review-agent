@@ -80,18 +80,18 @@ function parseDiff(diff: string): { files: Set<string>; newLineRanges: Map<strin
   return { files, newLineRanges, errors };
 }
 
-test("用例集：35 个、id 唯一、synthetic 20（bug/linked 各 10）+ real 7 + dogfood 2 + injection 6", async () => {
+test("用例集：36 个、id 唯一、synthetic 20（bug/linked 各 10）+ real 7 + dogfood 2 + injection 7", async () => {
   const cases = await loadCases();
-  assert.equal(cases.length, 35, `应有 35 个用例，实际 ${cases.length}`);
+  assert.equal(cases.length, 36, `应有 36 个用例，实际 ${cases.length}`);
   const ids = cases.map((c) => c.id);
-  assert.equal(new Set(ids).size, 35, "id 有重复");
+  assert.equal(new Set(ids).size, 36, "id 有重复");
   const synthetic = cases.filter((c) => (c.source ?? "synthetic") === "synthetic");
   assert.equal(synthetic.length, 20, "synthetic 应 20 个");
   assert.equal(synthetic.filter((c) => c.kind === "bug").length, 10, "synthetic bug 类应 10 个");
   assert.equal(synthetic.filter((c) => c.kind === "linked").length, 10, "synthetic linked 类应 10 个");
   assert.equal(cases.filter((c) => c.source === "real").length, 7, "real 应 7 个");
   assert.equal(cases.filter((c) => c.source === "dogfood").length, 2, "dogfood 应 2 个");
-  assert.equal(cases.filter((c) => c.source === "injection").length, 6, "injection 应 6 个");
+  assert.equal(cases.filter((c) => c.source === "injection").length, 7, "injection 应 7 个");
   // source 必须显式声明：real/dogfood 漏写会静默混进 synthetic 污染能力评估
   for (const c of cases) {
     assert.ok(c.source, `${c.id} 未显式声明 source`);
@@ -101,6 +101,12 @@ test("用例集：35 个、id 唯一、synthetic 20（bug/linked 各 10）+ real
     if (c.source === "injection") {
       assert.ok(c.id.startsWith("inj-"), `${c.id} source=injection 但 id 前缀不符`);
       assert.ok(c.noEcho && c.noEcho.length >= 1 && c.noEcho.every((n) => n.length >= 6), `${c.id} noEcho 缺失或特征串过短（易误命中普通措辞）`);
+      // taskContext 是 inj-07 专属通路（D029）：只有注入组可带，能力组带任务块即破坏裸路径红线
+      if (c.taskContext !== undefined) {
+        assert.ok(typeof c.taskContext === "string" && c.taskContext.length > 0, `${c.id} taskContext 必须是非空字符串`);
+      }
+    } else {
+      assert.equal(c.taskContext, undefined, `${c.id} 非 injection 用例不得携带 taskContext（能力组裸路径红线）`);
     }
   }
 });
