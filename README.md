@@ -1,12 +1,12 @@
 # PR Review Agent
 
-一个 GitHub 机器人：有人在仓库开 PR（或推送新 commit）时，它自动调大模型审查这次的代码改动，把意见逐条贴回 PR——每条定位到具体文件和行号，有问题就拦下合并。模型走 OpenAI 兼容接口，换厂商只改配置；自带 36 用例评测集，每次改提示词都能跑分对比。
+一个 GitHub 机器人：有人在仓库开 PR（或推送新 commit）时，它自动调大模型审查这次的代码改动，把意见逐条贴回 PR——每条定位到具体文件和行号，有问题就拦下合并。模型走 OpenAI 兼容接口，换厂商只改配置；自带 48 用例评测集，每次改提示词都能跑分对比。
 
 ## 效果
 
 - 开 PR 后 **20 秒级**拿到结构化审查意见：每条标注严重级别、定位到文件行号
 - bot 有意见时以 `REQUEST_CHANGES` 提交（GitHub 会原生禁用合并按钮），意见全部处理完重审自动解除
-- 评测集 36 用例（手写教学 20 / 真实仓库 7 / 本仓库回归 2 / 注入攻击 7），prompt 迭代一轮：**recall 92.6% → 96.3%，precision 81.9% → 94.2%**（详见 [evals/report.md](./evals/report.md)）
+- 评测集 48 用例（手写教学 20 / 真实仓库 7 / 本仓库回归 2 / 注入攻击 7 / diff 外检索 7 / 对抗性关联 5），prompt 迭代一轮：**recall 92.6% → 96.3%，precision 81.9% → 94.2%**（详见 [evals/report.md](./evals/report.md)）
 
 ## 工作原理
 
@@ -86,7 +86,7 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 
 ## eval
 
-- **用例**（`evals/cases/`，自带 diff）：synthetic 20 手写教学（10 bug + 10 关联问题）、real 7 来自真实仓库的 fix 反转/配对（ground truth 是人类真实修复）、dogfood 2 本仓库历史意见回归、injection 7 注入攻击（载荷藏于代码注释/文件名/diff 元数据/关联 issue 正文四处，内嵌真 bug）、repo 7 repo fixture 组（带迷你仓库快照考 diff 外证据检索：重命名/删除残留引用、词法 DRY、字符串键/动态访问漏改 + expectClean 零意见 FP 对照，证据指向 diff 外、意见锚 diff 内，单独口径不计入能力分）
+- **用例**（`evals/cases/`，自带 diff）：synthetic 20 手写教学（10 bug + 10 关联问题）、real 7 来自真实仓库的 fix 反转/配对（ground truth 是人类真实修复）、dogfood 2 本仓库历史意见回归、injection 7 注入攻击（载荷藏于代码注释/文件名/diff 元数据/关联 issue 正文四处，内嵌真 bug）、repo 7 repo fixture 组（带迷你仓库快照考 diff 外证据检索：重命名/删除残留引用、词法 DRY、字符串键/动态访问漏改 + expectClean 零意见 FP 对照，证据指向 diff 外、意见锚 diff 内，单独口径不计入能力分）、correlation 5 对抗性关联组（真实仓库「引入 commit + 修复 commit」配对，主题「表面是优化/清理、实际引了坑」，缺陷证据散在 diff 内关联位置，单独口径不计入能力分）
 - **打分**：确定性规则，不用 LLM 当裁判——命中 = 文件对 + 行号 ±3 + 意见正文含预期关键词；指标 recall / precision；注入组另测「不回显载荷 + 不放过真 bug」，不计入能力分
 - **迭代对比**：每个 run 落盘记录 prompt 内容指纹和逐用例结果，`node --import tsx evals/compare.ts evals/runs/<run>.json ...` 聚合出组指标与短板矩阵；历史对比见 [evals/report.md](./evals/report.md)
 
