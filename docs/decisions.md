@@ -343,7 +343,7 @@
 
 ## D031 — search_files 提前到单仓：修改锚定的仓库级验证（不进无锚全局审查）
 
-- **状态**：已接受（2026-11-03，spec `docs/plans/search-files.md`，执行步骤 `docs/plans/roadmap-execution.md` Step 3）
+- **状态**：已接受（2026-11-03，spec `docs/plans/search-files.md`，执行步骤 `docs/plans/roadmap-execution.md` Step 3）；已实现（PR #42，2026-11-04——search_file 挂 makeSnapshot 底座 + 两段协议扩为工具请求（search/read 并列单轮声明，不做链式多轮，PR body 记录取舍）+ repo fixture eval 组 7 例含诱饵与 expectClean FP 对照）
 - **背景**：会话 35 识别两类单仓能力被检索缺口挡住。①重命名/删除漏改的第三层盲区：漏改处在本 PR 未触及的文件时无内容信号——D023 只注入触及文件全文、文件树只有路径、read_file（D027）知道能读但不知道读哪个、router readPaths（D028）按路径名盲猜，最典型场景「重命名 util 导出、不相关文件还在用旧名」模型可怀疑不可证实；②词法 DRY：新代码重复 diff 外既有实现，被重复方几乎必然不在触及文件里，同上无索引可达（`linked-08` 考的是两份重复都在 diff 内的「只修一处」，不是全局 DRY）。会话 33 的结论「D023 + D027 + D028 已覆盖检索需求」只对**知道去哪找**的检索成立（调用方/被引用方/配置/测试）；**不知道去哪找**的查询（旧符号还有谁引用、仓库有没有类似实现）只有 grep 能解——本决策据此把 search_files 从多仓产品化触发点提前；embedding 否决（D022 维持）不动。
 - **决策**：
   - **提前 + 定位**：search_files（快照 entries 内存 grep，零依赖）作为 D027 两段协议的扩展工具。定位 = **修改锚定的仓库级验证**——审查对象永远是改动，搜索扩大的是验证半径、不是审查范围：触发器在 diff 内（删除/改名/新增/签名变化）、查询由 diff 派生可枚举、结论锚回 diff 行发意见；一句话口径「意见永远是『你的改动引起了 X』，不是『仓库有 X』」。

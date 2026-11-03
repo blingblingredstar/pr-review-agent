@@ -5,16 +5,17 @@ import { strToU8 } from "fflate";
 import {
   buildReviewPrompt,
   buildToolBlock,
-  extractReadRequests,
+  extractToolRequests,
   fileToolEnabled,
   fileToolMaxSteps,
   loadPrompt,
   reviewDiff,
   sumUsage,
   withExtraBody,
+  type ToolRequests,
 } from "../src/review.ts";
 import { buildPlanBlock, type ReviewPlan } from "../src/router.ts";
-import { fileReaderFromEntries } from "../src/context.ts";
+import { fileReaderFromEntries, searcherFromEntries } from "../src/context.ts";
 import { buildTaskContext } from "../src/task.ts";
 import { messagesOf, startFakeLLM, withEnv } from "./helpers.ts";
 
@@ -85,26 +86,59 @@ test("fileToolMaxSteps：默认 2；数值 0（含 \"0.0\"/\"00\"）显式关闭
   }
 });
 
-test("extractReadRequests：纯 JSON / 围栏 / 前后闲话都可解析；字符串与 {path} 元素兼容；去重并按步预算截断", () => {
-  assert.deepEqual(extractReadRequests('{"readRequests":[{"path":"src/a.ts"}]}', 2), ["src/a.ts"]);
-  assert.deepEqual(extractReadRequests('```json\n{"readRequests":["src/a.ts","src/b.ts"]}\n```', 2), ["src/a.ts", "src/b.ts"]);
+test("extractToolRequests：readRequests 纯 JSON / 围栏 / 前后闲话都可解析；字符串与 {path} 元素兼容；去重并按步预算截断", () => {
+  assert.deepEqual(extractToolRequests('{"readRequests":[{"path":"src/a.ts"}]}', 2), { searches: [], reads: ["src/a.ts"] });
+  assert.deepEqual(extractToolRequests('```json\n{"readRequests":["src/a.ts","src/b.ts"]}\n```', 2), {
+    searches: [],
+    reads: ["src/a.ts", "src/b.ts"],
+  });
   assert.deepEqual(
-    extractReadRequests('好的，我需要读取：{"readRequests":[{"path":"src/a.ts"},{"path":"src/a.ts"},{"path":"src/a.ts"}]} 请处理', 2),
-    ["src/a.ts"],
+    extractToolRequests('好的，我需要读取：{"readRequests":[{"path":"src/a.ts"},{"path":"src/a.ts"},{"path":"src/a.ts"}]} 请处理', 2),
+    { searches: [], reads: ["src/a.ts"] },
     "前后闲话 + 重复路径去重",
   );
-  assert.deepEqual(
-    extractReadRequests('{"readRequests":[{"path":"./src/a.ts"},{"path":"src/a.ts"}]}', 5),
-    ["./src/a.ts"],
-    "写法变体（./ 前缀）按归一键去重，保留首个",
-  );
-  assert.deepEqual(extractReadRequests('{"readRequests":[{"path":"a.ts"},{"path":"b.ts"},{"path":"c.ts"}]}', 2), ["a.ts", "b.ts"], "超出字符预算截断");
-  assert.deepEqual(extractReadRequests('{"readRequests":[{"path":"a.ts"},{"path":{"nested":1}}]}', 5), ["a.ts"], "非字符串元素跳过");
-  assert.deepEqual(extractReadRequests('{"readRequests":[]}', 2), [], "空请求 = 不读文件");
-  assert.deepEqual(extractReadRequests("我觉得不需要读文件，直接审。", 2), [], "无 JSON 返回空（协议违规不炸审查）");
-  assert.deepEqual(extractReadRequests('{"other":1}', 2), [], "缺 readRequests 字段返回空");
-  assert.deepEqual(extractReadRequests("任何文本", 0), [], "步预算 0 直接空");
+  assert.deepEqual(extractToolRequests('{"readRequests":[{"path":"./src/a.ts"},{"path":"src/a.ts"}]}', 5), {
+    searches: [],
+    reads: ["./src/a.ts"],
+  }, "写法变体（./ 前缀）按归一键去重，保留首个");
+  assert.deepEqual(extractToolRequests('{"readRequests":[{"path":"a.ts"},{"path":"b.ts"},{"path":"c.ts"}]}', 2), {
+    searches: [],
+    reads: ["a.ts", "b.ts"],
+  }, "超出步预算截断");
+  assert.deepEqual(extractToolRequests('{"readRequests":[{"path":"a.ts"},{"path":{"nested":1}}]}', 5), { searches: [], reads: ["a.ts"] }, "非字符串元素跳过");
+  assert.deepEqual(extractToolRequests('{"readRequests":[]}', 2), { searches: [], reads: [] }, "空请求 = 不用工具");
+  assert.deepEqual(extractToolRequests("我觉得不需要读文件，直接审。", 2), { searches: [], reads: [] }, "无 JSON 返回空（协议违规不炸审查）");
+  assert.deepEqual(extractToolRequests('{"other":1}', 2), { searches: [], reads: [] }, "缺 readRequests 字段返回空");
+  assert.deepEqual(extractToolRequests("任何文本", 0), { searches: [], reads: [] }, "步预算 0 直接空");
 });
+
+test("extractToolRequests：searchRequests 与 readRequests 并列解析、{query} 形态兼容、去重、共享步预算 search 先占（D031）", () => {
+  assert.deepEqual(extractToolRequests('{"searchRequests":["formatPrice"],"readRequests":[{"path":"src/a.ts"}]}', 2), {
+    searches: ["formatPrice"],
+    reads: ["src/a.ts"],
+  }, "两类并列声明");
+  assert.deepEqual(extractToolRequests('{"searchRequests":[{"query":"sync:done"},{"query":"sync:done"},{"query":"  "},{"query":"oldUtil"}]}', 5), {
+    searches: ["sync:done", "oldUtil"],
+    reads: [],
+  }, "{query} 对象形态兼容；精确串去重（大小写敏感）；空白词丢弃");
+  assert.deepEqual(extractToolRequests('{"searchRequests":["formatPrice"]} ', 2), { searches: ["formatPrice"], reads: [] }, "只有 search 也合法（省略另一键）");
+  assert.deepEqual(extractToolRequests('{"searchRequests":["a","b","c"],"readRequests":[{"path":"x.ts"}]}', 2), {
+    searches: ["a", "b"],
+    reads: [],
+  }, "共享步预算：search 先占满，read 无剩余被丢弃");
+  assert.deepEqual(extractToolRequests('{"searchRequests":["a"],"readRequests":[{"path":"x.ts"},{"path":"y.ts"}]}', 2), {
+    searches: ["a"],
+    reads: ["x.ts"],
+  }, "read 用剩余预算");
+  assert.deepEqual(extractToolRequests('{"searchRequests":[{"path":"not-a-query"}]}', 2), { searches: [], reads: [] }, "非字符串/非 {query} 元素跳过");
+  // 大小写是不同的搜索（查询本身大小写敏感）
+  assert.deepEqual(extractToolRequests('{"searchRequests":["formatPrice","formatprice"]}', 2), {
+    searches: ["formatPrice", "formatprice"],
+    reads: [],
+  });
+});
+
+const NO_REQS: ToolRequests = { searches: [], reads: [] };
 
 test("buildToolBlock：命中全文 / 未命中说明行 / 每步观测日志", () => {
   const entries = new Map<string, Uint8Array>([["small.ts", strToU8("export const a = 1;\n")]]);
@@ -113,16 +147,57 @@ test("buildToolBlock：命中全文 / 未命中说明行 / 每步观测日志", 
   const origLog = console.log;
   console.log = (...args: unknown[]) => logs.push(args.join(" "));
   try {
-    const hit = buildToolBlock(["small.ts"], reader);
-    assert.ok(hit.startsWith("[read_file 工具结果]"), "块头部让模型识别第二段");
+    const hit = buildToolBlock({ ...NO_REQS, reads: ["small.ts"] }, reader, undefined);
+    assert.ok(hit.startsWith("[工具结果]"), "块头部让模型识别第二段（D031 起 search/read 共用一块）");
     assert.ok(hit.includes("=== read_file：small.ts（全文 20 字符）===\nexport const a = 1;\n"));
-    const miss = buildToolBlock(["nope.ts"], reader);
+    const miss = buildToolBlock({ ...NO_REQS, reads: ["nope.ts"] }, reader, undefined);
     assert.ok(miss.includes("[read_file] nope.ts: file not found in head snapshot"), "未命中说明行，模型可自行纠正");
   } finally {
     console.log = origLog;
   }
   assert.ok(logs.some((l) => l.includes("[tools] step 1: read small.ts (20 chars)")), "每步观测日志");
   assert.ok(logs.some((l) => l.includes("[tools] step 1: read nope.ts (not found)")));
+});
+
+test("buildToolBlock：search 段——命中行块、无匹配、预算截断说明、未注入防御行；步号 search 先于 read（D031）", () => {
+  const entries = new Map<string, Uint8Array>([["src/a.ts", strToU8("export const a = slugify(x);\n")], ["src/b.ts", strToU8("plain\n")]]);
+  const searcher = searcherFromEntries(entries);
+  const logs: string[] = [];
+  const origLog = console.log;
+  console.log = (...args: unknown[]) => logs.push(args.join(" "));
+  try {
+    const hit = buildToolBlock({ searches: ["slugify"], reads: ["src/b.ts"] }, fileReaderFromEntries(entries), searcher);
+    assert.ok(hit.startsWith("[工具结果]"), "统一块头");
+    assert.ok(hit.includes('=== search："slugify"（1 个文件 1 处匹配）==='), "头部带全量统计");
+    assert.ok(hit.includes("src/a.ts:1: export const a = slugify(x);"), "命中行 path:line: text");
+    assert.ok(hit.indexOf("=== search：") < hit.indexOf("=== read_file："), "search 段在 read 段之前");
+    const none = buildToolBlock({ ...NO_REQS, searches: ["absent"] }, undefined, searcher);
+    assert.ok(none.includes('=== search："absent"（无匹配）==='), "无匹配给明确说明（真无残留，不要硬凑）");
+    // searcher 未注入时请求了搜索：显式「未能执行」，不伪报「无匹配」压掉真发现
+    const noSearcher = buildToolBlock({ ...NO_REQS, searches: ["anything"] }, fileReaderFromEntries(entries), undefined);
+    assert.ok(noSearcher.includes('=== search："anything"（未能执行：搜索不可用）==='));
+  } finally {
+    console.log = origLog;
+  }
+  assert.ok(logs.some((l) => l.includes('[tools] step 1: search "slugify" (1 files / 1 matches)')), "search 步观测日志");
+  assert.ok(logs.some((l) => l.includes("[tools] step 2: read src/b.ts (6 chars)")), "步号连续：read 排在 search 之后");
+});
+
+test("buildToolBlock：search 结果自带查询预算（SEARCH_MAX_TOTAL_CHARS），超预算落 [search] 说明行", () => {
+  // 每文件 5 行 × ~430 字符 ≈ 2.1k，15 个文件必超 20k 查询预算
+  const fat = Array.from({ length: 5 }, () => `needle ${"y".repeat(400)}`).join("\n");
+  const entries = new Map<string, Uint8Array>();
+  for (let i = 0; i < 15; i++) entries.set(`d${String(i).padStart(2, "0")}.ts`, strToU8(fat));
+  const searcher = searcherFromEntries(entries);
+  const origLog = console.log;
+  console.log = () => {};
+  try {
+    const block = buildToolBlock({ ...NO_REQS, searches: ["needle"] }, undefined, searcher);
+    assert.ok(block.includes("[search] 结果超出字符预算，仅显示部分匹配"), "预算截断说明行");
+    assert.ok(block.length < 80_000, "search 结果受独立查询预算约束，远小于整块 80k");
+  } finally {
+    console.log = origLog;
+  }
 });
 
 test("buildToolBlock：80k 字符预算（含包装与说明行实长）——第二个文件收敛截断，耗尽后未纳入", () => {
@@ -135,7 +210,7 @@ test("buildToolBlock：80k 字符预算（含包装与说明行实长）——�
   const origLog = console.log;
   console.log = () => {};
   try {
-    const block = buildToolBlock(["first.ts", "big.ts", "last.ts"], reader);
+    const block = buildToolBlock({ ...NO_REQS, reads: ["first.ts", "big.ts", "last.ts"] }, reader, undefined);
     assert.ok(block.includes("=== read_file：first.ts（全文 79700 字符）==="), "第一个文件全文注入（按实际片段记账）");
     assert.ok(block.includes("=== read_file：big.ts（截断）==="), "剩余预算扣除包装与说明行后仍可截断");
     assert.ok(/\[read_file\] big\.ts 超出字符预算截断：仅注入前 \d+\/400 字符/.test(block), `实际: ${block.slice(-250)}`);
@@ -156,7 +231,7 @@ test("buildToolBlock：全文块含包装头超顶时转截断；残余碎余量
   const origLog = console.log;
   console.log = () => {};
   try {
-    const block = buildToolBlock(["first.ts", "tiny.ts"], reader);
+    const block = buildToolBlock({ ...NO_REQS, reads: ["first.ts", "tiny.ts"] }, reader, undefined);
     // 79995 + 包装头 > 80k：先拼再量判为截断（收敛后 cut ≤ remaining 保住封顶）
     assert.ok(!block.includes("first.ts（全文"), `实际头: ${block.slice(0, 80)}`);
     assert.ok(block.includes("=== read_file：first.ts（截断）==="));
@@ -164,6 +239,24 @@ test("buildToolBlock：全文块含包装头超顶时转截断；残余碎余量
     assert.ok(block.length <= 80_000 + 100, `整块长度 ${block.length} 应 ≲ 80k`);
     assert.ok(block.includes("[read_file] tiny.ts 全文 20 字符超出字符预算，未纳入"), `实际尾: ${block.slice(-200)}`);
     assert.ok(!block.includes("tiny.ts（截断）"), "残余余量 < 包装开销，不出碎片段");
+  } finally {
+    console.log = origLog;
+  }
+});
+
+test("buildToolBlock：search 段先消费记账，read 段用剩余预算（两类结果共享 80k 整块封顶）", () => {
+  // search 段 ~21k（满预算）+ first.ts 79_700 全文装不下 → 转截断而非溢出
+  const fat = Array.from({ length: 5 }, () => `needle ${"y".repeat(400)}`).join("\n");
+  const entries = new Map<string, Uint8Array>();
+  for (let i = 0; i < 15; i++) entries.set(`d${String(i).padStart(2, "0")}.ts`, strToU8(fat));
+  entries.set("first.ts", strToU8("y".repeat(79_700)));
+  const origLog = console.log;
+  console.log = () => {};
+  try {
+    const block = buildToolBlock({ searches: ["needle"], reads: ["first.ts"] }, fileReaderFromEntries(entries), searcherFromEntries(entries));
+    assert.ok(block.includes('=== search："needle"'), "search 段在块内");
+    assert.ok(block.includes("=== read_file：first.ts（截断）==="), "search 消费后剩余预算不足以放全文，转截断");
+    assert.ok(block.length <= 80_000 + 100, `整块长度 ${block.length} 应 ≲ 80k`);
   } finally {
     console.log = origLog;
   }
@@ -281,7 +374,7 @@ test("reviewDiff：fileReader 注入 = 两段协议（第一段 readRequests 无
         const second = fake.calls[1]!.body;
         const secondUser = messagesOf(second).find((m) => m.role === "user")!;
         assert.equal((second.response_format as { type?: string } | undefined)?.type, "json_schema", "第二段复用同一 schema 契约");
-        assert.ok(secondUser.content.startsWith("[read_file 工具结果]"), "工具结果块在 prompt 前段");
+        assert.ok(secondUser.content.startsWith("[工具结果]"), "工具结果块在 prompt 前段（D031 起 search/read 共用一块头）");
         assert.ok(secondUser.content.includes("=== read_file：./src/a.ts（全文 20 字符）===\nexport const a = 1;\n"), "命中文件全文注入");
         assert.ok(secondUser.content.includes("[read_file] nope.ts: file not found in head snapshot"), "未命中说明行");
         assert.ok(secondUser.content.endsWith("DIFF_TEXT"), "diff 保持在生成前最近位置（行号锚点原则）");
@@ -295,20 +388,55 @@ test("reviewDiff：fileReader 注入 = 两段协议（第一段 readRequests 无
   }
 });
 
-test("reviewDiff：fileReader 注入但首段不请求文件（readRequests 空）→ 第二段 prompt 与单调用形态一致", async () => {
-  const fake = await startFakeLLM((i) => (i === 0 ? { content: '{"readRequests": []}' } : { content: REVIEW_JSON }));
+test("reviewDiff：fileReader 注入但首段不请求文件（工具请求空）→ 第二段 prompt 与单调用形态一致", async () => {
+  const fake = await startFakeLLM((i) => (i === 0 ? { content: '{"readRequests": [], "searchRequests": []}' } : { content: REVIEW_JSON }));
   try {
     await withEnv(
       { LLM_BASE_URL: fake.url, LLM_API_KEY: "test", LLM_MODEL: "fake", LLM_EXTRA_BODY: undefined, LLM_TIMEOUT_MS: undefined, FILE_TOOL_MAX_STEPS: "2" },
       async () => {
-        await reviewDiff("DIFF_TEXT", undefined, { timeoutMs: 60_000, fileReader: () => "unused" });
+        await reviewDiff("DIFF_TEXT", undefined, { timeoutMs: 60_000, fileReader: () => "unused", searcher: () => ({ files: [], totalMatches: 0, totalFiles: 0, omittedFiles: 0, charTruncated: false }) });
         const secondUser = messagesOf(fake.calls[1]!.body).find((m) => m.role === "user")!;
-        // 空 readRequests 也注入占位块（自审 minor）：与第一段 prompt 保持可区分，模型不再重复输出请求
+        // 空工具请求也注入占位块（自审 minor）：与第一段 prompt 保持可区分，模型不再重复输出请求
         assert.equal(
           secondUser.content,
-          "[read_file 工具结果]（本轮无文件请求，请直接给出审查意见）\n\nDIFF_TEXT",
+          "[工具结果]（本轮无工具请求，请直接给出审查意见）\n\nDIFF_TEXT",
           "空请求占位块 + 原形态 diff",
         );
+      },
+    );
+  } finally {
+    await fake.close();
+  }
+});
+
+test("reviewDiff：首段声明 searchRequests → 第二段注入搜索命中行（search 与 read 并列执行，单轮协议，D031）", async () => {
+  const fake = await startFakeLLM((i) => {
+    if (i === 0) {
+      return { content: '{"searchRequests":["slugify"],"readRequests":[{"path":"src/config.ts"}]}', usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } };
+    }
+    return { content: REVIEW_JSON, usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 } };
+  });
+  const entries = new Map<string, Uint8Array>([
+    ["src/render/summary.ts", strToU8("import { slugify } from '../utils/slug.ts';\n")],
+    ["src/config.ts", strToU8("export const MAX = 1;\n")],
+  ]);
+  try {
+    await withEnv(
+      { LLM_BASE_URL: fake.url, LLM_API_KEY: "test", LLM_MODEL: "fake", LLM_EXTRA_BODY: undefined, LLM_TIMEOUT_MS: undefined, FILE_TOOL_MAX_STEPS: "2" },
+      async () => {
+        const out = await reviewDiff("DIFF_TEXT", undefined, {
+          timeoutMs: 60_000,
+          fileReader: fileReaderFromEntries(entries),
+          searcher: searcherFromEntries(entries),
+        });
+        assert.equal(fake.calls.length, 2, "单轮两段：search 与 read 一次声明一次执行，无链式多轮");
+        const secondUser = messagesOf(fake.calls[1]!.body).find((m) => m.role === "user")!;
+        assert.ok(secondUser.content.startsWith("[工具结果]"), "第二段工具块前置");
+        assert.ok(secondUser.content.includes('=== search："slugify"（1 个文件 1 处匹配）==='), "搜索命中行进第二段");
+        assert.ok(secondUser.content.includes("src/render/summary.ts:1: import { slugify } from '../utils/slug.ts';"), "命中行 path:line: text");
+        assert.ok(secondUser.content.includes("=== read_file：src/config.ts（全文 22 字符）==="), "read 结果照常注入");
+        assert.ok(secondUser.content.endsWith("DIFF_TEXT"), "diff 仍末尾");
+        assert.deepEqual(out.comments, [{ file: "src/a.ts", line: 1, severity: "major", body: "b" }]);
       },
     );
   } finally {
@@ -424,7 +552,7 @@ test("reviewDiff：opts.taskContext 注入 → 任务块进 prompt 置顶，syst
         const second = messagesOf(fake.calls[1]!.body).find((m) => m.role === "user")!;
         // 第二段工具结果块在 prompt 前段（D027 口径：工具结果前置、diff 保持生成前最近位置）——
         // 任务块仍在块序列内（工具块之后、context 之前），不因两段协议丢失
-        assert.ok(second.content.startsWith("[read_file 工具结果]"), "第二段工具块前置");
+        assert.ok(second.content.startsWith("[工具结果]"), "第二段工具块前置");
         assert.ok(second.content.includes(TASK_BLOCK), "第二段 prompt 仍含任务块（两段协议不丢）");
         assert.ok(second.content.indexOf(TASK_BLOCK) < second.content.indexOf("CTX"), "任务块仍在 context 之前");
         assert.ok(second.content.endsWith("DIFF_TEXT"), "diff 仍末尾");

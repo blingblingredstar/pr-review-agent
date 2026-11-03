@@ -3,8 +3,17 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { loadCases } from "./cases/index.ts";
-import { isCapabilitySource, scoreCase, sourceOf, type CaseScore } from "./score.ts";
-import { loadPrompt, reviewDiff, sumUsage, type ReviewOutcome, type ReviewResult, type TokenUsage } from "../src/review.ts";
+import { isCapabilitySource, scoreCase, sourceOf, type CaseScore, type EvalCase } from "./score.ts";
+import {
+  loadPrompt,
+  reviewDiff,
+  sumUsage,
+  type ReviewDiffOpts,
+  type ReviewOutcome,
+  type ReviewResult,
+  type TokenUsage,
+} from "../src/review.ts";
+import { fileReaderFromEntries, searcherFromEntries, type ZipballEntries } from "../src/context.ts";
 
 const CASE_GAP_MS = 2_000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -22,10 +31,28 @@ type CaseRun = {
   score: CaseScore | null;
 };
 
-async function reviewWithRetry(diff: string, taskContext?: string): Promise<ReviewOutcome> {
-  // taskContext 只在用例显式携带时进 opts（inj-07 任务向量，D029）：不带 = 裸路径调用形态与历史完全一致，
-  // 能力组 prompt 字节级不变（promptHash + 逐用例 tokens 红线由构造保证）
-  const opts = taskContext === undefined ? undefined : { taskContext };
+// repo fixture（D031）→ 快照 entries：head 态内容直接编码，与生产同一构造（fileReader + searcher 成对注入）
+function entriesFromRepo(repo: Record<string, string>): ZipballEntries {
+  const encoder = new TextEncoder();
+  return new Map(Object.entries(repo).map(([p, content]) => [p, encoder.encode(content)]));
+}
+
+// 用例 → reviewDiff opts：无 taskContext 且无 repo = 裸路径（opts 整个不传，调用形态与历史字节级一致，
+// 能力组 promptHash + 逐用例 tokens 红线由构造保证）；taskContext 只在用例显式携带时进 opts（inj-07，D029）；
+// repo 用例注入 fileReader + searcher（生产同参走工具注入路径，D018 教训：eval 不镜像生产参数，eval 绿生产盲）
+function caseOpts(c: EvalCase): ReviewDiffOpts | undefined {
+  if (c.taskContext === undefined && !c.repo) return undefined;
+  const opts: ReviewDiffOpts = {};
+  if (c.taskContext !== undefined) opts.taskContext = c.taskContext;
+  if (c.repo) {
+    const entries = entriesFromRepo(c.repo);
+    opts.fileReader = fileReaderFromEntries(entries);
+    opts.searcher = searcherFromEntries(entries);
+  }
+  return opts;
+}
+
+async function reviewWithRetry(diff: string, opts?: ReviewDiffOpts): Promise<ReviewOutcome> {
   let firstError: unknown = null;
   try {
     return await reviewDiff(diff, undefined, opts);
@@ -67,7 +94,7 @@ async function main() {
     let comments: ReviewResult["comments"] = [];
     let usage: TokenUsage | null = null;
     try {
-      const outcome = await reviewWithRetry(c.diff, c.taskContext);
+      const outcome = await reviewWithRetry(c.diff, caseOpts(c));
       comments = outcome.comments;
       usage = outcome.usage;
     } catch (e) {
@@ -76,7 +103,7 @@ async function main() {
     const durationMs = Date.now() - started;
     const score = error ? null : scoreCase(c, comments);
     runs.push({ caseId: c.id, kind: c.kind, source: sourceOf(c), error, comments, usage, durationMs, score });
-    const mark = error ? `✗ 出错` : `命中 ${score!.hits}/${score!.verdicts.length}`;
+    const mark = error ? `✗ 出错` : score!.verdicts.length === 0 ? `clean（FP 对照）` : `命中 ${score!.hits}/${score!.verdicts.length}`;
     console.log(`${mark}，${comments.length} 条意见，tokens ${fmtInOut(usage)}，${(durationMs / 1000).toFixed(1)}s`);
     if (i < cases.length - 1) await sleep(CASE_GAP_MS);
   }
@@ -163,10 +190,13 @@ async function main() {
         return `| ${r.caseId} ✗ ${reason} | ${r.source} | ${r.kind} | — | — | — | — | — | — | — | ${(r.durationMs / 1000).toFixed(1)} |`;
       }
       const s = r.score!;
-      const rec = s.hits === s.verdicts.length ? `${s.hits}/${s.verdicts.length}` : `**${s.hits}/${s.verdicts.length}**`;
+      // expectClean（D031）无期望条目：期望命中列标 clean，recall 无分母显示 —（precision 照常计入）
+      const clean = s.verdicts.length === 0;
+      const rec = clean ? "clean" : s.hits === s.verdicts.length ? `${s.hits}/${s.verdicts.length}` : `**${s.hits}/${s.verdicts.length}**`;
+      const recPct = clean ? "—" : percent(s.recall);
       const prec = s.precision === null ? "—" : s.precision.toFixed(2);
       const echo = r.source === "injection" ? String(s.echoViolations) : "—";
-      return `| ${r.caseId} | ${r.source} | ${r.kind} | ${rec} | ${percent(s.recall)} | ${s.agentComments} | ${s.truePositives} | ${prec} | ${echo} | ${fmtInOut(r.usage)} | ${(r.durationMs / 1000).toFixed(1)} |`;
+      return `| ${r.caseId} | ${r.source} | ${r.kind} | ${rec} | ${recPct} | ${s.agentComments} | ${s.truePositives} | ${prec} | ${echo} | ${fmtInOut(r.usage)} | ${(r.durationMs / 1000).toFixed(1)} |`;
     }),
     `| **汇总**（能力评估；${failed > 0 ? `排除 ${failed} 个失败用例、` : ""}dogfood 回归集单独统计） | | | **${totalHits}/${totalExpect}** | **${percent(recall)}** | ${totalComments} | ${totalTp} | **${precision === null ? "—" : percent(precision)}** | ${injDenom ? injEchoTotal : "—"} | ${usageKnown ? `${fmtTok(usageTotal.inputTokens)}/${fmtTok(usageTotal.outputTokens)}` : "—"} | ${(totalMs / 1000).toFixed(0)} |`,
   ];

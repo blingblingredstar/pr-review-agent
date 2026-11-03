@@ -11,6 +11,11 @@ import {
   makeSnapshot,
   MAX_ZIP_BYTES,
   resolveSnapshotPath,
+  SEARCH_MAX_LINE_CHARS,
+  SEARCH_MAX_LINES_PER_FILE,
+  SEARCH_MAX_TOTAL_CHARS,
+  searchEntries,
+  searcherFromEntries,
   snapshotTree,
 } from "../src/context.ts";
 import { diffTouchedPaths } from "../src/diff.ts";
@@ -229,6 +234,65 @@ test("fileReaderFromEntries：命中全文、./ 归一、../与未命中与二�
   assert.equal(reader("../src/a.ts"), null, ".. 段拒绝");
   assert.equal(reader("gone.ts"), null, "未命中 null（不抛错，模型凭说明行自行纠正）");
   assert.equal(reader("img/logo.png"), null, "二进制与未命中同义 null");
+});
+
+test("searchEntries：命中行渲染 path:line: text、文件字母序、全量统计；无匹配/空查询零结果、二进制跳过（D031）", () => {
+  const entries = new Map<string, Uint8Array>([
+    ["src/b.ts", strToU8("export const beta = slugify(x);\nexport const b2 = 2;\n")],
+    ["src/a.ts", strToU8("import { slugify } from './b.ts';\n")],
+    ["img/logo.bin", strToU8("slugify\x00payload")],
+  ]);
+  const out = searchEntries(entries, "slugify");
+  assert.equal(out.totalMatches, 2, "统计为截断前全量");
+  assert.equal(out.totalFiles, 2, "二进制文件不计入命中文件");
+  assert.deepEqual(out.files.map((f) => f.path), ["src/a.ts", "src/b.ts"], "文件按路径字母序（确定性）");
+  assert.deepEqual(out.files[0]!.lines, ["src/a.ts:1: import { slugify } from './b.ts';"]);
+  assert.deepEqual(out.files[1]!.lines, ["src/b.ts:1: export const beta = slugify(x);"]);
+  assert.equal(out.charTruncated, false);
+  assert.deepEqual(out.files[0]!.omittedMatches, 0);
+  // 无匹配 / 空查询 / 纯空白查询：零结果（空串是万物子串，防一次查询把全库倾倒进 prompt）
+  for (const q of ["no-such-token", "", "   "]) {
+    const zero = searchEntries(entries, q);
+    assert.deepEqual(zero, { files: [], totalMatches: 0, totalFiles: 0, omittedFiles: 0, charTruncated: false });
+  }
+});
+
+test(`searchEntries：每文件 ${SEARCH_MAX_LINES_PER_FILE} 行截断附说明统计、单行 ${SEARCH_MAX_LINE_CHARS} 字符截断`, () => {
+  const seven = Array.from({ length: 7 }, (_, i) => `hit ${i} target`).join("\n") + "\n";
+  const capped = searchEntries(new Map([["f.ts", strToU8(seven)]]), "target");
+  assert.equal(capped.totalMatches, 7, "统计全量");
+  assert.equal(capped.files[0]!.lines.length, SEARCH_MAX_LINES_PER_FILE, "每文件只显示上限行数");
+  assert.equal(capped.files[0]!.omittedMatches, 2, "省略数供说明行");
+  assert.equal(capped.charTruncated, false, "每文件截断不算字符预算截断");
+
+  const long = "target " + "x".repeat(400);
+  const clipped = searchEntries(new Map([["f.ts", strToU8(long)]]), "target");
+  const rendered = clipped.files[0]!.lines[0]!;
+  assert.ok(rendered.endsWith("…"), "超长行以省略号收尾");
+  assert.equal(rendered.length, `f.ts:1: `.length + SEARCH_MAX_LINE_CHARS + 1, "行文本截到上限 + 省略号");
+  assert.ok(rendered.includes("target "), "命中词仍在行内");
+});
+
+test(`searchEntries：总量预算 ${SEARCH_MAX_TOTAL_CHARS} 封顶——装不下的文件整文件省略并置位 charTruncated`, () => {
+  // 每文件 5 行 × ~430 字符 ≈ 2.1k，15 个文件 ≈ 32k 必超 20k 预算
+  const fat = Array.from({ length: 5 }, () => `target ${"y".repeat(400)}`).join("\n");
+  const entries = new Map<string, Uint8Array>();
+  for (let i = 0; i < 15; i++) entries.set(`d${String(i).padStart(2, "0")}.ts`, strToU8(fat));
+  const out = searchEntries(entries, "target");
+  assert.equal(out.totalFiles, 15, "统计含未展示文件");
+  assert.equal(out.charTruncated, true, "预算截断置位（块层据此附说明行）");
+  assert.ok(out.files.length < 15, "仅展示预算内前缀");
+  assert.equal(out.omittedFiles, 15 - out.files.length, "整文件未展示的计数");
+  // 每文件截断说明的口径：lines.length + omittedMatches = 全部匹配数
+  for (const f of out.files) assert.equal(f.lines.length + f.omittedMatches, 5);
+});
+
+test("searcherFromEntries：工厂返回同结果的 searcher（与 fileReaderFromEntries 共用同一份 entries，D031）", () => {
+  const entries = new Map<string, Uint8Array>([["a.ts", strToU8("needle here\n")]]);
+  const search = searcherFromEntries(entries);
+  assert.equal(search("needle").totalMatches, 1);
+  assert.equal(search("absent").totalMatches, 0);
+  assert.deepEqual(search("needle").files[0]!.lines, ["a.ts:1: needle here"]);
 });
 
 test("makeFileReader：快照下载成功返回 reader；失败/缺 token 返回 undefined（best-effort 降级，D027）", async () => {

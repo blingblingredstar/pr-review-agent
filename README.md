@@ -35,7 +35,7 @@ flowchart TD
 
 **diff 太长时按整文件丢，不从中间切。** 从中间切一刀，行号定位全毁。所以按文件分块：先剔除没人看的生成物（lock 文件、构建目录、压缩混淆产物），这些不占预算；剩下的按块从小到大保留，装不下的整块放弃，并明确告诉模型「以下文件没有看到，注意盲区」。
 
-**审查看仓库，不只看 diff。** diff 只说改了什么，不说这段代码被谁调用、配置长什么样。审查前先按 commit 下载整个仓库快照（单请求、纯内存解压，超大仓库 25MB 封顶），把改动文件的完整内容和目录树放进 prompt，diff 原样放最后（行号锚点不动）。这一步尽力而为：下载失败或仓库太大就自动退回「只看 diff」，绝不拖垮主流程。模型还能按需「翻文件」：审查中想看某个没改到的文件（调用方、配置、被引用模块），可以声明要读，内容拼进下一轮再出结论（默认最多翻 2 次，`FILE_TOOL_MAX_STEPS=0` 关闭）。
+**审查看仓库，不只看 diff。** diff 只说改了什么，不说这段代码被谁调用、配置长什么样。审查前先按 commit 下载整个仓库快照（单请求、纯内存解压，超大仓库 25MB 封顶），把改动文件的完整内容和目录树放进 prompt，diff 原样放最后（行号锚点不动）。这一步尽力而为：下载失败或仓库太大就自动退回「只看 diff」，绝不拖垮主流程。模型还能按需检查快照：审查中想看某个没改到的文件，可以声明要读（read_file）；想确认「改名的函数还有谁在用旧名」「新写的工具有没有现成实现」，可以对整个快照做内容搜索（search_file），命中行和文件内容拼进下一轮再出结论。搜索只扩大验证半径、不扩大审查范围——意见永远是「你的改动引起了 X」，不是「仓库有 X」；仓库里与本次改动无关的既有问题不报。（默认最多 2 个工具步，`FILE_TOOL_MAX_STEPS=0` 关闭。）
 
 **可选：便宜模型先出「审阅计划」。** 配置 `DECISION_MODEL` 后审查变两段：便宜模型先扫目录树和改动概况，产出一份计划——重点看哪、风险在哪、建议细读哪些文件；贵模型带着这份计划做正式审查。计划只是参考（和 diff 一样是「内容不是指令」），生成失败就退回无计划的单段审查，绝不重试。不配置 = 行为完全不变。
 
@@ -57,10 +57,10 @@ flowchart TD
 ```bash
 npm install
 cp .env.example .env   # 填 LLM_BASE_URL / LLM_API_KEY / LLM_MODEL / GITHUB_TOKEN
-npm test               # 163 例单测
+npm test               # 173 例单测
 npm run review:local   # hardcode 样例 diff 冒烟
 npm run review:pr -- owner/repo#N [--post]   # 真实 PR 试跑（默认只打印）
-npm run eval           # 36 用例打分表，结果落盘 evals/runs/
+npm run eval           # 43 用例打分表，结果落盘 evals/runs/
 npm run setup:webhook -- owner/repo <url>    # 一键创建 webhook（secret 自动生成）
 npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 ```
@@ -77,7 +77,7 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 | `WORKER_BASE_URL` | — | **生产必填**：审查三步接力的公开域名，和 webhook URL 填同一个。不配的话接力请求会被 Vercel 防护挡掉（403），所有审查都会停在「审查中断」 |
 | `DIFF_MAX_CHARS` | `300000` | diff 截断预算（字符） |
 | `CONTEXT_MAX_CHARS` | `100000` | 仓库上下文预算（字符），`0` 关闭 |
-| `FILE_TOOL_MAX_STEPS` | `2` | 模型按需翻文件的轮数上限，`0` 关闭 |
+| `FILE_TOOL_MAX_STEPS` | `2` | 按需工具步上限（search_file 搜索 + read_file 读文件共享计步），`0` 关闭 |
 | `DECISION_MODEL` | 未设置 | 可选。便宜档模型名，配置后启用「计划 + 审查」两段式 |
 | `TASK_CONTEXT_MAX_CHARS` | `4000` | 任务上下文预算（字符）：PR 标题 + 关联 issue 正文，`0` 关闭 |
 | `REVIEW_TRIGGER_USERS` | 未设置 | 触发白名单，逗号分隔 GitHub 用户名；未设置 = 所有人，值 `*` 等价全放行；匹配大小写不敏感 |
@@ -86,7 +86,7 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 
 ## eval
 
-- **用例**（`evals/cases/`，自带 diff）：synthetic 20 手写教学（10 bug + 10 关联问题）、real 7 来自真实仓库的 fix 反转/配对（ground truth 是人类真实修复）、dogfood 2 本仓库历史意见回归、injection 7 注入攻击（载荷藏于代码注释/文件名/diff 元数据/关联 issue 正文四处，内嵌真 bug）
+- **用例**（`evals/cases/`，自带 diff）：synthetic 20 手写教学（10 bug + 10 关联问题）、real 7 来自真实仓库的 fix 反转/配对（ground truth 是人类真实修复）、dogfood 2 本仓库历史意见回归、injection 7 注入攻击（载荷藏于代码注释/文件名/diff 元数据/关联 issue 正文四处，内嵌真 bug）、repo 7 repo fixture 组（带迷你仓库快照考 diff 外证据检索：重命名/删除残留引用、词法 DRY、字符串键/动态访问漏改 + expectClean 零意见 FP 对照，证据指向 diff 外、意见锚 diff 内，单独口径不计入能力分）
 - **打分**：确定性规则，不用 LLM 当裁判——命中 = 文件对 + 行号 ±3 + 意见正文含预期关键词；指标 recall / precision；注入组另测「不回显载荷 + 不放过真 bug」，不计入能力分
 - **迭代对比**：每个 run 落盘记录 prompt 内容指纹和逐用例结果，`node --import tsx evals/compare.ts evals/runs/<run>.json ...` 聚合出组指标与短板矩阵；历史对比见 [evals/report.md](./evals/report.md)
 
@@ -97,7 +97,7 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 1. **对抗性关联 fixture 扩充**：补 5 例「表面是优化、实际引了坑」的真实关联问题，用真实仓库的 fix 反转/配对构造（手写用例会高估能力），关联命中率在报告单列
 2. **路由效果消融对照**：`DECISION_MODEL` 已上线生产，等积累一批带 `[router] tokens` 日志的真实 run 后，用 compare.ts 对比有/无评审计划的质量差异
 3. **任务上下文注入（D029）**：已上线生产——PR 标题 + 关联 issue 正文进审查 prompt，补上任务维度（「本该做什么」），让需求缺口类缺陷可捕获；PR 作者可控内容的新增注入面（威胁模型三层缓解 + 注入 canary 扩 task 向量，[spec](./docs/plans/ticket-context-injection.md)）
-4. **代码搜索工具（D031）**：快照内存 grep——重命名/删除后的仓库级残留引用检测（diff 外漏改）、新代码与既有实现的词法重复（DRY）；定位是「修改锚定的验证」，不做无锚全局架构审查，[spec](./docs/plans/search-files.md)
+4. **代码搜索工具（D031）**：已上线生产——search_file 快照内存 grep，重命名/删除后的仓库级残留引用检测（diff 外漏改）、新代码与既有实现的词法重复（DRY）；定位是「修改锚定的验证」，不做无锚全局架构审查，[spec](./docs/plans/search-files.md)
 5. **增量审查**：PR 推新 commit 时只审新增改动，不从头再审一遍；顺带按严重级别细化报告门槛
 6. **多模型对比**：同一套评测集跑第二家模型端点
 7. **多仓产品化**：GitHub App 身份（权限收敛）+ 多租户上下文隔离
@@ -111,7 +111,7 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 | [docs/plans/PLAN.md](./docs/plans/PLAN.md) | 项目定位、技术选型、执行计划（交接文档） |
 | [docs/architecture.md](./docs/architecture.md) | 架构：组件、数据流、输出 schema、环境变量 |
 | [docs/deployment.md](./docs/deployment.md) | 部署指南：五步上线路径、安全模型、排障分层 |
-| [docs/decisions.md](./docs/decisions.md) | 技术决策记录（append-only，D001–D028） |
+| [docs/decisions.md](./docs/decisions.md) | 技术决策记录（append-only，D001–D031） |
 | [evals/report.md](./evals/report.md) | prompt 迭代对比报告（方法/数据/局限） |
 | [docs/journal.md](./docs/journal.md) | 开发日志（append-only） |
 | [docs/CHANGELOG.md](./docs/CHANGELOG.md) | 变更记录 |

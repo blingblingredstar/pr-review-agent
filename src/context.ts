@@ -217,6 +217,77 @@ export async function makeSnapshot(
   }
 }
 
+// search_file 内存 grep（D031）：快照 entries 上的大小写敏感子串匹配，返回命中行（path:行号: 内容）。
+// 定位 = 修改锚定的仓库级验证（spec docs/plans/search-files.md）：搜索扩大验证半径，审查对象仍是改动。
+
+// 单查询预算：每文件最多显示的匹配行数、单行文本截断、单个查询结果总字符封顶（超出附说明行）
+export const SEARCH_MAX_LINES_PER_FILE = 5;
+export const SEARCH_MAX_LINE_CHARS = 300;
+export const SEARCH_MAX_TOTAL_CHARS = 20_000;
+
+export type SearchOutcome = {
+  // 实际展示的命中文件（lines 已按 `path:行号: 文本` 渲染好，预算裁剪在此完成——渲染与记账零漂移）
+  files: { path: string; lines: string[]; omittedMatches: number }[];
+  // 截断前的全量统计（头部说明行用它，模型知道看到的不是全部）
+  totalMatches: number;
+  totalFiles: number;
+  omittedFiles: number; // 命中但因总字符预算一行都没展示的文件数
+  charTruncated: boolean; // 是否因总字符预算丢弃过匹配行
+};
+
+// 纯函数（可单测）：文件按路径字母序扫描（确定性，生产与 eval 同序）；二进制跳过（与 fileReader 同口径）；
+// 空/纯空白查询直接零匹配——空串是万物子串，防一次查询把全库倾倒进 prompt
+export function searchEntries(entries: ZipballEntries, query: string): SearchOutcome {
+  const zero: SearchOutcome = { files: [], totalMatches: 0, totalFiles: 0, omittedFiles: 0, charTruncated: false };
+  const q = query.trim();
+  if (!q) return zero;
+  const decoder = new TextDecoder("utf-8");
+  let used = 0;
+  const outcome: SearchOutcome = { ...zero, files: [] };
+  for (const path of [...entries.keys()].sort()) {
+    const data = entries.get(path)!;
+    if (data.includes(0)) continue;
+    const content = decoder.decode(data);
+    if (!content.includes(q)) continue; // 整文件快速预检，绝大多数未命中文件免逐行扫描
+    outcome.totalFiles++;
+    const fileLines: string[] = [];
+    let omittedMatches = 0;
+    const rawLines = content.split("\n");
+    for (let i = 0; i < rawLines.length; i++) {
+      const text = rawLines[i]!;
+      if (!text.includes(q)) continue;
+      outcome.totalMatches++;
+      if (fileLines.length >= SEARCH_MAX_LINES_PER_FILE) {
+        omittedMatches++;
+        continue;
+      }
+      const shown = text.length > SEARCH_MAX_LINE_CHARS ? text.slice(0, SEARCH_MAX_LINE_CHARS) + "…" : text;
+      const rendered = `${path}:${i + 1}: ${shown}`;
+      if (used + rendered.length + 1 > SEARCH_MAX_TOTAL_CHARS) {
+        outcome.charTruncated = true;
+        omittedMatches++;
+        continue;
+      }
+      used += rendered.length + 1;
+      fileLines.push(rendered);
+    }
+    if (fileLines.length > 0) {
+      outcome.files.push({ path, lines: fileLines, omittedMatches });
+    } else {
+      outcome.omittedFiles++;
+    }
+  }
+  return outcome;
+}
+
+// searcher：query → 搜索结果。与 FileReader 同型（review.ts 只依赖此签名，测试可传桩）
+export type Searcher = (query: string) => SearchOutcome;
+
+// 纯函数工厂（可单测）：快照 Map → searcher，与 fileReaderFromEntries 共用同一份 entries（一次下载两个消费方）
+export function searcherFromEntries(entries: ZipballEntries): Searcher {
+  return (query) => searchEntries(entries, query);
+}
+
 // worker review 阶段的 read_file 快照源（D027）：makeSnapshot 之上的 reader 视图
 export async function makeFileReader(
   input: { headRepo: string; headSha: string },

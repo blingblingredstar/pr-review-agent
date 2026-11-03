@@ -80,11 +80,11 @@ function parseDiff(diff: string): { files: Set<string>; newLineRanges: Map<strin
   return { files, newLineRanges, errors };
 }
 
-test("用例集：36 个、id 唯一、synthetic 20（bug/linked 各 10）+ real 7 + dogfood 2 + injection 7", async () => {
+test("用例集：43 个、id 唯一、synthetic 20（bug/linked 各 10）+ real 7 + dogfood 2 + injection 7 + repo 7", async () => {
   const cases = await loadCases();
-  assert.equal(cases.length, 36, `应有 36 个用例，实际 ${cases.length}`);
+  assert.equal(cases.length, 43, `应有 43 个用例，实际 ${cases.length}`);
   const ids = cases.map((c) => c.id);
-  assert.equal(new Set(ids).size, 36, "id 有重复");
+  assert.equal(new Set(ids).size, 43, "id 有重复");
   const synthetic = cases.filter((c) => (c.source ?? "synthetic") === "synthetic");
   assert.equal(synthetic.length, 20, "synthetic 应 20 个");
   assert.equal(synthetic.filter((c) => c.kind === "bug").length, 10, "synthetic bug 类应 10 个");
@@ -92,6 +92,7 @@ test("用例集：36 个、id 唯一、synthetic 20（bug/linked 各 10）+ real
   assert.equal(cases.filter((c) => c.source === "real").length, 7, "real 应 7 个");
   assert.equal(cases.filter((c) => c.source === "dogfood").length, 2, "dogfood 应 2 个");
   assert.equal(cases.filter((c) => c.source === "injection").length, 7, "injection 应 7 个");
+  assert.equal(cases.filter((c) => c.source === "repo").length, 7, "repo 应 7 个");
   // source 必须显式声明：real/dogfood 漏写会静默混进 synthetic 污染能力评估
   for (const c of cases) {
     assert.ok(c.source, `${c.id} 未显式声明 source`);
@@ -108,6 +109,36 @@ test("用例集：36 个、id 唯一、synthetic 20（bug/linked 各 10）+ real
     } else {
       assert.equal(c.taskContext, undefined, `${c.id} 非 injection 用例不得携带 taskContext（能力组裸路径红线）`);
     }
+    // repo fixture 组（D031）：source=repo ⇔ repo 字段成对出现，id 前缀防漏写
+    if (c.source === "repo") {
+      assert.ok(c.id.startsWith("repo-"), `${c.id} source=repo 但 id 前缀不符`);
+      assert.ok(c.repo && Object.keys(c.repo).length > 0, `${c.id} source=repo 但缺 repo fixture`);
+    } else {
+      assert.equal(c.repo, undefined, `${c.id} 非 repo 组不得携带 repo fixture（裸路径红线）`);
+    }
+    // expectClean（D031）：与 expect 二选一——零意见期望必须且只能靠该标记声明
+    if (c.expectClean === true) {
+      assert.equal(c.expect.length, 0, `${c.id} expectClean 与非空 expect 互斥`);
+    } else {
+      assert.ok(c.expect.length >= 1, `${c.id} 无期望条目（考能力的用例必须声明 expect 或 expectClean）`);
+    }
+  }
+});
+
+test("repo 组 fixture 结构：diff 触及文件都在快照中（head 态）、非 diff 文件 ≥2（答案文件 + 诱饵）", async () => {
+  const cases = (await loadCases()).filter((c) => c.source === "repo");
+  assert.ok(cases.length >= 6, "repo 组应有足够用例");
+  for (const c of cases) {
+    const repo = c.repo!;
+    const { files } = parseDiff(c.diff);
+    for (const f of files) {
+      assert.ok(repo[f] !== undefined, `${c.id} diff 触及文件 ${f} 不在 repo 快照中（快照是 head 态，触及文件必须在场）`);
+    }
+    const nonDiff = Object.keys(repo).filter((p) => !files.has(p));
+    assert.ok(
+      nonDiff.length >= 2,
+      `${c.id} 非 diff 文件仅 ${nonDiff.length} 个——至少要有答案文件（漏改/被重复方）+ 诱饵文件（路径名像答案但不含答案，防路径名泄底）`,
+    );
   }
 });
 
@@ -131,7 +162,7 @@ test("每个用例：diff 结构合法，expect 的 file/line 落在 diff 内", 
   const cases = await loadCases();
   for (const c of cases) {
     assert.ok(c.description.length > 5, `${c.id} 缺 description`);
-    assert.ok(c.expect.length >= 1, `${c.id} 无期望条目`);
+    assert.ok(c.expect.length >= 1 || c.expectClean === true, `${c.id} 无期望条目且未声明 expectClean`);
     const { files, newLineRanges, errors } = parseDiff(c.diff);
     assert.deepEqual(errors, [], `${c.id} 的 diff hunk 行数错误：\n${errors.join("\n")}`);
     for (const e of c.expect) {
