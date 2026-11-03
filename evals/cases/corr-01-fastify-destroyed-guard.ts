@@ -33,14 +33,13 @@ index b746a62e920..0d4e7ba812f 100644
       "file": "lib/wrapThenable.js",
       "line": 24,
       "mustMention": [
-        "destroyed",
-        "aborted",
         "挂起",
         "hang",
         "空响应",
         "empty",
         "不发送",
         "无法响应",
+        "无响应",
         "消费",
         "consumed",
         "误判"

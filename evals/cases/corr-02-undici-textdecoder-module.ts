@@ -63,11 +63,9 @@ index abe91be734d..8abe73c83e3 100644
       "mustMention": [
         "icu",
         "intl",
-        "fatal",
         "顶层",
         "模块",
-        "加载",
-        "module"
+        "加载"
       ]
     }
   ],

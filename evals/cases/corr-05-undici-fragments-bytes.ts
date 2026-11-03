@@ -115,16 +115,12 @@ index e5ce7899752..35b670ee539 100644
       "file": ["lib/web/websocket/receiver.js", "lib/web/websocket/util.js"],
       "line": null,
       "mustMention": [
-        "permessage-deflate",
-        "deflate",
         "压缩",
-        "compressed",
-        "fragmentsbytes",
         "计数",
         "截断",
-        "truncat",
         "零填充",
-        "fill"
+        "truncat",
+        "fragmentsbytes"
       ]
     }
   ],

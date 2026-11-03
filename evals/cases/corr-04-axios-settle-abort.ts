@@ -393,14 +393,13 @@ index a3489b21de..ea69ff2eba 100755
       "file": "lib/adapters/http.js",
       "line": 704,
       "mustMention": [
-        "abort",
-        "settle",
-        "reject",
         "中断",
-        "destroy",
         "销毁",
         "读不到",
-        "截断"
+        "截断",
+        "改道",
+        "错误响应",
+        "non-ok"
       ]
     }
   ],
