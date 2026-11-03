@@ -60,7 +60,7 @@ cp .env.example .env   # 填 LLM_BASE_URL / LLM_API_KEY / LLM_MODEL / GITHUB_TOK
 npm test               # 173 例单测
 npm run review:local   # hardcode 样例 diff 冒烟
 npm run review:pr -- owner/repo#N [--post]   # 真实 PR 试跑（默认只打印）
-npm run eval           # 43 用例打分表，结果落盘 evals/runs/
+npm run eval           # 48 用例打分表，结果落盘 evals/runs/
 npm run setup:webhook -- owner/repo <url>    # 一键创建 webhook（secret 自动生成）
 npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 ```
@@ -94,7 +94,7 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 
 按优先级排序；质量基线看 eval 报告，成本基线看评测落盘的 token 用量。执行排序（先做哪个、每步怎么验收）见 [docs/plans/roadmap-execution.md](./docs/plans/roadmap-execution.md)。
 
-1. **对抗性关联 fixture 扩充**：补 5 例「表面是优化、实际引了坑」的真实关联问题，用真实仓库的 fix 反转/配对构造（手写用例会高估能力），关联命中率在报告单列
+1. ~~**对抗性关联 fixture 扩充**~~：已完成——correlation 组 5 例上线（真实仓库「引入 commit + 修复 commit」配对，主题「表面是优化/清理、实际引了坑」），关联命中率在 [evals/report.md](./evals/report.md) 单列口径（不计入能力评估）
 2. **路由效果消融对照**：`DECISION_MODEL` 已上线生产，等积累一批带 `[router] tokens` 日志的真实 run 后，用 compare.ts 对比有/无评审计划的质量差异
 3. **任务上下文注入（D029）**：已上线生产——PR 标题 + 关联 issue 正文进审查 prompt，补上任务维度（「本该做什么」），让需求缺口类缺陷可捕获；PR 作者可控内容的新增注入面（威胁模型三层缓解 + 注入 canary 扩 task 向量，[spec](./docs/plans/ticket-context-injection.md)）
 4. **代码搜索工具（D031）**：已上线生产——search_file 快照内存 grep，重命名/删除后的仓库级残留引用检测（diff 外漏改）、新代码与既有实现的词法重复（DRY）；定位是「修改锚定的验证」，不做无锚全局架构审查，[spec](./docs/plans/search-files.md)

@@ -127,3 +127,15 @@ schema 加 `evidenceSnippet`（给出即校验），发帖双闸门（行号 D01
 - **injection 组同轮**：拦截率 6/7（85.7%）、echo 违规 0，miss 为 inj-06 轮转沉默（与历史基线同归因），红线未受本步扰动
 - **首轮 run 留档**：`2026-11-03T18-05-09`（repo-06 修正前的 fixture 版本，作迭代证据保留）
 - 后续：repo 组拦截/命中随每轮 eval 单列观察；search 使用率与命中质量随生产 dogfood 回收 `[tools]` 日志（第一段工具请求行）；repo-03 的 DRY 触发缺失与 repo-06 的 FP 噪音是下批 prompt 迭代的两个明确靶子
+
+---
+
+## 对抗性关联 fixture（路线图第 1 项）——correlation 组首轮基线
+
+- **形态**：`EvalCase` source 枚举 + 打分分组增 `correlation`（不进 `isCapabilitySource` 白名单，独立口径，injection/repo 同款模式）；5 例底料全部为真实仓库「引入 commit + 修复 commit」配对（fastify×2 / undici×2 / axios×1，revert 型 fix 反转为主），主题「表面是优化/清理、实际引了坑」——引入 diff 单看每处都像合理优化，缺陷证据散在 diff 内关联位置；expect 锚 diff 内（file + 行 ±3 + mustMention 取自修复 commit/issue 描述词汇），配对 provenance 随用例文件与 description 必填
+- **首轮基线**（run `2026-11-03T19-29-34`，promptHash `d399f9d4ed17` 不变）：correlation 组 recall **20.0%**（1/5）、precision 12.5%（1/8）——首轮如实记录，miss 是信号不是丑闻
+- **逐用例**：corr-03（findRoute 语义变化）1/1 命中——意见锚在 findRoute 行、把 API 换掉判为破坏性改动（机制表述有误：findRoute 是 7.7.0 真实 API，模型称其不存在；行号与怀疑方向正确，按 D014 弱匹配口径记 hit）；corr-01/02/05 三例沉默（0 意见）；corr-04 审出 7 条意见但全部落在同 diff 的 http2 新增代码上，未发现 settle 第二参 reject→abort 的改道（该行在 diff 12k 字符中占一行）
+- **首轮读法（如实，不过度解读）**：单轮 5 例小样本；三类 miss 形态——沉默（corr-01/02/05，「看起来无辜」的改动直接放行）、注意力分散（corr-04，大重构 diff 里单行缺陷被同 diff 的更大噪声盖过）、方向对机制错（corr-03）。与 D019「缺陷指向性 vs 推断型 recall」张力同构：关联型缺陷的证据链需要主动把散落位置连起来，现有 prompt 无对应规则；下批 prompt 迭代的明确靶子，**不调 fixture 迁就模型**（Step 3 repo-06 先例）
+- **能力组红线**：35 例 inputTokens 与基线 run `2026-11-03T18-11-27` 逐位一致（合计 23,376），inj-07 同样逐位一致（853）；promptHash `d399f9d4ed17` 不变——correlation 用例不带 repo/taskContext 走裸路径，既有用例零接触
+- **injection 组同轮**：拦截率 7/7（100%）、echo 违规 0；repo 组本轮 recall 4/5、precision 4/7（口径单列，未受本步扰动）
+- 后续：correlation 组随每轮 eval 单列观察；若生产 dogfood 出现同类「优化引入」漏审，与组内 miss 形态对读

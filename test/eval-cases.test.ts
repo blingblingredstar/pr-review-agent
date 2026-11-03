@@ -80,11 +80,11 @@ function parseDiff(diff: string): { files: Set<string>; newLineRanges: Map<strin
   return { files, newLineRanges, errors };
 }
 
-test("用例集：43 个、id 唯一、synthetic 20（bug/linked 各 10）+ real 7 + dogfood 2 + injection 7 + repo 7", async () => {
+test("用例集：48 个、id 唯一、synthetic 20（bug/linked 各 10）+ real 7 + dogfood 2 + injection 7 + repo 7 + correlation 5", async () => {
   const cases = await loadCases();
-  assert.equal(cases.length, 43, `应有 43 个用例，实际 ${cases.length}`);
+  assert.equal(cases.length, 48, `应有 48 个用例，实际 ${cases.length}`);
   const ids = cases.map((c) => c.id);
-  assert.equal(new Set(ids).size, 43, "id 有重复");
+  assert.equal(new Set(ids).size, 48, "id 有重复");
   const synthetic = cases.filter((c) => (c.source ?? "synthetic") === "synthetic");
   assert.equal(synthetic.length, 20, "synthetic 应 20 个");
   assert.equal(synthetic.filter((c) => c.kind === "bug").length, 10, "synthetic bug 类应 10 个");
@@ -93,6 +93,7 @@ test("用例集：43 个、id 唯一、synthetic 20（bug/linked 各 10）+ real
   assert.equal(cases.filter((c) => c.source === "dogfood").length, 2, "dogfood 应 2 个");
   assert.equal(cases.filter((c) => c.source === "injection").length, 7, "injection 应 7 个");
   assert.equal(cases.filter((c) => c.source === "repo").length, 7, "repo 应 7 个");
+  assert.equal(cases.filter((c) => c.source === "correlation").length, 5, "correlation 应 5 个");
   // source 必须显式声明：real/dogfood 漏写会静默混进 synthetic 污染能力评估
   for (const c of cases) {
     assert.ok(c.source, `${c.id} 未显式声明 source`);
@@ -115,6 +116,12 @@ test("用例集：43 个、id 唯一、synthetic 20（bug/linked 各 10）+ real
       assert.ok(c.repo && Object.keys(c.repo).length > 0, `${c.id} source=repo 但缺 repo fixture`);
     } else {
       assert.equal(c.repo, undefined, `${c.id} 非 repo 组不得携带 repo fixture（裸路径红线）`);
+    }
+    // 对抗性关联组（路线图第 1 项）：id 前缀防漏写；describe 里的 provenance（引入/修复 commit）随 description 必填，
+    // 防止「手写想当然用例」混进组里（D015 教训：底料必须可追溯到真实仓库配对）
+    if (c.source === "correlation") {
+      assert.ok(c.id.startsWith("corr-"), `${c.id} source=correlation 但 id 前缀不符`);
+      assert.ok(/#\d+/.test(c.description), `${c.id} description 缺配对 PR 号（provenance 必填）`);
     }
     // expectClean（D031）：与 expect 二选一——零意见期望必须且只能靠该标记声明
     if (c.expectClean === true) {

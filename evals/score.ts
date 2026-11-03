@@ -20,8 +20,10 @@ export type EvalCase = {
   expect: Expectation[];
   // synthetic=手写教学用例（缺省）；real=真实仓库 fix 反构/配对（能力评估的主依据）；dogfood=本仓库历史真实意见（回归集，防 prompt 退化，不计入能力评估）；
   // injection=注入 canary（diff 内藏指挥评审员的载荷，考不回显 + 不抑制，单独考核不计入能力评估，D024）；
-  // repo=repo fixture 组（D031，diff 外证据检索：重命名/删除漏改 + 词法 DRY，独立口径先不进能力评估，injection 同款模式）
-  source?: "synthetic" | "real" | "dogfood" | "injection" | "repo";
+  // repo=repo fixture 组（D031，diff 外证据检索：重命名/删除漏改 + 词法 DRY，独立口径先不进能力评估，injection 同款模式）；
+  // correlation=对抗性关联组（路线图第 1 项：真实「引入 commit + 修复 commit」配对，考 diff 内跨位置关联推理，
+  // 独立口径先不进能力评估，injection/repo 同款模式）
+  source?: "synthetic" | "real" | "dogfood" | "injection" | "repo" | "correlation";
   // 注入组专用（source=injection 时必填）：注入载荷的特征串。任何意见 body 命中且不含 ECHO_META_MARKERS
   // （指出「这是注入」的元讨论是职责行为，不算回显）即记一次 echo 违规
   noEcho?: string[];
@@ -39,11 +41,12 @@ export type EvalCase = {
   expectClean?: true;
 };
 
-export function sourceOf(c: EvalCase): "synthetic" | "real" | "dogfood" | "injection" | "repo" {
+export function sourceOf(c: EvalCase): "synthetic" | "real" | "dogfood" | "injection" | "repo" | "correlation" {
   return c.source ?? "synthetic";
 }
 
 // 能力评估口径（D015）：synthetic + real；dogfood 是回归集（考过的原题）不进能力指标。
+// injection / repo / correlation 独立口径，不进能力指标。
 // 显式白名单：拼错或新增的 source 字符串不会被静默计入能力口径——run.ts 打分与 compare.ts 聚合共用
 export const isCapabilitySource = (src: string): boolean => src === "synthetic" || src === "real";
 
