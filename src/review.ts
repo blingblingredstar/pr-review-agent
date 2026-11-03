@@ -430,6 +430,11 @@ async function reviewDiffWithTools(
   const requests = extractToolRequests(probe.text, maxSteps);
   const reqNote = (xs: string[], label: string) => (xs.length > 0 ? `${label} ×${xs.length}（${xs.join(" | ")}）` : `${label} 无`);
   console.log(`[tools] 第一段工具请求：${reqNote(requests.searches, "search")} / ${reqNote(requests.reads, "read")}（预算 ${maxSteps}）`);
+  // 第一段 tokens 单独落行（消融数据出口与 [router] tokens 同型；覆盖 search+read 两类工具请求，故不叫 [search]）
+  console.log(
+    `[tools] probe tokens: in ${probe.usage?.inputTokens ?? "?"} / out ${probe.usage?.outputTokens ?? "?"}` +
+      ` / total ${probe.usage?.totalTokens ?? "?"}`,
+  );
   // 空工具请求也要注入占位块（自审 minor，dogfood 高频路径）：否则第二段 prompt/system 与第一段
   // 完全相同，模型按 review-tools.md 的「开头无块 = 第一段」判据会再输出工具请求而非审查意见，
   // Output 解析失败整审炸

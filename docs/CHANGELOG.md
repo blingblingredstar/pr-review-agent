@@ -253,3 +253,7 @@
 - eval 新增 correlation 组 5 例（用例 43 → 48）：真实仓库「引入 commit + 修复 commit」配对构造，主题定向「表面是优化/清理、实际引了坑」——diff 单看每处都像合理改动、缺陷证据散在 diff 内关联位置，考跨位置关联推理；底料全部为可追溯配对（fastify#4963→#5008 destroyed guard、undici#2863→#2999 顶层 fatal TextDecoder、fastify#5078→#5090 findRoute 语义、axios#7150→#7193 settle 传 abort、undici#3284→#3290 压缩消息计数缺口），provenance（repo / 引入 SHA / 修复 SHA / 缺陷说明 / 为何单看无害）随用例文件注释与 description 必填
 - `EvalCase` source 枚举 + 打分分组增 `correlation`（不进 `isCapabilitySource` 白名单，独立口径单列报告，injection/repo 同款模式）；打分沿用既有命中口径（file + 行 ±3 + mustMention）；`test/eval-cases.test.ts` 结构校验扩展（计数 48、id 前缀 corr-、description 必须含配对 PR 号）
 - eval 回归：能力组红线不动（promptHash `d399f9d4ed17`、既有用例零接触），correlation 组首轮命中率落 `evals/report.md`（miss 是信号不是 fixture 缺陷，不应试调 fixture）
+
+### Added（工具探针 tokens 单独落日志，Step 3 清单第 10 条收尾）
+
+- 两段协议第一段（工具请求声明段）tokens 单独落 `[tools] probe tokens` 行（in/out/total，与 `[router] tokens` 消融数据出口同型；覆盖 search+read 两类工具请求，故不叫 `[search]`）；`ReviewOutcome.usage` 契约不变（仍两段合计），仅拆观测面——生产 dogfood 的工具循环成本自此可按段回收
