@@ -11,6 +11,7 @@ import { verifySignature, header, type WebhookHeaders, type Dispatch } from "./w
 import { fetchPr, getOctokit, postReview, postTimeoutNotice, setReviewStatus, type PrRef } from "./github.ts";
 import { hasReviewed } from "./dedupe.ts";
 import { buildRepoContext, fileReaderFromEntries, makeSnapshot, snapshotTree } from "./context.ts";
+import { buildTaskContextForPr } from "./task.ts";
 import {
   buildReviewPrompt,
   fileToolEnabled,
@@ -209,23 +210,37 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
       } catch (statusErr) {
         console.error(`[worker] ${key} pending status 写失败`, statusErr);
       }
-      const { diff } = await fetchPr(client, ref);
+      const { diff, title, body } = await fetchPr(client, ref);
       // 仓库上下文（D023，best-effort）：失败返回 null、审查照旧，绝不连垮主流程
       const context = await buildRepoContext({ headRepo: ref.headRepo ?? `${ref.owner}/${ref.repo}`, headSha: ref.headSha, diff });
-      await deps.chain({ v: 1, stage: "review", hop: envelope.hop + 1, ref, issuedAt: Date.now(), state: { diff, context } });
+      // 任务上下文（D029，best-effort）：PR 标题 + 关联 issue 正文进任务块；无关联/拉取失败/预算关闭返回 null，
+      // null 随信封传递（「无任务块」与「信封缺字段」同义），4k 字符预算封顶远小于 4.5MB 请求体上限
+      const taskContext = await buildTaskContextForPr(client, ref, title, body);
+      await deps.chain({
+        v: 1,
+        stage: "review",
+        hop: envelope.hop + 1,
+        ref,
+        issuedAt: Date.now(),
+        state: { diff, context, taskContext },
+      });
       return;
     }
     if (envelope.stage === "review") {
-      const state = (envelope.state ?? {}) as { diff?: string; context?: string | null };
+      const state = (envelope.state ?? {}) as { diff?: string; context?: string | null; taskContext?: string | null };
       if (typeof state.diff !== "string") throw new Error("review 信封缺 state.diff");
+      // taskContext（D029）：null 传递按无任务块审查（与 context 的 `?? undefined` 同形）
+      const taskContext = typeof state.taskContext === "string" ? state.taskContext : undefined;
       // read_file 工具循环（D027）+ 决策路由（D028）共用的快照预判与获取。快照预判（自审 minor）：
       // 与 reviewDiff 的 TOOL_PROMPT_MAX_CHARS 规模闸同一阈值——大 prompt 场景工具循环必被跳过，
       // 先取快照白吃最多 25MB/10s 预算，且这正是最易撞阶段墙钟的超大 PR 路径。
       // 用 buildReviewPrompt（与 reviewDiff 同一构造函数，自审三轮：曾用 diff+context 估算出现 +14 偏移
       // 与 >=/> 比较符的边界分叉）——预判与闸吃同一字符串、同一比较符，永不矛盾。
-      // 注：预判时 plan 尚不存在（router 在其后才跑），计划块 ~1k 字符的边界漂移属既有软约束口径，不为它加 plumbing
+      // 注：预判时 plan 尚不存在（router 在其后才跑），计划块 ~1k 字符的边界漂移属既有软约束口径，不为它加 plumbing；
+      // taskContext 已就绪（prepare 产物随信封到达），直接进预判不漂移
       const promptEstimate = buildReviewPrompt(state.diff, {
         context: typeof state.context === "string" ? state.context : undefined,
+        taskContext,
       }).length;
       const snapshotSkippedByGate = fileToolEnabled() && promptEstimate > TOOL_PROMPT_MAX_CHARS;
       // 需要快照的条件（D028 重构）：read_file 工具循环需要快照内容，决策路由需要快照文件树——
@@ -271,6 +286,7 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
         timeoutMs: effectiveLlmTimeoutMs,
         fileReader,
         plan,
+        taskContext,
       });
       // state 累积传递：publish 的 postReview 仍需 diff 做行内预定位（splitByLocatable）
       await deps.chain({ v: 1, stage: "publish", hop: envelope.hop + 1, ref, issuedAt: Date.now(), state: { ...state, result } });

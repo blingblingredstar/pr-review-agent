@@ -15,6 +15,7 @@ import {
 } from "../src/review.ts";
 import { buildPlanBlock, type ReviewPlan } from "../src/router.ts";
 import { fileReaderFromEntries } from "../src/context.ts";
+import { buildTaskContext } from "../src/task.ts";
 import { messagesOf, startFakeLLM, withEnv } from "./helpers.ts";
 
 test("withExtraBody：扩展字段合并进 JSON 请求体，显式配置优先", async () => {
@@ -376,6 +377,75 @@ test("reviewDiff：opts.plan 注入 → 计划块进 prompt（context 之后 dif
         assert.equal(sys.content, loadPrompt(), "system 不含 router prompt");
         assert.equal(user.content, `CTX\n\n${buildPlanBlock(PLAN)}\n\n[diff 开始]\nDIFF_TEXT`);
         assert.deepEqual(out.usage, { inputTokens: 100, outputTokens: 10, totalTokens: 110 }, "usage 契约不变：仅主调用自身（router 用量只落 [router] 日志）");
+      },
+    );
+  } finally {
+    await fake.close();
+  }
+});
+
+// ============ 任务上下文注入（D029）============
+
+const TASK_BLOCK = buildTaskContext("fix: 支付状态机", [{ number: 42, title: "under_review 必返回 409", body: "任务正文。" }], 4_000).text!;
+
+test("buildReviewPrompt：taskContext 任务块置顶（context/计划块之前），diff 恒末尾；无 taskContext 字节级现状（D029）", () => {
+  // 三块并存：任务块在最前（需求是最高层信号），context → 计划块 → [diff 开始] → diff
+  assert.equal(
+    buildReviewPrompt("DIFF_TEXT", { context: "CTX", plan: PLAN, taskContext: TASK_BLOCK }),
+    `${TASK_BLOCK}\n\nCTX\n\n${buildPlanBlock(PLAN)}\n\n[diff 开始]\nDIFF_TEXT`,
+  );
+  // 只有任务块：任务块 + diff（中间无空段）
+  assert.equal(buildReviewPrompt("DIFF_TEXT", { taskContext: TASK_BLOCK }), `${TASK_BLOCK}\n\nDIFF_TEXT`);
+  // 任务块 + 计划块（无 context）：任务块 → 计划块 → diff
+  assert.equal(buildReviewPrompt("DIFF_TEXT", { plan: PLAN, taskContext: TASK_BLOCK }), `${TASK_BLOCK}\n\n${buildPlanBlock(PLAN)}\n\nDIFF_TEXT`);
+  // 无 taskContext → 字节级现状（eval 红线由构造保证）
+  assert.equal(buildReviewPrompt("DIFF_TEXT"), "DIFF_TEXT");
+  assert.equal(buildReviewPrompt("DIFF_TEXT", { context: "CTX" }), "CTX\n\n[diff 开始]\nDIFF_TEXT");
+  assert.equal(buildReviewPrompt("DIFF_TEXT", { plan: PLAN }), `${buildPlanBlock(PLAN)}\n\nDIFF_TEXT`);
+  // taskContext 为空串按无任务块（null 传递语义，与 falsy 同形）
+  assert.equal(buildReviewPrompt("DIFF_TEXT", { taskContext: "" }), "DIFF_TEXT");
+});
+
+test("reviewDiff：opts.taskContext 注入 → 任务块进 prompt 置顶，system/调用形态不变，两段协议不丢任务块（D029）", async () => {
+  const fake = await startFakeLLM((i) => {
+    if (i === 0) return { content: '{"readRequests":["src/a.ts"]}', usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } };
+    return { content: REVIEW_JSON, usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 } };
+  });
+  try {
+    await withEnv(
+      { LLM_BASE_URL: fake.url, LLM_API_KEY: "test", LLM_MODEL: "fake", LLM_EXTRA_BODY: undefined, LLM_TIMEOUT_MS: undefined, FILE_TOOL_MAX_STEPS: "2" },
+      async () => {
+        const out = await reviewDiff("DIFF_TEXT", "CTX", { timeoutMs: 10_000, taskContext: TASK_BLOCK, fileReader: () => "content" });
+        assert.deepEqual(out.comments, [{ file: "src/a.ts", line: 1, severity: "major", body: "b" }]);
+        assert.equal(fake.calls.length, 2, "fileReader 注入时两段协议，任务块不改变调用形态");
+        const first = messagesOf(fake.calls[0]!.body).find((m) => m.role === "user")!;
+        assert.ok(first.content.startsWith(TASK_BLOCK), "第一段 prompt 任务块置顶");
+        assert.ok(first.content.includes("CTX"), "第一段 prompt 含 context");
+        const second = messagesOf(fake.calls[1]!.body).find((m) => m.role === "user")!;
+        // 第二段工具结果块在 prompt 前段（D027 口径：工具结果前置、diff 保持生成前最近位置）——
+        // 任务块仍在块序列内（工具块之后、context 之前），不因两段协议丢失
+        assert.ok(second.content.startsWith("[read_file 工具结果]"), "第二段工具块前置");
+        assert.ok(second.content.includes(TASK_BLOCK), "第二段 prompt 仍含任务块（两段协议不丢）");
+        assert.ok(second.content.indexOf(TASK_BLOCK) < second.content.indexOf("CTX"), "任务块仍在 context 之前");
+        assert.ok(second.content.endsWith("DIFF_TEXT"), "diff 仍末尾");
+        const sys = messagesOf(fake.calls[0]!.body).find((m) => m.role === "system")!;
+        assert.equal(sys.content, `${loadPrompt()}\n\n${readFileSync(new URL("../prompts/review-tools.md", import.meta.url), "utf8")}`, "system 仍只有 review.md + review-tools.md");
+      },
+    );
+  } finally {
+    await fake.close();
+  }
+});
+
+test("reviewDiff：opts.taskContext 不传 = 裸路径字节级不变（能力组红线由构造保证，D029）", async () => {
+  const fake = await startFakeLLM(() => ({ content: REVIEW_JSON, usage: { prompt_tokens: 583, completion_tokens: 130, total_tokens: 713 } }));
+  try {
+    await withEnv(
+      { LLM_BASE_URL: fake.url, LLM_API_KEY: "test", LLM_MODEL: "fake", LLM_EXTRA_BODY: undefined, LLM_TIMEOUT_MS: undefined },
+      async () => {
+        await reviewDiff("DIFF_TEXT", "CTX", { timeoutMs: 10_000 });
+        const user = messagesOf(fake.calls[0]!.body).find((m) => m.role === "user")!;
+        assert.equal(user.content, "CTX\n\n[diff 开始]\nDIFF_TEXT", "无任务块 = 现状字节级");
       },
     );
   } finally {

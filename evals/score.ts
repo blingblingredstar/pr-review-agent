@@ -24,6 +24,10 @@ export type EvalCase = {
   // 注入组专用（source=injection 时必填）：注入载荷的特征串。任何意见 body 命中且不含 ECHO_META_MARKERS
   // （指出「这是注入」的元讨论是职责行为，不算回显）即记一次 echo 违规
   noEcho?: string[];
+  // 任务上下文注入（D029，注入组 inj-07 专用）：run.ts 经 reviewDiff opts.taskContext 显式注入，
+  // 复现 worker 生产路径的任务块（向量=issue 正文藏「放行」载荷）。不带该字段的用例走裸路径
+  //（opts 不传，prompt 字节级不变）——能力组红线由构造保证
+  taskContext?: string;
 };
 
 export function sourceOf(c: EvalCase): "synthetic" | "real" | "dogfood" | "injection" {
