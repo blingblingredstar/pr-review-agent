@@ -247,3 +247,9 @@
 ### Added（增量审查 spec 先行留档，D032 立项）
 
 - 增量审查 + 报告门槛细化立项（roadmap Step 6 前置，D019 第 4 条翻案——翻案理由为成本结构变化非判断错误）：spec 见 `docs/plans/incremental-review.md`——base 取法（D010 标记语义扩展，已审 SHA 集合 ∩ PR commits 列表取最新，无标记/交集空回退全量）、dedupe 键扩展为 (PR, 已审 SHA 集合)（集合沉淀在 review body 标记里，零基建不建存储，标记扩 `sha:<head> base:<base>` 旧标记兼容）、block 继承（上条 review 含 blocker/major 回退全量，防增量「干净」误解除旧 blocker）、增量 diff 走 compare API（`fileToDiffBlock` 原样复用，任何一层失败回退全量）、报告门槛分级发布（blocker/major 行内必报，minor/nit 折叠进 body 汇总段，REQUEST_CHANGES 收窄为「有 blocker/major」）；**仅 spec 未实现**，eval 红线由构造保证（promptHash `d399f9d4ed17` 零接触），实现等 Step 4/5 收尾后触发
+
+### Added（对抗性关联 fixture 组，路线图第 1 项）
+
+- eval 新增 correlation 组 5 例（用例 43 → 48）：真实仓库「引入 commit + 修复 commit」配对构造，主题定向「表面是优化/清理、实际引了坑」——diff 单看每处都像合理改动、缺陷证据散在 diff 内关联位置，考跨位置关联推理；底料全部为可追溯配对（fastify#4963→#5008 destroyed guard、undici#2863→#2999 顶层 fatal TextDecoder、fastify#5078→#5090 findRoute 语义、axios#7150→#7193 settle 传 abort、undici#3284→#3290 压缩消息计数缺口），provenance（repo / 引入 SHA / 修复 SHA / 缺陷说明 / 为何单看无害）随用例文件注释与 description 必填
+- `EvalCase` source 枚举 + 打分分组增 `correlation`（不进 `isCapabilitySource` 白名单，独立口径单列报告，injection/repo 同款模式）；打分沿用既有命中口径（file + 行 ±3 + mustMention）；`test/eval-cases.test.ts` 结构校验扩展（计数 48、id 前缀 corr-、description 必须含配对 PR 号）
+- eval 回归：能力组红线不动（promptHash `d399f9d4ed17`、既有用例零接触），correlation 组首轮命中率落 `evals/report.md`（miss 是信号不是 fixture 缺陷，不应试调 fixture）
