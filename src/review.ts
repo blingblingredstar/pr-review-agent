@@ -351,7 +351,15 @@ export function buildToolBlock(reqs: ToolRequests, reader: ((path: string) => st
   }
   for (const path of reqs.reads) {
     step++;
-    const content = reader ? reader(path) : null;
+    if (!reader) {
+      // 防御位（PR #42 bot minor，与 search 侧同型对称）：启用闸是 fileReader || searcher，只注入 searcher
+      // 而模型声明了 read 时，快照实际可用、只是 reader 未注入——伪报「file not found」会让模型误信
+      // 文件不在快照里而放行本应核实的疑点，故显式「未能执行」（worker/eval 实际都成对注入，正常不可达）
+      parts.push(`[read_file] ${path}: 未能执行（读取不可用）`);
+      console.log(`[tools] step ${step}: read ${path} (未执行, reader 未注入)`);
+      continue;
+    }
+    const content = reader(path);
     if (content === null) {
       parts.push(`[read_file] ${path}: file not found in head snapshot`);
       console.log(`[tools] step ${step}: read ${path} (not found)`);

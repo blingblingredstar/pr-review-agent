@@ -176,6 +176,11 @@ test("buildToolBlock：search 段——命中行块、无匹配、预算截断�
     // searcher 未注入时请求了搜索：显式「未能执行」，不伪报「无匹配」压掉真发现
     const noSearcher = buildToolBlock({ ...NO_REQS, searches: ["anything"] }, fileReaderFromEntries(entries), undefined);
     assert.ok(noSearcher.includes('=== search："anything"（未能执行：搜索不可用）==='));
+    // reader 未注入时请求了读取（PR #42 bot minor）：与 search 侧同型——显式「未能执行」，
+    // 不伪报「file not found」让模型误信文件不在快照里
+    const noReader = buildToolBlock({ ...NO_REQS, reads: ["src/config.ts"] }, undefined, searcher);
+    assert.ok(noReader.includes("[read_file] src/config.ts: 未能执行（读取不可用）"));
+    assert.ok(!noReader.includes("file not found"));
   } finally {
     console.log = origLog;
   }
