@@ -57,7 +57,7 @@ D019 第 4 条原文：「synchronize 维持全量重审：增量审查（PLAN �
 
 - **首选**：`GET /repos/{owner}/{repo}/compare/{base}...{head}`——一次调用带回区间 commits + files（含 patch），files 条目（filename / status / patch / previous_filename）与 `pulls.listFiles` 同形，**D025 的 `fileToDiffBlock` 原样复用**拼出可解析 diff，`diffCoveredLines` / `truncateDiff` / `splitByLocatable` / `diffTouchedPaths` 下游管道零耦合（D025「合成 diff 与既有管道零耦合」同款）。
 - **备选否决**：两份全量 diff 做集合差——base 时点的 diff 无处可取（本仓不存跨审查中间态，D026 信封 state 不出审查链；files API 只有当前态），要取只能把 base..head 之间每个 commit 的 diff 逐个拉取拼接（N 次调用、hunk 上下文交错还要去重）；文本级 diff-of-diff 则吃 hunk 上下文漂移的假差异。compare API 是这个问题的原生解。否决。
-- **与 D025 的配合**：compare 的 files 分页（每页 100）超限时同型拼合省略；compare 请求本身 406 / 超限 / 任何失败 → **回退全量**（全量路径自有 D025 兜底）。增量是优化不是依赖，任何一层取不到数据都安全落回全量，绝不因增量路径失败导致 push 无审查。
+- **与 D025 的配合**：compare 的 files 数组是**单响应形态，不是 `pulls.listFiles` 的 per_page 分页**（官方口径约 300 文件/响应；超限行为与个别文件 patch 缺失的细节留实现期核实，本 spec 不预设）——超出上限的区间不硬拼，直接**回退全量**；compare 请求本身 406 / 任何失败 → **回退全量**（全量路径自有 D025 兜底）。增量是优化不是依赖，任何一层取不到数据都安全落回全量，绝不因增量路径失败导致 push 无审查。
 - **与 D023 / D027 / D031 / D028 的配合**：快照恒为 head 全仓（zipball 不变），read_file / search_file / router 原样工作；`buildRepoContext` 吃增量 diff（触及清单 = 增量触及文件，上下文块成本随区间缩水）。已知盲区：增量 hunk 引用本 PR 先前 commit 改动的内容时，触及文件上下文不覆盖——由工具循环兜底（快照全仓可读），dogfood 若证明该盲区真实高频，再议上下文口径（开放问题②）。
 - **D018 截断照常作为增量 diff 的最后防线**（区间本身也可能很大）。
 
@@ -103,7 +103,7 @@ D019 第 4 条原文：「synchronize 维持全量重审：增量审查（PLAN �
 
 ### 验收闸门
 
-`npm test` 全绿 + `npm run eval`：promptHash 不变、35 例逐用例输入 tokens 与基线逐位一致（两条输出贴 PR 描述留证，与 Step 1 同型）；repo 组 / injection 组独立口径不受扰。
+`npm test` 全绿 + `npm run eval`：promptHash 不变、**能力组**（2026-11-02 基线的 35 例口径，输入合计 23,376）逐用例输入 tokens 逐位一致（两条输出贴 PR 描述留证，与 Step 1 同型）；repo 组 / injection 组**独立口径不受扰**（用例数按实现时点的实际集合对表，本 spec 写死的能力组口径不随组扩充漂移）。
 
 ## 四、后果与边界
 
