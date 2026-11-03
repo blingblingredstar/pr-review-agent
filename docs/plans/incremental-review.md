@@ -66,7 +66,7 @@ D019 第 4 条原文：「synchronize 维持全量重审：增量审查（PLAN �
 - **层位：发布层（postReview），不进 prompt**。模型 schema 照常全量输出全部 severity——改 prompt（如「不要报 minor」）会动 promptHash，直接违背红线；发布层的机械分级不碰生成。这也是 eval 与生产行为解耦的既有取向（D023 口径）。
 - **分级形态**：
   - **blocker / major：行内必报**（可定位 → 行内线程；不可定位 → body 降级列表，现状语义不变）。
-  - **minor / nit：不再逐条行内**，折叠进 review body 的 `<details><summary>minor/nit ×N</summary>` 汇总段（每条一行 `` `file:line` **[severity]** 摘要 ``）。线程只留给需要人介入的信号——resolve 闭环负担不随噪音增长（AGENTS.md 的标签口径「minor/nit 不打标签防噪音」同型）。
+  - **minor / nit：不再逐条行内**，折叠进 review body 的 `<details><summary>minor/nit ×N</summary>` 汇总段。**这是立项即定死的取舍，不是留待观察的悬念**：折叠意见与降级意见同构地退出线程闭环（D016 / PR #8 修的正是 body 意见对 `resolve:threads` 与 `review-threads` check 不可见的盲区，本方案等于把 minor/nit 主动移进该盲区），两项补偿随立项同时承诺——①折叠段**逐条一行、格式与降级意见列表同构**（`` - `file:line` **[severity]** 全文 ``，机器可解析，不写自由摘要变体），实现期把「拉意见须同时核对折叠段」并进意见处置口径（AGENTS.md 既有「降级列表逐条核对留痕」的同型延伸）；②预登记回退分支：dogfood 若显示认领困难 → 恢复 minor/nit 行内线程（门槛只保留 COMMENT 判定收窄），不临场裁决。线程只留给需要人介入的信号——resolve 闭环负担不随噪音增长（AGENTS.md 的标签口径「minor/nit 不打标签防噪音」同型）。
 - **D017 顺带细化**：REQUEST_CHANGES 判定从「有意见」收窄为「有 blocker/major」——与 `severityLabels` 打标签口径（has-blocker / has-major 才是介入信号）对齐；纯 minor/nit 的审查 → COMMENT 不 block。这是对 D017 「有意见 → REQUEST_CHANGES」的收窄，不是翻案（block 的本意就是「需要人介入」）。
 - **统一生效**：门槛对全量与增量是同一套发布行为，不为增量单开一支（§一 已述：噪音预算与区间大小成比例，但分级规则本身不分形态）。
 
@@ -118,6 +118,6 @@ D019 第 4 条原文：「synchronize 维持全量重审：增量审查（PLAN �
 - **开放问题（留实现期裁决，不预设）**：
   1. **区间覆盖的 gap 检测**：并发/重试交错下 base 链可能不连续（如两次审查覆盖 base..mid 与 mid2..head），「最新已审 SHA」单点推导是否足够、要不要做区间并集完整性校验——先按单点推导上线，dogfood 发现漏审再加。
   2. **上下文口径**：`buildRepoContext` 吃增量 diff 的跨 commit 盲区（§二.5）若 dogfood 证明真实高频，改「全量 diff 触及清单 + 增量 diff 本体」的混合口径（多一次全量 diff API，不进 prompt）。
-  3. **minor/nit 折叠段的认领路径**：折叠意见无线程，作者认领靠人工对照（与现状降级意见同语义）；若 dogfood 显示认领困难，考虑折叠段也逐条建线程（回到现状，门槛只保留 COMMENT 判定收窄）。
+  3. **minor/nit 折叠段的认领路径**：立项取舍已在 §二.6 定死（机器可解析逐条格式 + 处置口径随实现扩展 + 回退分支预登记），留实现期的只剩 AGENTS.md 具体措辞与 dogfood 回退判据的触发观察。
   4. **`pr-review` status 文案**：增量审查的 description 是否标注「增量」——纯文案问题，实现期定。
 - **实现边界声明**：本 spec 只留档设计；实现 + 测试 + eval 回归 + PR 全流程，等 `roadmap-execution.md` Step 4/5 收尾后的触发条件，届时按 Step 6 执行序走 `feat:` PR。**本条 spec 的合并不代表任何增量行为已上线。**
