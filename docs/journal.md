@@ -558,3 +558,15 @@
   - 执行序 ≠ 优先级序必须在计划里讲清理由（D029 spec 就绪 + 拆分绑定 + `[task]` 日志早积累；fixture 要专注会话），否则下个会话读 README 路线图会疑惑为什么不从第 1 项做起
   - 消融对照（路线图第 2 项）现状无事可做：生产 run 无 eval 分数，对照指标（采纳率/沉默率等）只能等 `[router]` 日志积累后按数据形态定——计划里如实标「等待/并行」，不过度预设指标
 - **下一步**：本 PR 合并后按执行计划 **Step 1（refactor PR）** 动工；Step 2（D029）紧随
+
+## 2026-11-03 · 会话 35：search_files 立项提前（D031）——修改锚定的仓库级验证定位 + repo fixture eval 设计
+
+- **目标**：用户两问——①加了代码搜索后，重命名漏改（diff 外）能否识别、现在有无 eval；DRY 类全局问题能否审、eval 怎么设计；②CR agent 该不该像本地 harness 那样审修改范围外的问题，还是专注修改范围（例：删除后全仓搜引用）。分析 → 立项（D031）→ 本 PR 落库。
+- **关键定位（D031 核心）**：切分维度不是「diff 内 vs diff 外」而是「diff 锚定 vs 无锚」——**审查对象永远是改动，搜索扩大的是验证半径、不是审查范围**。无锚全局架构审查三理由否决（成本无界 / 意见因果性——review 的社会契约是意见与本次改动有因果，无锚是一次性 audit 的职责 / eval 期望集开放无 ground truth）；与本地 harness 的差异是职责选择而非能力差距（本地 review 类 skill 同样 diff-anchored）。用户的直觉（专注修改范围 + 删除后搜引用）即此定位。
+- **分析结论**（写进 D031 背景防翻案）：漏改三层可见性——同 hunk ✅ / 同触及文件 ✅（D023 全文注入）/ 未触及文件 ❌（文件树只有路径、read_file 知道能读不知道读哪个、router 按路径盲猜）；词法 DRY 同盲区。会话 33「检索需求已覆盖」结论只对**知道去哪找**成立，**不知道去哪找**（旧符号谁在用、有无既有实现）只有 grep 能解——排期修订理由，embedding 否决（D022）不动。eval 现状结构性不可能：EvalCase 无 repo 维度、run.ts 裸调 reviewDiff、eval-cases 校验强制 expect 落 diff 内。
+- **完成**：spec `docs/plans/search-files.md`（工具形态挂 D027 两段协议 / 行为指令进 review-tools.md / FILE_TOOL_MAX_STEPS 扩工具步 / 威胁模型同型无新增注入面 / eval 设计）+ roadmap-execution.md 插 Step 3（原 3-7 顺延 4-8，多仓子项划线留注）+ decisions.md D031 + README 路线图第 4 项（6→7 项）。
+- **发现 / 坑**：
+  - **锚点窍门**：期望意见锚 diff 内、证据指向 diff 外（mustMention diff 外路径/符号）——复用既有 expect 结构、生产 inline comment 可打、绕开校验放宽，三赢
+  - **FP 对照比 TP 重要**：DRY/相似性意见噪音风险最高，`expectClean` 零意见期望只进 precision 分母；repo fixture 必须含诱饵文件（答案文件唯一时路径名即泄底）
+  - eval 的 repo 组独立 source 先不进能力口径（injection 同款模式），跑稳再收
+- **下一步**：本 PR 闭环后按执行计划 **Step 1（review.ts 拆分 refactor PR）** 动工，Step 2（D029）紧随，D031 是 Step 3
