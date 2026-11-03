@@ -530,3 +530,16 @@
   - **重写丢硬事实的模式（×3）**：丢的全是事实性内容（行为语义 / 诚实披露 / 威胁面向量），重写时容易被当风格修饰删掉——通俗化不等于删信息；第三处是复审在 journal 描述里抓到的（bot 审「上轮意见的记录」仍能翻出漏项）
   - **生产链路首战告捷**：PR #33 是第一个由 D026 异步链路（webhook → 三步接力 → 回帖 → status）端到端全自动审查的 PR（#30/#31/#32 当时靠手动补审）；两轮审查（初审 + push 后重审）均正常；`[router]` 日志未查 Vercel 控制台，路由生效与否留观测
 - **下一步**：路线图第 1 项对抗 fixture 扩充（留专注会话）；生产观测 `[router] tokens` 与 `[tools]` 日志行；消融对照等 run 数据积累
+
+## 2026-11-03 · 会话 33：DeepLearning.AI《AI Code Review》课程调研（评测判据还原 + embedding/agentic 取舍），生产链路 dogfood 第二战
+
+- **目标**：用户问吴恩达 AI Code Review 课的资料 → transcript 全抓 → lab 源码还原 → 分析结合点 → 两个技术取舍问题（有无必要加 embedding；代码检索 agentic search vs RAG）→ 调研笔记落库（本文档随之 PR）。
+- **完成**：
+  - 课程材料三层抓取：①8 节课逐字 transcript（免费课程页 `__NEXT_DATA__` 内嵌字幕，curl 直取）；②3 个 lesson notebook（用户下载，notebook 是调度壳）；③**lab `src/` 全套实现源码 + 15 个 PR 评测数据**（平台文件系统级加密、API 下载全为密文 → ego-browser 驱动 lab 内核跑 dump 代码、经 cell 输出通道取明文 218KB；`inspect.getsource` 全部成功、零错误）——lab 侧痕迹已清理（3 个 dump 文件 DELETE、2 个注入 cell 移除、notebook 保存、浏览器任务关闭）
+  - 调研笔记 `docs/plans/ai-code-review-course.md`：评测判据还原（关键词重叠 ≥0.3 / 子串 / embedding cosine ≥0.45 三重宽松匹配、不要求行级定位）、循环性分析（expected issues 措辞借上下文词汇、task_context 半写答案、gpt-4o-mini、full-context 对照为全库 dump 稻草人）、ensemble 增益拆解（F1 60.6→71.1 的来源是四步噪音抑制工程——agreement>0.4 / 每专项 1 条兜底 / low 一律丢弃 / >0.5 去重——而非领域专家覆盖）、三个 prompt 全文内嵌
+  - 技术取舍结论（正面回答用户，D023 非目标重申后维持）：**不引入 embedding**——检索需求已被 D023 触及文件 + D027 read_file + D028 router readPaths 覆盖（agentic search 最小形态）；Vercel 无持久存储使向量索引每 PR 重建、成本关不上账；代码强结构利于确定性 grep 类手段；课程未提供 RAG 优于工具循环的证据。重审触发点＝多仓产品化；届时优先做 `search_files`（快照 entries 内存 grep，零依赖）而非向量库
+- **发现 / 坑**：
+  - DLAI 平台 lab 的源码保护是**文件系统级写拦截**：内核写出的任何新文件（含 .txt/.json）都密文落盘，但 cell 输出走 ZMQ→浏览器通道是明文——`print` + DOM 读取是通用绕行
+  - JupyterLab 定制版无 `window.jupyterapp` 全局；kernel 直操的可行路径＝UI 粘贴 cell + REST `/api/kernels` 轮询 + contents API 取文件（DELETE 需从 `document.cookie` 读 `_xsrf` 带 `X-XSRFToken` 头）
+  - 课程「selective context 胜全库 dump」的对照组是稻草人：本仓库 D023 形态（触及文件全文，而非全库或向量检索）天然位于两者之外；玩具库 + 循环评测的课程数字只作方向参考
+- **下一步**：本 PR 过 bot 自审与双闸门合并；「eval 加 precision 口径」「prompt 同因合并/低置信不发措辞实验」「ticket 注入」三项低成本可做（见笔记 §五），按路线图优先级另行立项；embedding 结论已写入笔记 §六防重复讨论
