@@ -202,3 +202,19 @@ test("buildTaskContextForPr：body 为空串（fetchPr 把 GitHub body null 归�
   assert.equal(client.issueCalls().length, 0);
   assert.ok(logs.some((l) => l.includes("无关联 issue")));
 });
+
+test("buildTaskContextForPr：关联数超拉取上限 → 只拉前 MAX_LINKED_ISSUES 个，[task] 日志注明放弃数（PR #41 审查闭环）", async () => {
+  const { MAX_LINKED_ISSUES } = await import("../src/task.ts");
+  const issues: Record<number, { title: string; body: string }> = {};
+  for (let i = 1; i <= 9; i++) issues[i] = { title: `t${i}`, body: `b${i}` };
+  const client = fakeOctokit(issues);
+  const logs = await captureLogs(() =>
+    buildTaskContextForPr(client, { owner: "o", repo: "r" }, "t", "Fixes #1, closes #2, fixes #3, closes #4, fixes #5, closes #6, fixes #7, closes #8, fixes #9"),
+  );
+  assert.deepEqual(client.issueCalls(), [1, 2, 3, 4, 5], `恰好拉取前 ${MAX_LINKED_ISSUES} 个`);
+  assert.equal(MAX_LINKED_ISSUES, 5);
+  const log = logs.find((l) => l.startsWith("[task] 任务块注入"))!;
+  assert.ok(log.includes("关联 9 个 issue"), "关联数报解析全量");
+  assert.ok(log.includes("超出拉取上限 5 未关联 4 个"), `实际：${log}`);
+  assert.ok(log.includes("（#1、#2、#3、#4、#5）"), "注入的只有前 5 个");
+});

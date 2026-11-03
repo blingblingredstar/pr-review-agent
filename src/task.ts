@@ -20,7 +20,10 @@ export function taskContextMaxChars(): number {
 
 // 关联解析保守（D029）：只认 GitHub 官方生效的 closing keywords（docs「Linking a pull request to an issue」，
 // 大小写不敏感、可选冒号、逗号列表延续），#N 数字校验，同仓去重保序。行内提及 #N / Refs / cross-repo
-// （owner/repo#N）都是噪音——误关联（模型被无关 issue 带偏）代价高于漏关联（spec 非目标）
+// （owner/repo#N）都是噪音——误关联（模型被无关 issue 带偏）代价高于漏关联（spec 非目标）。
+// 残余噪音明确接受（PR #41 审查意见的就近取舍）：对 body 全文扫描（与 GitHub 自身语义对齐——合并时
+// closing 声明在 body 任意位置同样生效），引用粘贴文本里的字面「Fixed #N」会被误关联；损害面由
+// 出现顺序装填（真关联在后也只被截断留说明、不被挤出）+ 拉取上限兜住
 const CLOSING_KEYWORD_RE = /(?:close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)/i;
 
 export function parseLinkedIssues(body: string): number[] {
@@ -97,6 +100,11 @@ export function buildTaskContext(title: string, issues: LinkedIssue[], budget: n
   return { text: out.join("\n"), truncated };
 }
 
+// 关联拉取上限（PR #41 自审 minor）：预算封顶的只是注入字符数，不封拉取次数——body 是作者可控输入，
+// 几十个「Closes #N」会在 prepare 阶段串行发起几十次 issues API（最坏各占 5s 超时预算）。
+// 取前 N 个（出现顺序），超出的按未关联处理并在 [task] 日志注明
+export const MAX_LINKED_ISSUES = 5;
+
 // 生产编排入口（webhook 侧不需要 try/catch，buildRepoContext 同款）：预算关闭（kill switch 零 API 调用）/
 // 无关联引用 / 拉取全失败 → null 审查照旧。逐个串行拉取（通常 0-1 个 issue，不值得并行复杂度），
 // 单个失败只跳过该 issue（fetchIssue 内 warn 失败原因），其余照常注入
@@ -113,9 +121,12 @@ export async function buildTaskContextForPr(
     console.log("[task] 无关联 issue（closing keywords 未命中），不注入任务块");
     return null;
   }
+  // 拉取上限截断：超出部分按未关联处理（解析全量保留，cap 在编排层——日志能注明放弃数）
+  const capped = numbers.slice(0, MAX_LINKED_ISSUES);
+  const dropped = numbers.length - capped.length;
   const issues: LinkedIssue[] = [];
   const failed: string[] = [];
-  for (const issueNumber of numbers) {
+  for (const issueNumber of capped) {
     const issue = await fetchIssue(client, { owner, repo, issueNumber });
     if (issue) issues.push(issue);
     else failed.push(`#${issueNumber}`);
@@ -130,8 +141,9 @@ export async function buildTaskContextForPr(
     return null;
   }
   console.log(
-    `[task] 任务块注入：关联 ${numbers.length} 个 issue（${numbers.map((n) => `#${n}`).join("、")}）` +
+    `[task] 任务块注入：关联 ${numbers.length} 个 issue（${capped.map((n) => `#${n}`).join("、")}）` +
       `${failed.length > 0 ? `，拉取失败 ${failed.join("、")}` : ""}` +
+      `${dropped > 0 ? `，超出拉取上限 ${MAX_LINKED_ISSUES} 未关联 ${dropped} 个` : ""}` +
       ` / ${text.length} 字符（预算 ${budget}）${truncated ? "，含截断说明" : ""}`,
   );
   return text;
