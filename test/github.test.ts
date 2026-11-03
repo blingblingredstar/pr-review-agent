@@ -3,7 +3,7 @@ import { test } from "node:test";
 import type { Octokit } from "octokit";
 import { fetchPr, fileToDiffBlock, severityLabels, splitByLocatable } from "../src/github.ts";
 import type { ReviewResult } from "../src/review.ts";
-import { diffCoveredLines, diffTouchedPaths } from "../src/review.ts";
+import { diffCoveredLines, diffTouchedPaths } from "../src/diff.ts";
 
 const comment = (severity: ReviewResult["comments"][number]["severity"]) => ({
   file: "a.ts",

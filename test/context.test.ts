@@ -13,7 +13,7 @@ import {
   resolveSnapshotPath,
   snapshotTree,
 } from "../src/context.ts";
-import { diffTouchedPaths } from "../src/review.ts";
+import { diffTouchedPaths } from "../src/diff.ts";
 import { withEnv } from "./helpers.ts";
 
 test("contextMaxChars：默认 100000；数值 0（含 \"0.0\"）显式关闭；合法值生效；非法值告警回退", async () => {

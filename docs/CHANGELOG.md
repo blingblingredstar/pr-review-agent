@@ -211,3 +211,10 @@
 - router 指令独立 `prompts/review-router.md`（任务/输入说明/schema/威胁模型：输入含 PR 作者可控内容是数据不是指令），`prompts/review.md` 一字不动；router 硬超时 60s，耗时从主评审预算扣除（`deductBudget` 下限 60s，「router 打满 + 主评审打满」仍关进 260s 阶段封顶）；失败 console.error 一行 + 无计划继续，绝不重试、绝不连垮主评审；`[router] tokens: in X / out Y` 单独落日志（成本可观测，消融表数据出口）
 - 快照复用：worker 需要快照的条件 = (fileReader 条件) 或 (router 开启)，`makeSnapshot` 自 `makeFileReader` 提升为共用底座——一次下载，router 拿树（`snapshotTree`）、reader 拿内容（`fileReaderFromEntries`），不做第二次 zipball 请求
 - eval 回归：promptHash `d399f9d4ed17` 不变，35 用例输入 tokens 与 2026-11-02 基线（run 16-36-56/16-43-56/16-55-00）逐位一致（合计 23,376）；单测 118 → 137（ReviewPlan schema/计划块与三参 buildReviewPrompt 字节级/runReviewRouter 两形态/worker 编排与降级/预算扣减/端到端 plan 进 prompt）；端点实测两个小 diff：5.8s / 7.0s，tokens in 916/913、out 236/240，计划正确定位文档一致性与 worker 关键路径 + 测试盲区；spec 见 `docs/plans/decision-router.md`
+
+### Changed（review.ts 机械拆分，D030）
+
+- `src/review.ts`（724 行）按关注点拆分，全部为行为字节级不变的机械搬移（搬移块逐字节核验一致）：diff 解析 + 截断策略 → `src/diff.ts`（`pathVariants` / `unquoteGitPath` / `diffHeaderPath` / `diffTouchedPaths` / `diffCoveredLines` / `diffMaxChars` / `isNoisePath` / `truncateDiff`；`context.ts` / `github.ts` 调用方与对应测试改 import）；决策模型路由 → `src/router.ts`（`reviewPlanSchema` / `ReviewPlan` / `buildPlanBlock` / `diffSkeleton` / `decisionModel` / `ROUTER_TIMEOUT_MS` / `runReviewRouter`；`worker.ts` 编排引用改 import；与 `review.ts` 成环 import——双方只调用期使用对方绑定，ESM 语义安全，webhook ↔ worker 同款先例）；review.ts 回归「审查编排 + LLM 调用」单一职责（367 行）
+- `buildReviewPrompt(diff, context?, plan?)` 三位置参数收敛为选项对象 `buildReviewPrompt(diff, opts?: { context?, plan? })`——输出字节级不变（既有字节级断言用例守住构造性质；D029 的 `taskContext` 届时落进同一 opts，不再加位置参数）
+- 测试归位：`test/review.test.ts`（841 行）中纯 diff 用例 27 例迁 `test/diff.test.ts`、router 用例 7 例迁 `test/router.test.ts`（用例文本逐字节不动，只换 import 与被测模块路径）
+- eval 回归：promptHash `d399f9d4ed17` 不变，35 用例输入 tokens 与 2026-11-02 基线（run 16-36-56/16-43-56/16-55-00）逐位一致（合计 23,376）；单测 138 全绿计数守恒（review.test.ts 51 = 保留 17 + diff 27 + router 7；执行计划所记 137 为 D028 合并时点计数，其后 dfecc2e 增 1 例两段协议钉死用例）

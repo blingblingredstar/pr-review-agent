@@ -570,3 +570,14 @@
   - **FP 对照比 TP 重要**：DRY/相似性意见噪音风险最高，`expectClean` 零意见期望只进 precision 分母；repo fixture 必须含诱饵文件（答案文件唯一时路径名即泄底）
   - eval 的 repo 组独立 source 先不进能力口径（injection 同款模式），跑稳再收
 - **下一步**：本 PR 闭环后按执行计划 **Step 1（review.ts 拆分 refactor PR）** 动工，Step 2（D029）紧随，D031 是 Step 3
+
+## 2026-11-04 · 会话 36（夜间批量）Step 1：review.ts 机械拆分落地（D030，refactor PR）
+
+- **目标**：执行 roadmap-execution Step 1——review.ts 两刀拆分 + buildReviewPrompt 选项对象化，全部行为字节级不变，走完 PR 全流程合并。
+- **完成**：`src/diff.ts`（244 行：8 个 diff 纯函数 + NOISE 名单）/ `src/router.ts`（125 行：ReviewPlan 契约 + 计划块 + router 调用）拆出，review.ts 724 → 367 行回归单一职责；调用方 import 面改 5 个 src 文件 + 5 个测试文件；buildReviewPrompt 位置参数收敛选项对象（输出字节级不变）；测试归位 diff 27 例 / router 7 例（用例文本逐字节不动，sed 逐行提取再 diff 核验）。
+- **验收**：typecheck + 138 测试全绿（计数守恒，见 CHANGELOG）；eval promptHash `d399f9d4ed17` 不变、35 用例 inputTokens 与 2026-11-02 基线逐位一致（合计 23,376）——红线通过才开 PR。
+- **发现 / 坑**：
+  - 执行计划写「npm test 137 全绿」是 D028 时点计数，dfecc2e（两段协议 plan 钉死用例）后实为 138——拆分不增不减，PR 描述按 138 记并注明口径，免得下个会话对着数字疑惑
+  - router.ts 需要 extraBody（runReviewRouter 与 reviewDiff 共用 LLM_EXTRA_BODY 解析），它不在 D030 搬移清单里 → 停在 review.ts 加 export，成环 import（调用期绑定，ESM 安全，webhook ↔ worker 先例）；「把 extraBody/withExtraBody 一并搬走」属顺手扩圈，未做
+  - 逐字节核验方法：HEAD 版 review.ts 按注释锚点切段与 diff.ts / router.ts 对应段 diff（全 IDENTICAL）；测试文件 sed 提取后 diff（全 IDENTICAL）——「机械搬移」的声明要有机械证据
+- **下一步**：PR 闭环合并后 Step 2（D029 任务上下文注入）在干净基线上动工
