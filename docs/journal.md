@@ -542,4 +542,5 @@
   - DLAI 平台 lab 的源码保护是**文件系统级写拦截**：内核写出的任何新文件（含 .txt/.json）都密文落盘，但 cell 输出走 ZMQ→浏览器通道是明文——`print` + DOM 读取是通用绕行
   - JupyterLab 定制版无 `window.jupyterapp` 全局；kernel 直操的可行路径＝UI 粘贴 cell + REST `/api/kernels` 轮询 + contents API 取文件（DELETE 需从 `document.cookie` 读 `_xsrf` 带 `X-XSRFToken` 头）
   - 课程「selective context 胜全库 dump」的对照组是稻草人：本仓库 D023 形态（触及文件全文，而非全库或向量检索）天然位于两者之外；玩具库 + 循环评测的课程数字只作方向参考
-- **下一步**：本 PR 过 bot 自审与双闸门合并；「eval 加 precision 口径」「prompt 同因合并/低置信不发措辞实验」「ticket 注入」三项低成本可做（见笔记 §五），按路线图优先级另行立项；embedding 结论已写入笔记 §六防重复讨论
+  - **勘误（PR #35）**：笔记 §五原写「eval 加 precision 口径、现打分 recall 导向」——错误。`evals/score.ts` 一直同时算 precision（命中任一期望的意见/总意见），compare.ts 跨轮微平均、Day 6 报告即消融报告；本仓库 eval 框架先于调研即完整。分析课程代码后没回头核对自家 score.ts，想当然了；§五已改为真实可参考的三点（消融矩阵形态 / prompt 措辞分层实验 / context-aware eval 双联用例模板）
+- **下一步**：本 PR 过 bot 自审与双闸门合并；「prompt 同因合并/低置信不发措辞实验（按 severity 分层）」「ticket 注入」「compare.ts 消融矩阵扩展（等生产数据）」按路线图优先级另行立项（见笔记 §五勘误版）；embedding 结论已写入笔记 §六防重复讨论

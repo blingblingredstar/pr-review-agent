@@ -78,9 +78,12 @@
 
 ### 可低成本做
 
-1. **eval 加 precision 口径**（配合路线图「路由消融对照」）：现打分是 recall 导向（file + 行±3 + mustMention）。课程的 expected-issues + P/R/F1 框架可在 real 用例上补 precision 统计（惩罚未命中预期的多余意见）。注意保留本仓库更严格的行级锚点（课程宽松判据会把「提到但没定位」也算命中）；语义匹配可作宽松档参考。
-2. **prompt 措辞实验**：`prompts/review.md` 加「同因发现合并为一条、低置信的 minor 宁可不发」类措辞——吸收 §四的可移植部分，现有 eval 即可回归验证，零架构变化。
+> 勘误（会话 33 内）：本条原写「eval 加 precision 口径、现打分 recall 导向」——**错误**。`evals/score.ts` 一直同时算 recall 与 precision（precision = 命中任一期望的意见 / 总意见），`compare.ts` 做跨轮微平均对比，Day 6 报告（`evals/report.md`）就是「prompt 迭代 → 双指标提升」的消融报告。本仓库 eval 框架先于课程调研即已完整，且行级锚点（file + 行±3 + mustMention）比课程判据更严格。
+
+1. **消融矩阵形态参考**（配合路线图「路由消融对照」）：课程实验的组织方式是「同数据集 × 配置开关」（no/full/selective context、general/ensemble），输出 approach × P/R/F1 汇总表 + per-case 胜负表（F1 per case + wins/ties，`build_per_pr_table`）+ 成本列。`compare.ts` 目前按 promptHash 分组比 prompt 版本；将来扩展配置消融（context on/off、fileReader on/off、plan on/off）时可参考这个表结构。成本列用本仓库真 usage 日志（PR #22），优于课程的「simulated proxy」。
+2. **prompt 措辞实验**：`prompts/review.md` 加「同因发现合并为一条、低置信的 minor 宁可不发」类措辞——吸收 §四的可移植部分，现有 eval 即可回归验证，零架构变化。Day 6 报告 v3 的负结果（「缺陷指向性」与「外调确认类问题照报」的张力）提示这类措辞实验要按 severity 分层设计，粗粒度措辞会此消彼长。
 3. **ticket 注入**（预处理类子项，与「增量审查」正交）：PR body 的 `Closes #N` → prepare 阶段拉 issue 正文（小独立预算）拼进 prompt。课程证据：所有「需求缺口」类发现全靠 task_context 才可测。
+4. **context-aware eval 集的设计模板**（远期，D019 契约内）：课程「每个 PR = 1 条植入漏洞 + 1 条违反代码库约定（diff-only 不可见）」的双联用例形状，正是「度量上下文注入价值」的用例设计——当前 eval 路径不注入 context（eval 红线），无法度量 D023/D027 的增益；若将来立项 context-aware eval 集，这个双联模式 + 约定集中、违规藏进 diff 的合成仓库是直接模板。与路线图「对抗 fixture 扩充」（考注入）不同题，别混进同一批用例。
 
 ### 维持不做（记录数据点，不翻案）
 
