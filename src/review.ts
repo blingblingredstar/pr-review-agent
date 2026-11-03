@@ -337,6 +337,14 @@ export function buildToolBlock(reqs: ToolRequests, reader: ((path: string) => st
       }
     }
     const text = section.join("\n");
+    // 整块封顶对 search 段同样生效（PR #42 自审/bot minor）：查询结果自带 20k 独立预算，但
+    // FILE_TOOL_MAX_STEPS 可配 ≥5，多查询累加可破 80k 整块契约——装不下的查询整段未纳入留说明，
+    // 不做段内再截断（searchEntries 已按预算自截，中部再切会让命中行断在半句；模型可收窄查询重搜）
+    if (used + text.length + 1 > FILE_TOOL_BLOCK_MAX_CHARS) {
+      parts.push(`[search] "${query}" 结果超出整块字符预算，未纳入`);
+      console.log(`[tools] step ${step}: search "${query}" (未纳入, 整块预算)`);
+      continue;
+    }
     parts.push(text);
     used += text.length + 1;
     console.log(`[tools] step ${step}: search "${query}" (${outcome.totalFiles} files / ${outcome.totalMatches} matches)`);

@@ -200,6 +200,26 @@ test("buildToolBlock：search 结果自带查询预算（SEARCH_MAX_TOTAL_CHARS�
   }
 });
 
+test("buildToolBlock：多查询累加受整块 80k 封顶——装不下的查询整段未纳入留说明（PR #42 bot minor）", () => {
+  // 每文件 5 行 × ~340 字符 ≈ 1.7k，15 个文件 ≈ 25k → 单查询被 SEARCH_MAX_TOTAL_CHARS 截到 20k；
+  // 5 个查询累加 ≈ 100k 必破 80k 整块契约（FILE_TOOL_MAX_STEPS 可配 ≥5 的现实路径）
+  const fat = Array.from({ length: 5 }, () => `${"y".repeat(300)} q1 q2 q3 q4 q5`).join("\n");
+  const entries = new Map<string, Uint8Array>();
+  for (let i = 0; i < 15; i++) entries.set(`d${String(i).padStart(2, "0")}.ts`, strToU8(fat));
+  const searcher = searcherFromEntries(entries);
+  const origLog = console.log;
+  console.log = () => {};
+  try {
+    const block = buildToolBlock({ searches: ["q1", "q2", "q3", "q4", "q5"], reads: [] }, undefined, searcher);
+    assert.ok(block.includes('=== search："q1"'), "预算内的查询照常注入");
+    assert.ok(block.includes('结果超出整块字符预算，未纳入'), "装不下的查询整段未纳入留说明（不静默丢弃）");
+    assert.ok(block.length <= 80_000 + 100, `整块长度 ${block.length} 应 ≲ 80k`);
+    assert.ok(!block.includes('=== search："q5"（') || block.includes('"q5" 结果超出整块字符预算'), "尾部查询不再整段注入");
+  } finally {
+    console.log = origLog;
+  }
+});
+
 test("buildToolBlock：80k 字符预算（含包装与说明行实长）——第二个文件收敛截断，耗尽后未纳入", () => {
   const entries = new Map<string, Uint8Array>([
     ["first.ts", strToU8("y".repeat(79_700))],
