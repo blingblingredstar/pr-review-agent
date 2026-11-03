@@ -23,7 +23,8 @@
 
 「上次已审 SHA」不新存任何地方，从既有 review 列表现查推导：
 
-- **读取路径**：`listReviews` 分页（dedupe 的 `hasReviewed` 已经在拉的同一份列表，复用同一查询不增 API）→ 正则抽取全部 `<!-- pr-review-agent sha:<SHA> -->` 标记 → 得到「已审 SHA 集合」；取 **`submitted_at` 最新的、且仍在本 PR commits 列表（`GET /pulls/N/commits`）中的 SHA** 为增量 base。
+- **读取路径**：`listReviews` 分页（dedupe 的 `hasReviewed` 已经在拉的同一份列表，复用同一查询不增 API）→ 正则抽取全部 `<!-- pr-review-agent sha:<SHA> -->` 标记 → 得到「已审 SHA 集合」；取 **`submitted_at` 最新的、且仍在本 PR commits 列表（`GET /pulls/N/commits`）中的 SHA** 为增量 base。抽取保留 **(SHA, 所属 review) 对**——「最新有效 review」（有效性 = 其 SHA ∈ commits 列表）是 base 推导与 block 继承（§二.4）共用的同一推导结果，两处不得各取各的「最新」。
+- **为什么必须过滤失效 SHA**（base 与 block 继承同一口径的根据）：不过滤时「最新一条」在 force-push 后会指向被清出 PR 历史的 review——base 推导拿它当 base 会拉出不存在的历史，block 继承拿它当「上条意见分布」会把更早有效 review 的未消化 blocker 放行（恰是 block 继承要防的事），两处共用过滤后的最新有效 review 即同时堵住。
 - **为什么用 PR commits 列表做交集**，而不是对候选 base 与 head 跑 compare 判祖先：commits 列表就是「这个 PR 的历史 head 集合」，语义精确、一次轻量调用；force-push 重写后旧 SHA 天然不在列表中，重写场景自动落到回退分支（见下），不需要额外的祖先关系推断。
 - **多 bot / 手工 review 混杂**：标记自带 `pr-review-agent` 命名空间——人工 review 无标记、第三方 bot 的 review 也无此标记，天然不参与；若同一 PR 存在多个本 agent 部署实例（同标记格式），推导出的集合语义等价，合并处理即可。仅取「本 agent 的 review」这点使「作者自己 re-request / 他人手工 review」不污染 base。
 - **回退全量的触发条件**（任一即回退，行为与现状逐字节一致）：已审集合为空（首审）；交集为空（历史标记全部被 force-push 重写清出 PR 历史）；最新已审 SHA 恰等于当前 head（这就是现状的 dedupe 命中，直接跳过）。
@@ -49,7 +50,7 @@ D019 第 4 条原文：「synchronize 维持全量重审：增量审查（PLAN �
 ### 4. block 继承：有未消化的 blocker/major 就不享受增量
 
 - **问题**：上条 review 有 blocker/major，作者新 push 只修了一部分且增量区间干净——增量审查看不见旧意见，「干净」结果会把 REQUEST_CHANGES 翻成 COMMENT，把未修复的旧 blocker 一并放行。D017 的「bot 重审无意见自动解除」闭环建立在全量重审「意见消失 = 已解决」的推断上，增量语义会破坏这个推断。
-- **规则**：上条（`submitted_at` 最新一条）bot review 的意见分布含 blocker/major → 该次 synchronize **回退全量**（只有全量重审能给出「旧意见已解决」的解除依据）；上条干净或仅 minor/nit → 走增量。继承只看最新一条，不看历史累积（更早的 blocker/major 若已被后续全量重审消化过，不再翻出来）。
+- **规则**：**最新有效 review**（§二.1 的同一推导：SHA 仍在本 PR commits 列表中的最新一条所属 review）的意见分布含 blocker/major → 该次 synchronize **回退全量**（只有全量重审能给出「旧意见已解决」的解除依据）；最新有效 review 干净或仅 minor/nit → 走增量。继承只看最新有效一条，不看历史累积（更早的 blocker/major 若已被后续全量重审消化过，不再翻出来）；与 base 推导同源同滤，防止「干净的新 review 被 force-push 清出历史、更早含 blocker/major 的有效 review 反被增量干净结果解除」的边界。
 - **取舍**：blocker/major 重灾区的 PR 不享受增量节省——正确性优先，且这类 PR 恰恰需要全盘重新审视；增量节省集中在「一路干净的多 push PR」，那正是常态场景。
 - **备选否决**：GraphQL 查 thread resolved 状态做精确继承——本仓 GitHub 交互是 REST 单面，扩 GraphQL 面为一个增强点不值；且「线程已 resolve」近似不了「意见内容是否仍成立」（作者可以 resolve 掉实际没修的线程，精确继承反而引入被resolve 操纵的放行路径）。否决。
 
@@ -95,8 +96,8 @@ D019 第 4 条原文：「synchronize 维持全量重审：增量审查（PLAN �
 
 1. 标记解析：新形态 `sha:... base:...` / 旧形态 `sha:...` / 无标记 / 多条标记混杂——已审集合与 base 推导逐一断言。
 2. base 推导：最新 submitted_at 优先、不在 PR commits 列表的 SHA 被剔除、交集为空回退全量、head ∈ 集合走 dedupe 命中。
-3. block 继承：上条 review 分布含 blocker/major → 全量；仅 minor/nit 或干净 → 增量；只看最新一条。
-4. compare → diff blocks：files 同形复用 `fileToDiffBlock` 的断言（与 D025 files 拼合共用块构造，字节级同型用例）；分页超限省略行。
+3. block 继承：最新**有效** review 分布含 blocker/major → 全量；仅 minor/nit 或干净 → 增量；force-push 边界（最新一条被清出 commits 列表）落在过滤后的次新有效一条上，与 base 同源断言。
+4. compare → diff blocks：files 同形复用 `fileToDiffBlock` 的断言（与 D025 files 拼合共用块构造，字节级同型用例）；compare files 超单响应上限 → 回退全量的断言（省略行属 D025 `pulls.listFiles` 分页路径的既有行为，不在 compare 路径）。
 5. 回退链完备性：compare 失败/406 → 全量；zipball 失败 → 降级审查照旧（现状语义）。
 6. 报告门槛：blocker/major 行内、minor/nit 进折叠段、纯 minor/nit → COMMENT、混合 → REQUEST_CHANGES；折叠段文本字节级。
 7. worker 编排：增量信封 state 携带（base/delta diff）与现有 state 累积不冲突。
