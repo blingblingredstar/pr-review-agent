@@ -2,7 +2,7 @@
 // 选型依据见 docs/plans/context-enhancement-phase1.md——zipball 单请求下载 + 纯 JS 内存解压，
 // 不依赖 git 二进制（Vercel 运行时没有）、不落 /tmp。best-effort：任何失败返回 null、审查照旧，绝不连垮主流程。
 import { unzipSync } from "fflate";
-import { diffTouchedPaths } from "./review.ts";
+import { diffTouchedPaths } from "./diff.ts";
 import { normalizeSnapshotPath } from "./paths.ts";
 
 // 上下文预算（字符）：与 DIFF_MAX_CHARS 独立，不参与 diff 截断竞争。

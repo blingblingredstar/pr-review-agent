@@ -13,17 +13,14 @@ import { hasReviewed } from "./dedupe.ts";
 import { buildRepoContext, fileReaderFromEntries, makeSnapshot, snapshotTree } from "./context.ts";
 import {
   buildReviewPrompt,
-  decisionModel,
-  diffSkeleton,
   fileToolEnabled,
   llmTimeoutMs,
   reviewDiff,
-  runReviewRouter,
   TOOL_PROMPT_MAX_CHARS,
   type ReviewDiffOpts,
   type ReviewOutcome,
-  type ReviewPlan,
 } from "./review.ts";
+import { decisionModel, diffSkeleton, runReviewRouter, type ReviewPlan } from "./router.ts";
 
 export type WorkerStage = "prepare" | "review" | "publish";
 
@@ -227,7 +224,9 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
       // 用 buildReviewPrompt（与 reviewDiff 同一构造函数，自审三轮：曾用 diff+context 估算出现 +14 偏移
       // 与 >=/> 比较符的边界分叉）——预判与闸吃同一字符串、同一比较符，永不矛盾。
       // 注：预判时 plan 尚不存在（router 在其后才跑），计划块 ~1k 字符的边界漂移属既有软约束口径，不为它加 plumbing
-      const promptEstimate = buildReviewPrompt(state.diff, typeof state.context === "string" ? state.context : undefined).length;
+      const promptEstimate = buildReviewPrompt(state.diff, {
+        context: typeof state.context === "string" ? state.context : undefined,
+      }).length;
       const snapshotSkippedByGate = fileToolEnabled() && promptEstimate > TOOL_PROMPT_MAX_CHARS;
       // 需要快照的条件（D028 重构）：read_file 工具循环需要快照内容，决策路由需要快照文件树——
       // 任一需要即取，一次下载共用（router 拿树、reader 拿内容），不做第二次 zipball 请求

@@ -1,7 +1,7 @@
 // GitHub API 封装：拉 PR diff、发 review。只依赖 octokit，便于 eval 时 mock（见 docs/architecture.md）。
 import { Octokit } from "octokit";
 import type { ReviewComment, ReviewResult } from "./review.ts";
-import { diffCoveredLines, pathVariants } from "./review.ts";
+import { diffCoveredLines, pathVariants } from "./diff.ts";
 import { reviewMarker } from "./dedupe.ts";
 
 export type PrRef = { owner: string; repo: string; pullNumber: number };

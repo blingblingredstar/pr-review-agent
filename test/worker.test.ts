@@ -18,7 +18,8 @@ import {
 } from "../src/worker.ts";
 import { handleWebhook } from "../src/webhook.ts";
 import { reviewMarker } from "../src/dedupe.ts";
-import { buildPlanBlock, llmTimeoutMs, loadPrompt, type ReviewDiffOpts, type ReviewOutcome, type ReviewPlan } from "../src/review.ts";
+import { llmTimeoutMs, loadPrompt, type ReviewDiffOpts, type ReviewOutcome } from "../src/review.ts";
+import { buildPlanBlock, type ReviewPlan } from "../src/router.ts";
 import { messagesOf, startFakeLLM, withEnv } from "./helpers.ts";
 
 const SECRET = "test-secret";
