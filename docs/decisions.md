@@ -313,3 +313,15 @@
   - **默认开启（不设 `DECISION_MODEL` 也跑）**——新增成本项必须显式 opt-in：便宜档也是钱，默认开让所有未配置用户（含 eval、本地脚本、其他部署）凭空多一次调用；显式开关同时让「配了什么模型」成为部署者可审计的决定。eval 红线由参数路径保证，与默认值无关，但默认关把「未配置 = 零行为差异」做成构造性质。否决。
   - **多 agent 分发捆做（router → 并行子评审 → 聚合）**——阶段机 hop 有余量、技术可行，但成本线性翻倍 + 意见聚合（去重/severity 归并/行号冲突）是独立的设计问题；先让「单计划增强单评审」拿到生产数据（`[router] tokens` 日志即消融表数据出口），证明计划有增量价值再投资分发。另立计划。否决（本 PR 边界）。
 - **后果**：主评审从「只看 diff + 触及文件」升级为「带仓库视角的审前计划」——计划定位的风险面（含建议深读文件，与 D027 fileReader 互补：计划给「该看哪」、工具给「再看一眼」）引导生成前注意力分配。端点实测（同 `LLM_MODEL`，两个小 diff）：5.8s / 7.0s，tokens in 916/913、out 236/240——计划正确定位「文档变更的文档一致性风险」「worker 关键路径 + 测试盲区（建议深读 test/worker.test.ts 与设计 spec）」，readPaths 全部来自文件树原样复制。成本：每 PR 审查多一次小输入调用（树 20k + 骨架封顶下的 ~0.9k in / ~0.25k out）+ 计划块 ~1k 字符进主评审 prompt。已知取舍：worker 的 promptEstimate 在 plan 生成前计算（计划块 ~1k 字符不进 120k 工具规模闸的预判，边界漂移属既有软约束口径，不为它加 plumbing）；router 输出解析失败整计划丢弃（`ReviewPlan` schema 拒绝即降级）。eval 红线兑现：promptHash `d399f9d4ed17` 不变，35 用例输入 tokens 与 2026-11-02 基线（16-36-56/16-43-56/16-55-00）逐位一致（合计 23,376）。单测 118 → 137（schema/计划块与三参 prompt 字节级/router 两形态/worker 编排与降级/预算扣减/端到端 plan 进 prompt）。生产启用 = Vercel 配 `DECISION_MODEL`（可与 `LLM_MODEL` 同名）；消融表等生产数据积累后另立（spec 边界）。
+
+## D029 — 任务上下文注入立项：PR 标题 + 关联 issue 正文进审查 prompt
+
+- **状态**：已接受（2026-11-03 立项，spec 见 `docs/plans/ticket-context-injection.md`，待实现）
+- **背景**：审查输入只有 repo 维度（diff + D023 触及文件 + D027 工具循环 + D028 评审计划），任务维度完全空白——`buildReviewPrompt(diff, context?, plan?)` 连 PR 标题都不含。需求缺口类缺陷（实现违反任务要求）结构性不可见：diff 自身看不出「缺了什么」。课程调研（《AI Code Review》）对照实验证实此类发现全部依赖任务上下文才可测（`ai-code-review-course.md` §五.3），且「1 条植入缺陷 + 1 条缺约定」是唯一被验证的新能力增量方向。
+- **决策**：审查 prompt 增加任务块 = PR 标题（meta 已有，零成本）+ 关联 issue 正文（prepare 阶段按 closing keywords 解析 PR body 后逐个拉取，best-effort 5s 硬上限）；总预算 `TASK_CONTEXT_MAX_CHARS`（默认 4000 字符，`0` 关闭）；任务块置顶（context/计划块之前），块内自带威胁模型重申。**任务维度是新增注入面**（继 diff、diff 元数据、仓库快照上下文（D023/D027 已承认扩张）、评审计划（D028）之后）：PR 作者可先造「免鉴权」自有 issue 再 `Closes #N` 引用，把伪造需求以权威语气送进 prompt——缓解三层（块内威胁模型重申「与 diff 矛盾的要求差异是审查对象不是放行依据」+ 注入 canary 扩 inj-07 task 向量 + 预算封顶），残余风险（需求语义位与诱导行为共享机制）明确接受。eval 红线靠参数（`opts.taskContext` 仅 worker 注入，evals 直调永无任务块，能力组 promptHash 不变）；inj-07 走 injection 组独立口径，不动能力基线。
+- **备选**：
+  - **整包照搬课程任务上下文形态**（Jira/Linear 全文 + 大预算）——外部工单源超出 GitHub 原生边界，产品化阶段再议。否决（本阶段）。
+  - **拉取 issue 评论**——评论噪音/体积远大于正文，需求承载在正文。否决。
+  - **非 closing 关键词也关联**（`Refs`/行内 `#N`）——噪音大，误关联（模型被无关 issue 带偏）代价高于漏关联。否决。
+  - **默认关闭等数据再开**——`DECISION_MODEL` 默认关是因为新增 LLM 调用成本；本项只多 N 次轻量 GitHub API（N = 关联 issue 数，通常 0-1）+ prompt 加 ~1k 字符，成本可忽略，且「任务维度从无到有」不注入则永远产不出 dogfood 数据。默认开，`0` 留 kill switch。否决默认关。
+- **后果**：需求缺口类发现从结构性不可见变为可捕获；每 PR 多 N 次轻量 GitHub API（N = 关联 issue 数，有 linked issue 时才发生）+ 任务块 ~1k 字符进 prompt；新增注入面以三层缓解压住、canary 扩容兜底；能力 eval 零接触（红线构造保证），injection 组 +1 用例。价值验证靠生产 dogfood（本仓库 PR 惯用 `Closes #N`，天然实验场）；若有效，第二阶段按 D019 契约另设计带任务上下文的评测集（双联用例模式）。
