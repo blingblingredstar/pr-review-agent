@@ -32,4 +32,4 @@
 
 ## 收尾结果（2026-11-04 凌晨）
 
-全部按计划闭环：0-3 + A + B 共 7 个 PR（#39-#45 + 本收尾 PR），严格串行、每 PR bot 自审意见逐条闭环 + 双硬闸门绿后合并。红线总账：能力组 promptHash `d399f9d4ed17` 全夜 4 轮 eval 逐位不变，能力 29 例 + injection 7 例 inputTokens 与基线 0 mismatch；单测 138 → 174；eval 用例 35 → 48。附增收尾：Step 3 清单第 10 条（`[tools] probe tokens` 落日志）由 #45 补齐。剩余：Step 4（等生产数据门槛）、Step 6 实现（spec 已留档，等触发）、Step 7（等 key）、Step 8（远期）——均本夜范围外，见 journal 会话 36 收尾条目。
+全部按计划闭环：计划项 0-3 + A + B 共 6 个 PR（#39-#44），另有计划外附加 #45（Step 3 清单第 10 条收尾）与本收尾 #46，合计 8 个 PR（#39-#46），严格串行、每 PR bot 自审意见逐条闭环 + 双硬闸门绿后合并。红线总账：能力组 promptHash `d399f9d4ed17` 全夜 4 轮 eval 逐位不变，能力 29 例 + injection 7 例 inputTokens 与基线 0 mismatch；单测 138 → 174；eval 用例 35 → 48。附增收尾：Step 3 清单第 10 条（`[tools] probe tokens` 落日志）由 #45 补齐。剩余：Step 4（等生产数据门槛）、Step 6 实现（spec 已留档，等触发）、Step 7（等 key）、Step 8（远期）——均本夜范围外，见 journal 会话 36 收尾条目。
