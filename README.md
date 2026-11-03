@@ -89,7 +89,7 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 
 ## 路线图
 
-按优先级排序；质量基线看 eval 报告，成本基线看评测落盘的 token 用量。
+按优先级排序；质量基线看 eval 报告，成本基线看评测落盘的 token 用量。执行排序（先做哪个、每步怎么验收）见 [docs/plans/roadmap-execution.md](./docs/plans/roadmap-execution.md)。
 
 1. **对抗性关联 fixture 扩充**：补 5 例「表面是优化、实际引了坑」的真实关联问题，用真实仓库的 fix 反转/配对构造（手写用例会高估能力），关联命中率在报告单列
 2. **路由效果消融对照**：`DECISION_MODEL` 已上线生产，等积累一批带 `[router] tokens` 日志的真实 run 后，用 compare.ts 对比有/无评审计划的质量差异

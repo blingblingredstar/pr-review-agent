@@ -325,3 +325,18 @@
   - **非 closing 关键词也关联**（`Refs`/行内 `#N`）——噪音大，误关联（模型被无关 issue 带偏）代价高于漏关联。否决。
   - **默认关闭等数据再开**——`DECISION_MODEL` 默认关是因为新增 LLM 调用成本；本项只多 N 次轻量 GitHub API（N = 关联 issue 数，通常 0-1）+ prompt 加 ~1k 字符，成本可忽略，且「任务维度从无到有」不注入则永远产不出 dogfood 数据。默认开，`0` 留 kill switch。否决默认关。
 - **后果**：需求缺口类发现从结构性不可见变为可捕获；每 PR 多 N 次轻量 GitHub API（N = 关联 issue 数，有 linked issue 时才发生）+ 任务块 ~1k 字符进 prompt；新增注入面以三层缓解压住、canary 扩容兜底；能力 eval 零接触（红线构造保证），injection 组 +1 用例。价值验证靠生产 dogfood（本仓库 PR 惯用 `Closes #N`，天然实验场）；若有效，第二阶段按 D019 契约另设计带任务上下文的评测集（双联用例模式）。
+
+## D030 — review.ts 拆分绑定 D029 动工：不单独立项，纯搬移 PR 先行
+
+- **状态**：已接受（2026-11-03，执行步骤见 `docs/plans/roadmap-execution.md` Step 1）
+- **背景**：会话 34 全面评估仓库重构需求。整体结论：**不需要结构性重构**——src/ 共 ~1900 行、7 个文件；138 测试全绿；`shortcut:` 债零条；模块边界与 architecture.md 逐条对得上；worker.ts（514 行）虽大但内聚（信封 + 三阶段机 + 续链是一台机器）。唯一真实压力点 `src/review.ts`（724 行）：混六个关注点（diff 解析纯函数 / D018-D020 截断策略 / LLM 管道 / prompt 组装 / D027 工具循环 / D028 router），是每个路线图项的堆积点（D018/D020/D023/D027/D028 全往里加过）；D029 将再给 `buildReviewPrompt` 增加任务块维度，位置参数继续膨胀，「第三个理由才动手」已凑齐。
+- **决策**：
+  - **拆分不单独立项**（触发绑定 D029 动工），但**落成两个串行 PR**：纯搬移 refactor PR 先行、D029 feat PR 紧随——同一批工作分两次过闸。分开的理由是自审可读性：搬移 724 行文件的 diff 很大，混进 D029 会把功能性 diff 噪音化（bot 自审是硬闸门，diff 可审性是真实成本），且 eval 红线验证分两层各自跑、出问题好定位。
+  - **两刀 + 一次签名改造，全部行为字节级不变的机械搬移**：① diff 解析 + 截断 → `src/diff.ts`（`pathVariants` / `unquoteGitPath` / `diffHeaderPath` / `diffTouchedPaths` / `diffCoveredLines` / `diffMaxChars` / `isNoisePath` / `truncateDiff`——引用面已核对：`context.ts`、`github.ts`、`evals/score.ts`（类型另计）与 3 个测试文件，收敛可做）；② router 相关 → `src/router.ts`（`reviewPlanSchema` / `buildPlanBlock` / `diffSkeleton` / `decisionModel` / `ROUTER_TIMEOUT_MS` / `loadRouterPrompt` / `runReviewRouter`）；③ `buildReviewPrompt` 位置参数 → 选项对象（`{ context?, plan? }`，D029 的 `taskContext` 落点），字节级输出不变。测试同步归位（review.test.ts 841 行中 diff/router 用例分别迁出）。
+  - **红线**：拆分后能力组 `promptHash d399f9d4ed17` 与逐用例输入 tokens（合计 23,376）逐位不变——`npm test`（137 全绿）+ `npm run eval` 双确认通过才开 D029 PR；既有字节级测试（D028「三参无 plan 字节级不变」同款）守住构造性质。
+- **备选**：
+  - **单独立重构 PR（与 D029 无关地先做）**——纯搬运无用户价值，白过一轮 bot 自审 + 双硬闸门；重构本身没有独立触发理由。否决。
+  - **不拆、D029 直接往 review.ts 加**——七个关注点、`buildReviewPrompt` 四个位置参数，维护性继续劣化，测试文件同步膨胀。否决。
+  - **拆分与 D029 合一个 PR**——见决策第一条：diff 噪音化 + 红线验证混层。否决。
+  - **worker.ts / context.ts 一并拆**——worker 是一台内聚机器（拆了破坏架构文档叙事）；context.ts 273 行单一职责。否决。
+- **后果**：review.ts 回归「审查编排 + LLM 调用」单一职责（预计 ~300 行量级），D029 在干净基线上实现，后续新增维度（任务块、未来的增量审查产物）落点清晰；风险集中在搬移时的 import 笔误，由 137 个单测 + eval 逐位比对兜住。
