@@ -10,7 +10,7 @@ import type { Octokit } from "octokit";
 import { verifySignature, header, type WebhookHeaders, type Dispatch } from "./webhook.ts";
 import { fetchPr, getOctokit, postReview, postTimeoutNotice, setReviewStatus, type PrRef } from "./github.ts";
 import { hasReviewed } from "./dedupe.ts";
-import { buildRepoContext, fileReaderFromEntries, makeSnapshot, snapshotTree } from "./context.ts";
+import { buildRepoContext, fileReaderFromEntries, makeSnapshot, searcherFromEntries, snapshotTree } from "./context.ts";
 import { buildTaskContextForPr } from "./task.ts";
 import {
   buildReviewPrompt,
@@ -253,13 +253,15 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
           ? await makeSnapshot({ headRepo: ref.headRepo ?? `${ref.owner}/${ref.repo}`, headSha: ref.headSha }, deps.fetchImpl)
           : undefined;
       const fileReader = needReader && entries ? fileReaderFromEntries(entries) : undefined;
+      // search_file（D031）与 read_file 共用同一份快照（一次下载两个消费方），同生同灭
+      const searcher = needReader && entries ? searcherFromEntries(entries) : undefined;
       budgetUsedMs += Date.now() - snapshotStart;
       const fileReaderNote = fileReader
-        ? "生效（D027 工具循环）"
+        ? "生效（D027/D031 工具循环）"
         : snapshotSkippedByGate
           ? "未注入（prompt 超规模闸，跳过工具循环）"
           : "未注入（关闭或快照失败降级）";
-      console.log(`[worker] ${key} review 阶段 fileReader ${fileReaderNote}`);
+      console.log(`[worker] ${key} review 阶段 fileReader/searcher ${fileReaderNote}`);
       // 决策模型路由（D028，best-effort）：DECISION_MODEL 注入且快照就绪才跑；失败 console.error 一行 +
       // 无计划继续（绝不重试——多一次重试 = 预算翻倍风险，计划是增强不是依赖；绝不连垮主评审），
       // 耗时从主评审预算扣除（快照扣减同款写法）。eval 路径不经过这里（直调 reviewDiff 无 plan）
@@ -285,6 +287,7 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
       const result = await deps.review(state.diff, state.context ?? undefined, {
         timeoutMs: effectiveLlmTimeoutMs,
         fileReader,
+        searcher,
         plan,
         taskContext,
       });

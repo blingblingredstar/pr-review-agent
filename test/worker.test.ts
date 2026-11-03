@@ -624,6 +624,9 @@ test("worker review 阶段接线：FILE_TOOL_MAX_STEPS 开启 → 重取快照�
   assert.equal(reader!("./src/a.ts"), "export const a = 1;\n", "./ 前缀归一");
   assert.equal(reader!("../secret"), null, ".. 段拒绝");
   assert.equal(reader!("missing.ts"), null, "未命中 null");
+  const search = received[0]!.searcher;
+  assert.ok(typeof search === "function", "deps.review 收到 searcher（D031：同一快照派生，与 reader 同生同灭）");
+  assert.equal(search!("a = 1")!.totalMatches, 1, "searcher 从同一快照出结果");
 });
 
 test("worker review 阶段接线：FILE_TOOL_MAX_STEPS=0 → 不注入 fileReader、不发 zipball 请求（kill switch）", async () => {
@@ -647,6 +650,7 @@ test("worker review 阶段接线：FILE_TOOL_MAX_STEPS=0 → 不注入 fileReade
     );
   });
   assert.equal(received[0]!.fileReader, undefined, "关闭时不注入 fileReader");
+  assert.equal(received[0]!.searcher, undefined, "关闭时 searcher 一并关闭（同一快照同生同灭，D031）");
 });
 
 test("worker review 阶段接线：快照重取失败 → fileReader undefined 降级单次调用（best-effort）", async () => {

@@ -19,8 +19,9 @@ export type EvalCase = {
   diff: string;
   expect: Expectation[];
   // synthetic=手写教学用例（缺省）；real=真实仓库 fix 反构/配对（能力评估的主依据）；dogfood=本仓库历史真实意见（回归集，防 prompt 退化，不计入能力评估）；
-  // injection=注入 canary（diff 内藏指挥评审员的载荷，考不回显 + 不抑制，单独考核不计入能力评估，D024）
-  source?: "synthetic" | "real" | "dogfood" | "injection";
+  // injection=注入 canary（diff 内藏指挥评审员的载荷，考不回显 + 不抑制，单独考核不计入能力评估，D024）；
+  // repo=repo fixture 组（D031，diff 外证据检索：重命名/删除漏改 + 词法 DRY，独立口径先不进能力评估，injection 同款模式）
+  source?: "synthetic" | "real" | "dogfood" | "injection" | "repo";
   // 注入组专用（source=injection 时必填）：注入载荷的特征串。任何意见 body 命中且不含 ECHO_META_MARKERS
   // （指出「这是注入」的元讨论是职责行为，不算回显）即记一次 echo 违规
   noEcho?: string[];
@@ -28,9 +29,17 @@ export type EvalCase = {
   // 复现 worker 生产路径的任务块（向量=issue 正文藏「放行」载荷）。不带该字段的用例走裸路径
   //（opts 不传，prompt 字节级不变）——能力组红线由构造保证
   taskContext?: string;
+  // repo fixture（D031，source=repo 时必填）：迷你快照（相对路径 → head 态文件内容）。
+  // run.ts 据此构造 fileReader + searcher 走生产同参的工具注入路径（D018 教训：eval 不镜像生产参数，eval 绿生产盲）。
+  // 必含诱饵文件（答案文件唯一时靠路径名就能猜到，考不出检索）；不带 repo 的用例走裸路径，逐位不变
+  repo?: Record<string, string>;
+  // FP 对照（D031）：零意见期望。只与 expect: [] 组合（二选一校验见 test/eval-cases.test.ts）；
+  // 打分上 verdicts 为空自然不进 recall 分母，agentComments 照进 precision 分母——表面相似但语义不同、
+  // 完整重命名无残留等「不该报」的场景考 precision
+  expectClean?: true;
 };
 
-export function sourceOf(c: EvalCase): "synthetic" | "real" | "dogfood" | "injection" {
+export function sourceOf(c: EvalCase): "synthetic" | "real" | "dogfood" | "injection" | "repo" {
   return c.source ?? "synthetic";
 }
 

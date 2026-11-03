@@ -5,6 +5,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
 import { truncateDiff } from "./diff.ts";
 import { buildPlanBlock, type ReviewPlan } from "./router.ts";
+import type { SearchOutcome, Searcher } from "./context.ts";
 
 // 与 docs/architecture.md 的输出 schema、evals/run.ts 的打分逻辑共用，改这里要同步改评分
 export const reviewResultSchema = z.object({
@@ -92,15 +93,21 @@ export function buildReviewPrompt(diff: string, opts?: { context?: string; plan?
 }
 
 // reviewDiff 可选项（D027）：fileReader 注入即启用 read_file 工具循环（两段协议）；
-// 不传 = 单次调用原路径，prompt/system 字节级不变——eval 红线由构造保证。
+// D031 扩展：searcher 注入即启用 search_file（与 read 并列的工具请求，共用同一两段协议与步预算）；
+// 都不传 = 单次调用原路径，prompt/system 字节级不变——eval 红线由构造保证。
 // D028：plan 由 worker 编排注入（router 产物），reviewDiff 自身不调 router——evals 直调永远无 plan。
 // D029：taskContext 由 worker 编排注入（任务块），reviewDiff 自身不做关联解析/issue 拉取——evals 直调永远无任务块
 export type ReviewDiffOpts = {
   timeoutMs?: number;
   fileReader?: (path: string) => string | null;
+  searcher?: Searcher;
   plan?: ReviewPlan;
   taskContext?: string;
 };
+
+// 第一段声明的工具请求（D031）：search 与 read 并列。searches 为查询词、reads 为快照路径，
+// 共享 FILE_TOOL_MAX_STEPS 步预算（search 先分配、read 用剩余——search 命中是定位类 read 的前提）
+export type ToolRequests = { searches: string[]; reads: string[] };
 
 // 多次调用求和：字段独立判空——端点只回部分字段时不被其他 null 拖成全空
 export function sumUsage(usages: TokenUsage[]): TokenUsage {
@@ -131,7 +138,7 @@ export async function reviewDiff(diff: string, context?: string, opts?: ReviewDi
   // 大 prompt 跳过工具循环（本 PR 生产 dogfood 实测：~220KB prompt 第二段实测 ~240s，两段协议延迟 ≈ 2× 单段，
   // 叠加 zipball/续链会撞 285s 阶段墙钟，race 落「审查中断」）。120k 字符下第二段经验上界 ~130s，总预算留有余量；
   // 大 PR 本就靠 D018 截断 + D023 上下文覆盖，工具读取的边际价值最低，跳过不损失能力面
-  if (opts?.fileReader) {
+  if (opts?.fileReader || opts?.searcher) {
     // 工具循环启用闸单点合流（自审 nit：跳过日志与启用条件几乎相同，分写会漂移）：
     // maxSteps=0 = 生产 kill switch（直调同样成立）；prompt 超 120k 规模闸走单段（D027 后果）
     const maxSteps = fileToolMaxSteps();
@@ -139,9 +146,9 @@ export async function reviewDiff(diff: string, context?: string, opts?: ReviewDi
     else if (prompt.length > TOOL_PROMPT_MAX_CHARS) {
       console.log(`[tools] prompt ${prompt.length} 字符超过 ${TOOL_PROMPT_MAX_CHARS}，跳过工具循环走单段（D027 后果）`);
     } else {
-      // read_file 工具循环（D027）：端点实测 SDK tools + Output 组合不可行（response_format 抑制工具调用），
-      // 走 spec 回退形态「两段协议」，见 reviewDiffWithFileReader
-      return reviewDiffWithFileReader(llm, LLM_MODEL, prompt, opts.fileReader, abortSignal, maxSteps);
+      // 工具循环（D027 read_file + D031 search_file）：端点实测 SDK tools + Output 组合不可行（response_format 抑制工具调用），
+      // 走 spec 回退形态「两段协议」，见 reviewDiffWithTools
+      return reviewDiffWithTools(llm, LLM_MODEL, prompt, opts.fileReader, opts.searcher, abortSignal, maxSteps);
     }
   }
   // .chat() 强制走 /chat/completions：OpenAI 兼容端点（如 GLM）不实现 Responses API；
@@ -168,9 +175,10 @@ export async function reviewDiff(diff: string, context?: string, opts?: ReviewDi
   return { ...output, usage: tokenUsage };
 }
 
-// 工具循环步预算（D027）：FILE_TOOL_MAX_STEPS，默认 2；数值 0 = 显式关闭（生产 kill switch，
+// 工具循环步预算（D027，D031 语义扩展）：FILE_TOOL_MAX_STEPS，默认 2；数值 0 = 显式关闭（生产 kill switch，
 // 与 CONTEXT_MAX_CHARS 同款「按数值判定关闭」语义）；其余非法值告警回退默认。
-// 两段协议里「步」= 文件读取次数（readRequests 条数上限），与 AI SDK tools 形态每步一读的成本口径一致
+// 两段协议里「步」= 工具步：search 与 read 共享计步（extractToolRequests 内 search 先分配、read 用剩余），
+// 与 AI SDK tools 形态每步一调的成本口径一致
 let warnedInvalidMaxSteps = false;
 
 export function fileToolMaxSteps(): number {
@@ -197,39 +205,64 @@ function loadToolsPrompt(): string {
   return readFileSync(new URL("../prompts/review-tools.md", import.meta.url), "utf8");
 }
 
-// 单步注入的文件内容总量封顶（D027）：防止单段把上下文窗口吃穿；超出截断附说明行
+// 单步注入的文件内容总量封顶（D027）：防止单段把上下文窗口吃穿；超出截断附说明行。
+// search 结果有独立预算（SEARCH_MAX_TOTAL_CHARS，context.ts），在此之上整块仍受本值封顶
 export const FILE_TOOL_BLOCK_MAX_CHARS = 80_000;
 
-// 首段自由文本里提取 readRequests（best-effort，D027）：容忍 ```json 围栏与前后闲话，取第一个平衡 JSON 对象；
-// 解析失败 / 缺 readRequests / 超预算条数截断——协议违规不炸审查，降级为不读文件照常出结果。
-// readRequests 元素兼容两种形态：字符串路径 或 {path} 对象；去重键与 reader 的路径解析共用同一
-// normalizeSnapshotPath（PR #30 自审 minor：两份归一化会漂移），覆盖同一文件的写法变体，
-// 最终合法性仍由 resolveSnapshotPath 把关
-export function extractReadRequests(text: string, maxSteps: number): string[] {
-  if (maxSteps <= 0) return [];
+// 首段自由文本里提取工具请求（best-effort，D027 read / D031 search 并列）：容忍 ```json 围栏与前后闲话，
+// 取第一个平衡 JSON 对象；解析失败 / 缺键 / 超预算条数截断——协议违规不炸审查，降级为无工具结果照常出结果。
+// searchRequests 与 readRequests 元素各兼容两种形态：字符串 或 {query}/{path} 对象；
+// 步预算共享：search 先分配（查询命中是定位类 read 的前提，且结果块小），read 用剩余预算。
+// readRequests 去重键与 reader 的路径解析共用同一 normalizeSnapshotPath（PR #30 自审 minor：两份归一化会漂移），
+// 覆盖同一文件的写法变体，最终合法性仍由 resolveSnapshotPath 把关
+export function extractToolRequests(text: string, maxSteps: number): ToolRequests {
+  if (maxSteps <= 0) return { searches: [], reads: [] };
   const parsed = extractBalancedJson(text);
-  const requests = (parsed as { readRequests?: unknown } | null)?.readRequests;
-  if (!Array.isArray(requests)) return [];
-  const paths: string[] = [];
-  for (const item of requests) {
-    if (typeof item === "string") {
-      paths.push(item);
-    } else if (typeof item === "object" && item !== null && typeof (item as { path?: unknown }).path === "string") {
-      paths.push((item as { path: string }).path);
+  const root = parsed as { readRequests?: unknown; searchRequests?: unknown } | null;
+  const rawSearches: string[] = [];
+  if (Array.isArray(root?.searchRequests)) {
+    for (const item of root.searchRequests) {
+      if (typeof item === "string") {
+        rawSearches.push(item);
+      } else if (typeof item === "object" && item !== null && typeof (item as { query?: unknown }).query === "string") {
+        rawSearches.push((item as { query: string }).query);
+      }
     }
   }
+  const rawPaths: string[] = [];
+  if (Array.isArray(root?.readRequests)) {
+    for (const item of root.readRequests) {
+      if (typeof item === "string") {
+        rawPaths.push(item);
+      } else if (typeof item === "object" && item !== null && typeof (item as { path?: unknown }).path === "string") {
+        rawPaths.push((item as { path: string }).path);
+      }
+    }
+  }
+  // 查询词去重：trim 后精确串（大小写敏感——查询本身大小写敏感，两词是两次不同搜索）；空词丢弃
+  const seenQ = new Set<string>();
+  const searches: string[] = [];
+  for (const q of rawSearches) {
+    const key = q.trim();
+    if (!key || seenQ.has(key)) continue;
+    seenQ.add(key);
+    searches.push(key);
+  }
+  const reads: string[] = [];
   const seen = new Set<string>();
-  const out: string[] = [];
-  for (const p of paths) {
+  for (const p of rawPaths) {
     const key = normalizeSnapshotPath(p);
     // 非法路径（含 ../反斜杠）保留原文进列表：由 buildToolBlock 落 not found 说明行给模型反馈，
     // 静默丢弃会让模型收不到任何纠正信号（自审 nit，与 review-tools.md 的「会被拒绝」承诺对齐）
     const dedupeKey = key ?? `illegal:${p.trim()}`;
     if (seen.has(dedupeKey)) continue;
     seen.add(dedupeKey);
-    out.push(p.trim());
+    reads.push(p.trim());
   }
-  return out.slice(0, maxSteps);
+  return {
+    searches: searches.slice(0, maxSteps),
+    reads: reads.slice(0, maxSteps - Math.min(searches.length, maxSteps)),
+  };
 }
 
 // 从自由文本提取第一个平衡的 {...}（字符串感知，容忍 ```json 围栏 / 前后闲话）；没有或不可解析返回 null
@@ -271,18 +304,65 @@ function extractBalancedJson(text: string): unknown {
   return null;
 }
 
-// 第二段 prompt 的工具结果块（D027）：工具结果在前、diff 保持生成前最近位置（行号锚点原则同 D023 上下文）。
-// 命中 → 全文（超出剩余预算截断附说明行）；未命中/非法路径 → 统一 not found 说明行（不抛错，模型自行纠正）
-export function buildToolBlock(requests: string[], reader: (path: string) => string | null): string {
-  const HEADER = "[read_file 工具结果]";
+// 第二段 prompt 的工具结果块（D027 read / D031 search）：工具结果在前、diff 保持生成前最近位置
+// （行号锚点原则同 D023 上下文）。块头 [工具结果] 是两段判据（review-tools.md「按开头判断」）；
+// search 段在前（命中行是定位信息）、read 段在后，共享同一字符记账（search 有独立查询预算，
+// read 用剩余预算）。命中 → 结果/全文（超出截断附说明行）；未命中/非法 → 统一说明行（不抛错，模型自行纠正）
+export function buildToolBlock(reqs: ToolRequests, reader: ((path: string) => string | null) | undefined, searcher: Searcher | undefined): string {
+  const HEADER = "[工具结果]";
   const parts: string[] = [HEADER];
   // 记账含头部行与 join 分隔换行（自审 nit：此前系统性低估几十字符，多文件截断边界可能越顶）
   let used = HEADER.length;
-  for (const [i, path] of requests.entries()) {
+  let step = 0;
+  for (const query of reqs.searches) {
+    step++;
+    const outcome = searcher ? searcher(query) : null;
+    if (!outcome) {
+      // 防御位（worker 与 eval 都从同一快照成对注入 reader/searcher，此分支实际不可达）：
+      // 显式「未能执行」而非伪「无匹配」——后者会让模型误信「无残留引用」压掉真发现
+      parts.push(`=== search："${query}"（未能执行：搜索不可用）===`);
+      continue;
+    }
+    const section: string[] = [];
+    if (outcome.files.length === 0 && outcome.omittedFiles === 0) {
+      section.push(`=== search："${query}"（无匹配）===`);
+    } else {
+      section.push(`=== search："${query}"（${outcome.totalFiles} 个文件 ${outcome.totalMatches} 处匹配）===`);
+      for (const f of outcome.files) {
+        section.push(...f.lines);
+        if (f.omittedMatches > 0) section.push(`[search] ${f.path} 仅显示前 ${f.lines.length} 处匹配（共 ${f.lines.length + f.omittedMatches} 处）`);
+      }
+      if (outcome.omittedFiles > 0 || outcome.charTruncated) {
+        section.push(`[search] 结果超出字符预算，仅显示部分匹配`);
+      }
+    }
+    const text = section.join("\n");
+    // 整块封顶对 search 段同样生效（PR #42 自审/bot minor）：查询结果自带 20k 独立预算，但
+    // FILE_TOOL_MAX_STEPS 可配 ≥5，多查询累加可破 80k 整块契约——装不下的查询整段未纳入留说明，
+    // 不做段内再截断（searchEntries 已按预算自截，中部再切会让命中行断在半句；模型可收窄查询重搜）
+    if (used + text.length + 1 > FILE_TOOL_BLOCK_MAX_CHARS) {
+      parts.push(`[search] "${query}" 结果超出整块字符预算，未纳入`);
+      console.log(`[tools] step ${step}: search "${query}" (未纳入, 整块预算)`);
+      continue;
+    }
+    parts.push(text);
+    used += text.length + 1;
+    console.log(`[tools] step ${step}: search "${query}" (${outcome.totalFiles} files / ${outcome.totalMatches} matches)`);
+  }
+  for (const path of reqs.reads) {
+    step++;
+    if (!reader) {
+      // 防御位（PR #42 bot minor，与 search 侧同型对称）：启用闸是 fileReader || searcher，只注入 searcher
+      // 而模型声明了 read 时，快照实际可用、只是 reader 未注入——伪报「file not found」会让模型误信
+      // 文件不在快照里而放行本应核实的疑点，故显式「未能执行」（worker/eval 实际都成对注入，正常不可达）
+      parts.push(`[read_file] ${path}: 未能执行（读取不可用）`);
+      console.log(`[tools] step ${step}: read ${path} (未执行, reader 未注入)`);
+      continue;
+    }
     const content = reader(path);
     if (content === null) {
       parts.push(`[read_file] ${path}: file not found in head snapshot`);
-      console.log(`[tools] step ${i + 1}: read ${path} (not found)`);
+      console.log(`[tools] step ${step}: read ${path} (not found)`);
       continue;
     }
     // 包装头尾计入预算（自审 minor：只算内容则实际注入块可超 FILE_TOOL_BLOCK_MAX_CHARS）
@@ -294,7 +374,7 @@ export function buildToolBlock(requests: string[], reader: (path: string) => str
       // 先拼再量（自审 minor：判定与记账统一含包装头，与截断分支同口径）
       parts.push(fullPart);
       used += fullPart.length + 1;
-      console.log(`[tools] step ${i + 1}: read ${path} (${content.length} chars)`);
+      console.log(`[tools] step ${step}: read ${path} (${content.length} chars)`);
     } else if (remaining > wrapperHead.length + 20) {
       // 说明行长度随路径/位数变化，无法用常量余量精确预留——两轮收敛：拼一次量一次，超出 remaining
       // 就按超出量缩 cut 重拼（数字位数变化 ≤1，二轮必收敛），part.length ≤ remaining 保住封顶契约。
@@ -315,41 +395,46 @@ export function buildToolBlock(requests: string[], reader: (path: string) => str
       if (cut > 0 && part.length <= remaining) {
         parts.push(part);
         used += part.length + 1;
-        console.log(`[tools] step ${i + 1}: read ${path} (${cut}/${content.length} chars, 截断)`);
+        console.log(`[tools] step ${step}: read ${path} (${cut}/${content.length} chars, 截断)`);
       } else {
         parts.push(`[read_file] ${path} 全文 ${content.length} 字符超出字符预算，未纳入`);
-        console.log(`[tools] step ${i + 1}: read ${path} (0/${content.length} chars, 未纳入)`);
+        console.log(`[tools] step ${step}: read ${path} (0/${content.length} chars, 未纳入)`);
       }
     } else {
       parts.push(`[read_file] ${path} 全文 ${content.length} 字符超出字符预算，未纳入`);
-      console.log(`[tools] step ${i + 1}: read ${path} (0/${content.length} chars, 未纳入)`);
+      console.log(`[tools] step ${step}: read ${path} (0/${content.length} chars, 未纳入)`);
     }
   }
   return parts.join("\n");
 }
 
-// D027 两段协议（spec 回退形态；SDK tools + Output 组合端点实测不可行，证据见 D027/PR body）：
-// 第一段（无 response_format 的自由文本）输出 readRequests JSON → 解析 → 文件内容拼进第二段 prompt →
-// 复用同一 schema 出结果。abortSignal 贯穿两段；usage 为两段合计（ReviewOutcome 契约不变）；
-// ReviewResult schema 与 prompts/review.md 都不动，fileReader 不传时整段不生效（eval 字节级不变）
-async function reviewDiffWithFileReader(
+// 两段协议（D027 read_file + D031 search_file；spec 回退形态；SDK tools + Output 组合端点实测不可行，证据见 D027/PR body）：
+// 第一段（无 response_format 的自由文本）输出工具请求 JSON（searchRequests + readRequests 并列声明，单轮执行，
+// 不做 search→read 多轮链式——延迟/成本翻倍，搜索结果自带命中行上下文已可定位，生产 dogfood 观察后再议）→
+// 解析 → 搜索命中行与文件内容拼进第二段 prompt → 复用同一 schema 出结果。
+// abortSignal 贯穿两段；usage 为两段合计（ReviewOutcome 契约不变）；
+// ReviewResult schema 与 prompts/review.md 都不动，fileReader/searcher 都不传时整段不生效（eval 字节级不变）
+async function reviewDiffWithTools(
   llm: ReturnType<typeof createOpenAI>,
   modelId: string,
   prompt: string,
-  fileReader: (path: string) => string | null,
+  fileReader: ((path: string) => string | null) | undefined,
+  searcher: Searcher | undefined,
   abortSignal: AbortSignal,
   // 调用方已读过并据此放行（启用闸单点合流），作参数下传消除两处读 env 的理论分叉（自审降级 nit）
   maxSteps: number,
 ): Promise<ReviewOutcome> {
-  // system 追加指令来自 prompts/review-tools.md（仅 fileReader 注入时拼接）；review.md 一字不动
+  // system 追加指令来自 prompts/review-tools.md（仅 fileReader/searcher 注入时拼接）；review.md 一字不动
   const system = `${loadPrompt()}\n\n${loadToolsPrompt()}`;
   const probe = await generateText({ model: llm.chat(modelId), system, prompt, abortSignal });
-  const requests = extractReadRequests(probe.text, maxSteps);
-  console.log(`[tools] 第一段 readRequests：${requests.length > 0 ? requests.join(", ") : "无"}（预算 ${maxSteps}）`);
-  // 空 readRequests 也要注入占位块（自审 minor，dogfood 高频路径）：否则第二段 prompt/system 与第一段
-  // 完全相同，模型按 review-tools.md 的「末尾无块 = 第一段」判据会再输出 readRequests 而非审查意见，
+  const requests = extractToolRequests(probe.text, maxSteps);
+  const reqNote = (xs: string[], label: string) => (xs.length > 0 ? `${label} ×${xs.length}（${xs.join(" | ")}）` : `${label} 无`);
+  console.log(`[tools] 第一段工具请求：${reqNote(requests.searches, "search")} / ${reqNote(requests.reads, "read")}（预算 ${maxSteps}）`);
+  // 空工具请求也要注入占位块（自审 minor，dogfood 高频路径）：否则第二段 prompt/system 与第一段
+  // 完全相同，模型按 review-tools.md 的「开头无块 = 第一段」判据会再输出工具请求而非审查意见，
   // Output 解析失败整审炸
-  const toolBlock = `${requests.length > 0 ? buildToolBlock(requests, fileReader) : "[read_file 工具结果]（本轮无文件请求，请直接给出审查意见）"}\n\n`;
+  const hasRequests = requests.searches.length > 0 || requests.reads.length > 0;
+  const toolBlock = `${hasRequests ? buildToolBlock(requests, fileReader, searcher) : "[工具结果]（本轮无工具请求，请直接给出审查意见）"}\n\n`;
   const { output, usage } = await generateText({
     model: llm.chat(modelId),
     output: Output.object({ schema: reviewResultSchema, name: "ReviewResult" }),
