@@ -6,14 +6,18 @@ import { withEnv } from "./helpers.ts";
 
 // ===== 关联解析（D029 spec §三：closing keywords 大小写 / 多 issue / 去重 / 非数字拒绝）=====
 
-test("parseLinkedIssues：官方 closing keywords 全集命中（大小写不敏感、可选冒号、逗号列表）", () => {
+test("parseLinkedIssues：官方 closing keywords 全集命中（大小写不敏感、可选冒号、逗号/and/& 列表）", () => {
   assert.deepEqual(parseLinkedIssues("Closes #12"), [12]);
   assert.deepEqual(parseLinkedIssues("fixes #3"), [3]);
   assert.deepEqual(parseLinkedIssues("FIXED: #5"), [5]);
   assert.deepEqual(parseLinkedIssues("Resolves #7"), [7]);
-  // 逗号列表延续（GitHub 官方语法）：一个 keyword 带多个 #N；「and」等非引用 token 截断列表
+  // 列表延续：逗号 / and / &（and 需词边界——closing 意图声明的口径，证据见 PR #41 线程）
   assert.deepEqual(parseLinkedIssues("Closes #1, #2, #3"), [1, 2, 3]);
-  assert.deepEqual(parseLinkedIssues("Closes #1, #2, and #3"), [1, 2], "and 截断逗号列表");
+  assert.deepEqual(parseLinkedIssues("Closes #1, #2, and #3"), [1, 2, 3], "逗号 + and 混排");
+  assert.deepEqual(parseLinkedIssues("Closes #1 and #2"), [1, 2], "and 连接");
+  assert.deepEqual(parseLinkedIssues("Closes #1 & #2"), [1, 2], "& 连接");
+  assert.deepEqual(parseLinkedIssues("Closes #1 and later #2"), [1], "and 后非引用即截断（不吞行内提及）");
+  assert.deepEqual(parseLinkedIssues("Closes #1android #2"), [1], "词内 and 子串不作分隔符");
   // 官方关键词集逐一对齐：close/closes/closed/fix/fixes/fixed/resolve/resolves/resolved
   for (const kw of ["Close", "Closes", "Closed", "Fix", "Fixes", "Fixed", "Resolve", "Resolves", "Resolved"]) {
     assert.deepEqual(parseLinkedIssues(`${kw} #99`), [99], `${kw} 应命中`);

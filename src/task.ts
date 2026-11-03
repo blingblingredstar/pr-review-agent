@@ -27,12 +27,17 @@ export function taskContextMaxChars(): number {
 const CLOSING_KEYWORD_RE = /(?:close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)/i;
 
 export function parseLinkedIssues(body: string): number[] {
-  const re = new RegExp(`\\b(?:${CLOSING_KEYWORD_RE.source})\\s*:?\\s*(#\\d+(?:\\s*,\\s*#\\d+)*)`, "gi");
+  // 列表分隔符：逗号 / 分号 / & / and（and 需词边界，词内子串如 android 不命中）。
+  // GitHub 官方文档只写「每个 issue 各带关键词或逗号列表」，未把 and 列为官方分隔符；支持它按
+  // 「closing 意图声明」口径放宽——and 连接的引用与逗号列表同属作者显式关联声明（区别于行内噪音提及），
+  // 误关联代价由拉取上限与预算兜住（PR #41 审查意见的就近取舍，证据与口径见 PR 线程）
+  const re = new RegExp(`\\b(?:${CLOSING_KEYWORD_RE.source})\\s*:?\\s*(#\\d+(?:(?:\\s*(?:[,;&]|\\band\\b)\\s*)+#\\d+)*)`, "gi");
   const out: number[] = [];
   const seen = new Set<number>();
   for (const m of body.matchAll(re)) {
-    for (const ref of m[1]!.split(",")) {
-      const n = Number(ref.trim().slice(1));
+    // 列表内直接抽数字（分隔符已含 and/&，按字符串 split 会碎）：正则 \d+ 已保证纯数字
+    for (const num of m[1]!.matchAll(/\d+/g)) {
+      const n = Number(num[0]);
       if (!Number.isInteger(n) || n <= 0) continue; // #N 数字校验（\d+ 已保证，防御性兜底）
       if (seen.has(n)) continue; // 同仓去重保序：首次出现的顺序即注入顺序
       seen.add(n);
@@ -73,9 +78,9 @@ export function buildTaskContext(title: string, issues: LinkedIssue[], budget: n
   for (const issue of issues) {
     const head = `## 关联 issue #${issue.number}：${issue.title}`;
     if (append(`${head}\n\n${issue.body}`)) continue;
-    truncated = true;
     // 装不下整段：能截则截（保留节标题 + 截断说明行）；码元安全截断 + 两轮收敛与 buildToolBlock 同款
-    //（说明行里的 cut 位数随缩切变化 ≤1 位，二轮必收敛），收敛后 cut ≤ 0 说明余量连说明行都装不下 → 未纳入
+    //（说明行里的 cut 位数随缩切变化 ≤1 位，二轮必收敛），收敛后 cut ≤ 0 说明余量连说明行都装不下 → 未纳入。
+    // truncated 只在真正 push 了截断段/说明行后置位（[task] 日志「含截断说明」必须与块内实际产物一致，PR #41 nit）
     const wrapper = `${head}\n\n`;
     const remaining = budget - used;
     const note = (cut: number): string =>
@@ -92,10 +97,12 @@ export function buildTaskContext(title: string, issues: LinkedIssue[], budget: n
     if (cut > 0 && part.length <= remaining) {
       out.push(part);
       used += part.length + 1;
+      truncated = true;
     } else if (append(`[任务上下文] issue #${issue.number} 正文 ${issue.body.length} 字符超出剩余预算，未纳入`)) {
       // 说明行先占位：模型始终知道看到的是非全量（buildContextText 文件树段同款）
+      truncated = true;
     }
-    // 连说明行都装不下：静默放弃（模型本就看不到 budget 之外的内容）
+    // 连说明行都装不下：静默放弃（模型本就看不到 budget 之外的内容），不算截断
   }
   return { text: out.join("\n"), truncated };
 }

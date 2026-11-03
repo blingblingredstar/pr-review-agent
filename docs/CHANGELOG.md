@@ -226,4 +226,5 @@
 - `TASK_CONTEXT_MAX_CHARS` 环境变量（默认 4000 字符，够 2-3 个典型 issue；`0` 显式关闭 = 零 issues API 调用且 prompt 与旧版一致；非法值告警回退默认）；无关联引用/拉取全失败/任何异常 → `taskContext` 以 null 随信封传递、审查照旧（best-effort 绝不连垮主流程）；`[task]` 日志行落关联 issue 数/字符数/截断与否/失败原因
 - `reviewDiff` 新增 `opts.taskContext`（D030 选项对象的预留落点）：任务块只由 worker 编排注入，evals 直调永无任务块——能力组 prompt 字节级不变；`prompts/review.md` 一字不动（任务块由代码构造）；信封 state 新可选字段 `taskContext`（null 传递，4k 预算远小于 4.5MB 请求体上限）
 - eval 用例 35 → 36：injection 组新增 inj-07（task 向量，底料 real-01 已验证 bug diff 只追加载荷，`EvalCase` 增可选 `taskContext` 字段经 `opts.taskContext` 显式注入复现 worker 路径），拦截率口径不变、单独报告
-- 单测 138 → 162（关联解析/预算/任务块字节级含威胁模型行/best-effort 失败链/信封传递/worker 编排注入/`reviewDiff` 两形态/fetchIssue best-effort）；spec 见 `docs/plans/ticket-context-injection.md`
+- 关联列表分隔符支持逗号/分号/`&`/`and`（and 需词边界；官方文档未列 and，按「closing 意图声明」口径放宽，与行内噪音提及相区别）；关联拉取上限 `MAX_LINKED_ISSUES=5`（预算封顶的是注入字符数，拉取次数同样封顶，放弃数进 `[task]` 日志）
+- 单测 138 → 163（关联解析/预算/任务块字节级含威胁模型行/best-effort 失败链/信封传递/worker 编排注入/`reviewDiff` 两形态/fetchIssue best-effort/拉取上限）；spec 见 `docs/plans/ticket-context-injection.md`
