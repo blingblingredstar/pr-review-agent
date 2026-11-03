@@ -7,13 +7,13 @@
 
 | 序 | 内容 | PR | 依据 |
 |---|---|---|---|
-| 0 | 本计划归档 | docs | 总原则 2（spec 先行留档） |
-| 1 | review.ts 机械拆分（D030：`src/diff.ts` + `src/router.ts` + `buildReviewPrompt` 选项对象，行为字节级不变） | `refactor:` | roadmap-execution.md Step 1 |
-| 2 | 任务上下文注入（D029：parseLinkedIssues + fetchIssue + buildTaskContext + worker 编排 + inj-07） | `feat:` | Step 2 |
-| 3 | search_files + repo fixture eval 组（D031：快照内存 grep + 两段协议扩展 + review-tools.md 行为指令） | `feat:` | Step 3 |
-| A | 增量审查 spec 提前留档（`docs/plans/incremental-review.md`，只写 spec 不实现） | docs | Step 6「spec 先行」；**实现仍等触发条件**，本夜不动代码 |
-| B | 对抗性关联 fixture 扩充 5 例 | `test:` | Step 5；**条件执行**：仅当 1-3 全部干净收尾且时间充裕，由专注 fixture 的 subagent 按 D015 方法论（真实 fix 反转/配对，不手写想当然）执行；任何赶工感直接放弃并记录 |
-| C | journal 会话条目 + 状态滚动收尾 | docs | AGENTS.md 改动追踪 |
+| 0 | 本计划归档 | docs（#39） | 总原则 2（spec 先行留档） |
+| 1 | review.ts 机械拆分（D030：`src/diff.ts` + `src/router.ts` + `buildReviewPrompt` 选项对象，行为字节级不变） | `refactor:`（#40） | roadmap-execution.md Step 1 |
+| 2 | 任务上下文注入（D029：parseLinkedIssues + fetchIssue + buildTaskContext + worker 编排 + inj-07） | `feat:`（#41） | Step 2 |
+| 3 | search_files + repo fixture eval 组（D031：快照内存 grep + 两段协议扩展 + review-tools.md 行为指令） | `feat:`（#42） | Step 3 |
+| A | 增量审查 spec 提前留档（`docs/plans/incremental-review.md`，只写 spec 不实现） | docs（#43，D032） | Step 6「spec 先行」；**实现仍等触发条件**，本夜不动代码 |
+| B | 对抗性关联 fixture 扩充 5 例 | `test:`（#44） | Step 5；**条件执行**：仅当 1-3 全部干净收尾且时间充裕，由专注 fixture 的 subagent 按 D015 方法论（真实 fix 反转/配对，不手写想当然）执行；任何赶工感直接放弃并记录 |
+| C | journal 会话条目 + 状态滚动收尾 | docs（#46） | AGENTS.md 改动追踪 |
 
 不在本夜范围：Step 4（生产数据积累——等生产 run，无事可做）、Step 6 实现（触发条件 Step 4/5 收尾后，本夜只留 spec）、Step 7（缺第二家端点 key，用户侧动作）、Step 8（远期）。
 
@@ -29,3 +29,7 @@
 ## 驱动条件（如实记录）
 
 用户限时免费 token，本夜以「完成尽可能多的路线图功能」为途径自然消耗（eval 闸门、bot 审查、实现工作量都是真实开销）；不设无意义的空转任务，不伪造进度。
+
+## 收尾结果（2026-11-04 凌晨）
+
+全部按计划闭环：计划项 0-3 + A + B 共 6 个 PR（#39-#44），另有计划外附加 #45（Step 3 清单第 10 条收尾）与本收尾 #46，合计 8 个 PR（#39-#46），严格串行、每 PR bot 自审意见逐条闭环 + 双硬闸门绿后合并。红线总账：能力组 promptHash `d399f9d4ed17` 全夜 4 轮 eval 逐位不变，能力 29 例 + injection 7 例 inputTokens 与基线 0 mismatch；单测 138 → 174；eval 用例 35 → 48。附增收尾：Step 3 清单第 10 条（`[tools] probe tokens` 落日志）由 #45 补齐。剩余：Step 4（等生产数据门槛）、Step 6 实现（spec 已留档，等触发）、Step 7（等 key）、Step 8（远期）——均本夜范围外，见 journal 会话 36 收尾条目。
