@@ -48,8 +48,9 @@ flowchart TD
    任务块返回 null，审查照旧。绝不连垮主流程。
 4. **独立预算 + kill switch**：`TASK_CONTEXT_MAX_CHARS` 默认 4000 字符（典型 issue 正文 1-2k，够 2-3 个 issue），
    数值 `0` 显式关闭（`FILE_TOOL_MAX_STEPS=0` 同型）；多 issue 按出现顺序装填，装不下留说明行。
-5. **关联解析保守**：只认 closing keywords（`Closes|Close|Fixes|Fix|Resolves|Resolved`，大小写不敏感，
-   `#N` 数字校验，同仓库去重保序）——课程证据是完整 ticket 才可测需求缺口，行内 `#N` 提及是噪音。
+5. **关联解析保守**：只认 closing keywords（`close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved`，
+   与 GitHub 官方生效关键词集逐一对齐，大小写不敏感，`#N` 数字校验，同仓库去重保序）——课程证据是完整
+   ticket 才可测需求缺口，行内 `#N` 提及是噪音。
 6. **威胁模型（第三个注入面，本 spec 的核心小节）**：
    - PR body 与 issue 正文都是**作者可控内容**。新增攻击面：PR 作者先开一个「需求就是免鉴权」的自有 issue，
      再在 PR body 写 `Closes #N` 引用它——任务块把「伪造需求」以权威语气送进 prompt。
