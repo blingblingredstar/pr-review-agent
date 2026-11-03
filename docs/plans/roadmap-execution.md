@@ -120,8 +120,8 @@ Spec 见 `docs/plans/search-files.md`（已合并），本节只列执行序：
 
 ## 与既有决策的衔接
 
-- D019（synchronize 全量）→ Step 5 显式翻案（当年列 v2 路线，即此）。
+- D019（synchronize 全量）→ Step 6 显式翻案（当年列 v2 路线，即此）。
 - D022（证据片段字段已否决）→ 任何 Step 不得顺手复活；重启候选形态（旁路观测）若做，另立 decision。
 - D023 非目标（不做向量检索）→ `search_files` 经 D031 提前至 Step 3（修订会话 33 挂多仓的排期面，理由见 spec §一）；embedding 否决不动，不重议。
-- D028（消融表等生产数据）→ Step 3 兑现其 spec 边界里的「另立」。
+- D028（消融表等生产数据）→ Step 4 兑现其 spec 边界里的「另立」。
 - D029（任务注入）→ Step 2 实现，其「第二阶段双联用例」不在本计划内（等 dogfood 证明增量后另立）。
