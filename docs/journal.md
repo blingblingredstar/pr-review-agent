@@ -586,7 +586,7 @@
 
 > 编排模式：同会话 31——用户睡前指令「按 roadmap-execution 尽可能多完成、限时免费 token 用完、不打扰」；编排者做计划归档（PR #39）与收尾（本条），Step 1 为实现 subagent 独立条目（见上），Step 2/3/A/B 由各自 subagent 落 PR 与文档随行、不单列 journal 条目（细节见各 PR 描述与 decisions）。
 
-- **完成**（8 个 PR 全部走完 bot 自审 → 意见逐条闭环 → 双硬闸门 → 合并，严格串行零并行；计划项 0-3 + A + B 对应 #39-#44，另有计划外附加 #45 与本收尾 #46）：
+- **完成**（本夜共产出 8 个 PR：计划项 0-3 + A + B 对应 #39-#44、计划外附加 #45、本收尾件 #46 随本条落库；每个 PR 同一纪律——bot 自审意见逐条闭环 + 双硬闸门绿后才合并，严格串行零并行）：
   - **#39**（docs）：本夜执行计划归档 `overnight-execution-2026-11-03.md`——Step 固化 + 红线继承 + 回退预案，仅归档无新决策
   - **#40**（D030）：review.ts 机械拆分（见上条 subagent 条目）
   - **#41**（D029）：任务上下文注入——`src/task.ts` + closing keywords 解析（含 and/& 分隔、PR 引用跳过、上限 5）+ `TASK_CONTEXT_MAX_CHARS` + 信封 taskContext 字段 + 任务块置顶 + inj-07 canary；bot 4 轮 4 条意见（关联拉取无上限 major 级风险、残余噪音、截断置位时序等）全闭环
