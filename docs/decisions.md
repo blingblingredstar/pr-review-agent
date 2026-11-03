@@ -355,3 +355,17 @@
   - **无锚全局审查模式**（类本地 audit agent）——见决策第二条三理由。否决。
   - **embedding/向量检索补语义盲区**——D022 已否决且课程调研（会话 33）未翻案：Vercel 无持久存储、每 PR 重建索引成本关不上账。否决维持。
 - **后果**：read_file 的「知道能读不知道读哪个」缺口闭合，工具循环从「按路径读」升级为「按内容找」；`FILE_TOOL_MAX_STEPS` 语义扩为工具步（search/read 共享计步），kill switch 不变；D028 router 的 readPaths/strategy 建议自此可执行（如「本 PR 改名，优先搜旧符号残留」）——联动增强不占本阶段；eval 集新增 repo 组（6-8 例起步，须含诱饵文件），既有 35 例裸路径红线不动。
+
+## D032 — 增量审查立项：spec 先行留档（D019 第 4 条翻案；实现待触发条件）
+
+- **状态**：已接受（2026-11-04，spec `docs/plans/incremental-review.md` 留档，roadmap-execution.md Step 6 前置）。**仅立项未实现**——实现等触发条件（Step 4/5 收尾后），届时走 `feat:` PR；本条不含任何已实现声明。
+- **背景**：路线图第 5 项（增量审查 + 报告门槛细化），roadmap-execution.md Step 6。D019 曾定「synchronize 维持全量重审：增量审查无新证据（超大 PR 场景由 D018 截断兜底）前不动」。D019 之后每次全量审查成本从 1 次 LLM 调用涨到 2-3 次（D028 router + D027/D031 两段工具循环），D025 补齐超大兜底，dogfood 使 synchronize 成为高频路径——增量的价值从「刚需补位」变为「常态成本优化 + 噪音治理」，立项前提成熟。
+- **决策**：
+  - **spec 先行留档**（总原则 2），设计要点：①base 取自 D010 标记的语义扩展——`listReviews` 抽全部 `pr-review-agent sha:` 标记得已审集合，取「仍在本 PR commits 列表中的最新一条」为 base，无标记/交集空（force-push 重写）回退全量；②dedupe 键扩展为 (PR, 已审 SHA 集合)——集合不建存储、每次现查推导，沉淀载体就是 review body 标记本身（零基建取向原样延伸），标记扩为 `sha:<head> base:<base>`（缺 base 旧标记合法）；③显式翻案 D019 第 4 条（其余三条不动）——翻案理由是成本结构变化，非 D019 判断错误；④block 继承：上条 review 含 blocker/major → 回退全量（增量「干净」不得解除旧 blocker，保 D017 闭环推断）；⑤增量 diff 用 compare API + `fileToDiffBlock` 原样复用（D025 零耦合同款），任何一层失败回退全量；⑥报告门槛细化在发布层不进 prompt——blocker/major 行内必报，minor/nit 折叠进 body `<details>` 汇总段，REQUEST_CHANGES 判定收窄为「有 blocker/major」（D017 收窄非翻案）。
+  - **eval 红线同型**：增量组装在 worker 编排层、门槛在发布层，evals 直调 `reviewDiff` 全部零接触——能力组 promptHash `d399f9d4ed17` + 逐用例输入 tokens 逐位不变由构造保证。
+- **备选**：
+  - 已审集合/区间存外部存储（KV 等）——D010 否决 KV 的理由原样成立，标记沉淀零基建且天然跨实例持久。否决。
+  - base 用 compare 判祖先 / 两份全量 diff 集合差——commits 列表语义更精确且 force-push 自动正确；base 时点 diff 无处取、diff-of-diff 有 hunk 上下文假差异，compare API 是原生解。均否决。
+  - GraphQL thread resolved 状态做 block 继承——REST 单面不扩 GraphQL，且「已 resolve ≠ 已修复」，可被作者操纵成放行路径。否决。
+  - 报告门槛进 prompt（让模型少报 minor/nit）——promptHash 红线直接破裂，且生成侧压缩不可逆。否决。
+- **后果**：synchronize 的 LLM 成本与重复意见噪音随区间缩水；minor/nit 线程噪音收敛、闭环负担集中到 blocker/major；blocker/major 重灾区 PR 回退全量（有意为之，正确性优先）；跨 commit 引用盲区由 D027/D031 工具循环兜底（盲区若高频，混合上下文口径留开放问题）；标记格式扩展须兼容旧 review。spec 合并不代表增量行为已上线，生产启用等实现 PR。
