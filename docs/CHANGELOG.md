@@ -243,3 +243,7 @@
 
 - `FILE_TOOL_MAX_STEPS` 语义变更：「步」从文件读取次数扩展为工具步（search + read 共享），已配非 0 值的部署行为不变（总步数口径放宽了 read 的隐含配额），`0` 仍是显式关闭
 - 第二段 prompt 的工具结果块头 `[read_file 工具结果]` → `[工具结果]`（search/read 共用一块），空请求占位行同步改为「本轮无工具请求」；工具循环关闭（`FILE_TOOL_MAX_STEPS=0` 或不注入 reader/searcher）时两段协议路径与之前完全一致，单调用原路径字节级不变
+
+### Added（增量审查 spec 先行留档，D032 立项）
+
+- 增量审查 + 报告门槛细化立项（roadmap Step 6 前置，D019 第 4 条翻案——翻案理由为成本结构变化非判断错误）：spec 见 `docs/plans/incremental-review.md`——base 取法（D010 标记语义扩展，已审 SHA 集合 ∩ PR commits 列表取最新，无标记/交集空回退全量）、dedupe 键扩展为 (PR, 已审 SHA 集合)（集合沉淀在 review body 标记里，零基建不建存储，标记扩 `sha:<head> base:<base>` 旧标记兼容）、block 继承（上条 review 含 blocker/major 回退全量，防增量「干净」误解除旧 blocker）、增量 diff 走 compare API（`fileToDiffBlock` 原样复用，任何一层失败回退全量）、报告门槛分级发布（blocker/major 行内必报，minor/nit 折叠进 body 汇总段，REQUEST_CHANGES 收窄为「有 blocker/major」）；**仅 spec 未实现**，eval 红线由构造保证（promptHash `d399f9d4ed17` 零接触），实现等 Step 4/5 收尾后触发

@@ -23,7 +23,7 @@
 | 3 | 代码搜索工具 search_files（D031）+ repo fixture eval 组 | 第 4 项 | Step 2 合并 | 已完成（PR #42） |
 | 4 | 生产数据积累 + 消融对照 | 第 2 项 | Step 2 上线后开始积累；对照分析等数据门槛 | 等待/并行 |
 | 5 | 对抗性关联 fixture 扩充（5 例） | 第 1 项 | Step 2 合并后的**专注会话**（D015 教训：赶工出低质 fixture 污染 eval 集） | 待做 |
-| 6 | 增量审查 + 报告门槛细化 | 第 5 项 | Step 4/5 收尾后 | 待做 |
+| 6 | 增量审查 + 报告门槛细化 | 第 5 项 | Step 4/5 收尾后 | spec 已留档（PR #43），实现待触发 |
 | 7 | 多模型对比 | 第 6 项 | 机会型：拿到第二家端点 key 随时可插队（纯 eval 侧，不动生产） | 待做 |
 | 8 | 多仓产品化 | 第 7 项 | 前述全部稳定 + 出现多仓真实需求 | 远期 |
 
@@ -93,7 +93,9 @@ Spec 见 `docs/plans/search-files.md`（已合并），本节只列执行序：
 
 ## Step 6：增量审查 + 报告门槛细化（第 5 项，spec 先行）
 
-1. **先写 spec**（`docs/plans/incremental-review.md`，不审批只留档），关键设计点至少回答：
+> 状态：**spec 已留档（PR #43），实现待触发**——`docs/plans/incremental-review.md`（D032）已回答本节全部设计点（base 取法 / dedupe 键扩展 / D019 翻案 / block 继承 / compare 拉取 / 报告门槛 / eval 红线）；实现 + 测试 + eval 回归等 Step 4/5 收尾后按本节执行序动工。
+
+1. **先写 spec**（`docs/plans/incremental-review.md`，不审批只留档）——**已完成（PR #43，D032）**，下列设计点已全部落进 spec（实现会话直接按 spec §二动工，不再重写 spec）：
    - base 选择：上次已审 SHA 从哪取（review 内嵌标记已存 SHA，D010 语义扩展）；
    - dedupe 键扩展：head SHA 单键 → （PR, 已审 SHA 集合）；
    - 与 D019（synchronize 维持全量）的衔接：本项即当年延后的 v2 形态，spec 里显式引用翻案；
