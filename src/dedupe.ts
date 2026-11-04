@@ -4,8 +4,12 @@
 import type { Octokit } from "octokit";
 import type { PrRef } from "./github.ts";
 
-export function reviewMarker(headSha: string): string {
-  return `<!-- pr-review-agent sha:${headSha} -->`;
+// base：增量审查（D032）时记录区间起点——`sha:` 键语义不变（已审集合推导只看 sha），
+// `base:` 是可观测元数据（旧标记缺 base 合法，读取路径容忍）
+export function reviewMarker(headSha: string, base?: string | null): string {
+  return base
+    ? `<!-- pr-review-agent sha:${headSha} base:${base} -->`
+    : `<!-- pr-review-agent sha:${headSha} -->`;
 }
 
 export async function hasReviewed(

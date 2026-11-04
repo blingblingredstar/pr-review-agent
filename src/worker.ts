@@ -10,6 +10,7 @@ import type { Octokit } from "octokit";
 import { verifySignature, header, type WebhookHeaders, type Dispatch } from "./webhook.ts";
 import { fetchPr, getOctokit, postReview, postTimeoutNotice, setReviewStatus, type PrRef } from "./github.ts";
 import { hasReviewed } from "./dedupe.ts";
+import { decideIncrement, fetchDeltaDiff, listBotReviews, listCommitShas } from "./incremental.ts";
 import { buildRepoContext, fileReaderFromEntries, makeSnapshot, searcherFromEntries, snapshotTree } from "./context.ts";
 import { buildTaskContextForPr } from "./task.ts";
 import {
@@ -210,7 +211,28 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
       } catch (statusErr) {
         console.error(`[worker] ${key} pending status 写失败`, statusErr);
       }
-      const { diff, title, body } = await fetchPr(client, ref);
+      const { diff: fullDiff, title, body } = await fetchPr(client, ref);
+      // 增量审查决策（D032，best-effort）：base 推导 + block 继承（listBotReviews/listCommitShas），
+      // delta 命中则 compare 拉区间 diff 替换全量；任何一层失败 console.log + 保持全量——
+      // 增量是优化不是依赖，绝不因增量路径失败导致 push 无审查。fetchPr 仍先拉全量：title/body 是
+      // D029 任务块的输入，compare 路径不提供；全量 diff API 的成本相对 LLM 侧可忽略
+      let diff = fullDiff;
+      let incrementalBase: string | null = null;
+      try {
+        const reviews = await listBotReviews(client, ref);
+        const commitShas = await listCommitShas(client, ref);
+        const decision = decideIncrement({ headSha: ref.headSha, reviews, commitShas });
+        if (decision.mode === "delta") {
+          const deltaDiff = await fetchDeltaDiff(client, ref, decision.base);
+          diff = deltaDiff;
+          incrementalBase = decision.base;
+          console.log(`[worker] ${key} 增量审查：区间 ${decision.base.slice(0, 7)}..${ref.headSha.slice(0, 7)}（${deltaDiff.length} 字符，全量 ${fullDiff.length} 字符）`);
+        } else {
+          console.log(`[worker] ${key} 增量决策：${decision.mode}（${decision.reason}）`);
+        }
+      } catch (err) {
+        console.log(`[worker] ${key} 增量决策失败，回退全量（D032 best-effort）`, err);
+      }
       // 仓库上下文（D023，best-effort）：失败返回 null、审查照旧，绝不连垮主流程
       const context = await buildRepoContext({ headRepo: ref.headRepo ?? `${ref.owner}/${ref.repo}`, headSha: ref.headSha, diff });
       // 任务上下文（D029，best-effort）：PR 标题 + 关联 issue 正文进任务块；无关联/拉取失败/预算关闭返回 null，
@@ -222,7 +244,7 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
         hop: envelope.hop + 1,
         ref,
         issuedAt: Date.now(),
-        state: { diff, context, taskContext },
+        state: { diff, context, taskContext, incrementalBase },
       });
       return;
     }
@@ -310,7 +332,7 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
       }
       return;
     }
-    const state = (envelope.state ?? {}) as { diff?: string; result?: ReviewOutcome };
+    const state = (envelope.state ?? {}) as { diff?: string; result?: ReviewOutcome; incrementalBase?: string | null };
     if (typeof state.diff !== "string" || !Array.isArray(state.result?.comments)) {
       throw new Error("publish 信封缺 state.diff / state.result");
     }
@@ -319,14 +341,21 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
       { owner: ref.owner, repo: ref.repo, pullNumber: ref.pullNumber, commitId: ref.headSha },
       state.result,
       state.diff,
+      { incrementalBase: state.incrementalBase ?? null },
     );
-    console.log(`[worker] ${key} 完成：${posted.inline} 条行内（进线程可闭环），${posted.degraded} 条降级进 body`);
+    console.log(
+      `[worker] ${key} 完成：${posted.inline} 条行内（进线程可闭环），${posted.degraded} 条降级进 body` +
+        `${posted.folded ? `，${posted.folded} 条 minor/nit 折叠（D032 门槛）` : ""}` +
+        `${state.incrementalBase ? `（增量 ${state.incrementalBase.slice(0, 7)}..${ref.headSha.slice(0, 7)}）` : ""}`,
+    );
     try {
       await setReviewStatus(
         client,
         { ...ref, sha: ref.headSha },
         "success",
-        posted.degraded > 0 ? `完成：${posted.inline} 条行内 / ${posted.degraded} 条降级进 body` : `完成：${posted.inline} 条意见`,
+        posted.degraded > 0
+          ? `完成：${posted.inline} 条行内 / ${posted.degraded} 条降级进 body`
+          : `完成：${posted.inline} 条意见${posted.folded ? ` + ${posted.folded} 条 minor/nit 折叠` : ""}`,
       );
     } catch (statusErr) {
       console.error(`[worker] ${key} success status 写失败`, statusErr);

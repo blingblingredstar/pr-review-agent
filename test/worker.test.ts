@@ -248,13 +248,14 @@ test("三阶段编排：prepare→review→publish 本地直调串成一条链�
     },
     fetchImpl: boomFetch,
   });
-  // prepare：dedupe（第 1 次 paginate）→ pending → fetchPr；publish：二次 dedupe（第 2 次 paginate）
-  assert.equal(calls.paginateCalls, 2);
+  // prepare：dedupe（第 1 次 paginate）→ pending → fetchPr → 增量决策（listReviews+listCommits 第 2/3 次，无标记回退全量）；
+  // publish：二次 dedupe（第 4 次 paginate）
+  assert.equal(calls.paginateCalls, 4);
   assert.deepEqual(
     calls.statuses.map((s) => [s.sha, s.state, s.description]),
     [
       [REF.headSha, "pending", "审查进行中"],
-      [REF.headSha, "success", "完成：1 条意见"],
+      [REF.headSha, "success", "完成：0 条意见 + 1 条 minor/nit 折叠"],
     ],
   );
   // prepare 拉到的 diff 直传 review（context 关闭 → undefined）；state 随信封携带
@@ -262,8 +263,10 @@ test("三阶段编排：prepare→review→publish 本地直调串成一条链�
   assert.equal(calls.reviews.length, 1);
   const review = calls.reviews[0]!;
   assert.equal(review.commit_id, REF.headSha);
-  assert.equal(review.event, "REQUEST_CHANGES", "有意见以 REQUEST_CHANGES 提交（D017）");
+  assert.equal(review.event, "COMMENT", "纯 minor/nit 收窄为 COMMENT（D032 发布门槛：block 的本意是需要人介入）");
   assert.ok(String(review.body).includes(reviewMarker(REF.headSha)), "summary 内嵌 sha 标记（D010）");
+  assert.ok(String(review.body).includes("<details>"), "minor/nit 折叠进 body details（D032 门槛）");
+  assert.ok(String(review.body).includes("**[minor]**"), "折叠段逐条同构格式（机器可解析）");
   assert.equal(calls.labels.length, 0, "minor 不打标签（blocker/major 才打）");
 });
 
