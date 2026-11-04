@@ -157,3 +157,19 @@ schema 加 `evidenceSnippet`（给出即校验），发帖双闸门（行号 D01
 - **mustMention 判分收窄**（#44 correlation 组 bot 自审「剔除 diff 字面词、保留缺陷机制词」推广到 synthetic + real + dogfood 全组）：24 例存在 diff 字面词（判分恒真——引用改动行的评论自动过关键词关），逐例剔除（机械审计脚本产出工作清单 + 逐例人工判断保留集的措辞容忍度）；real-06 收窄后仅剩 2 词，补 5 个机制词（丢失/丢弃/吞/兜底/静默）防过度收窄；审计清零——corr-03/05 残留的 findroute/fragmentsbytes 为 #44 bot 复审定案的机制词，不重开。**收窄只可能降 recall（判分更严格方向）；历史 run 工件按其落盘时口径读**。顺带发现未处理项：real-07 的单字关键词（根/盘）存在子串误匹配隐患（如「根据」命中「根」），不属本口径、留观察。
 - **红线**（run `2026-11-04T05-20-44` vs 基线 `2026-11-03T20-10-56`）：promptHash `d399f9d4ed17` 不变；**41 个非 repo 用例 inputTokens 逐位一致（合计 30,942）**——mustMention 只进打分不进输入，红线由构造保证；repo 组 2 例漂移（repo-07 3183→3133、repo-01 3158→3195 **首次漂移**）按两级口径降为观察项——工具循环第二段输入依赖模型第一段工具选择，无逐位保证（本次再添一例实证）。
 - **口径变化声明**：能力评估 = synthetic 20 + real 15 = 35 例（D015 口径的组成扩展，随本 PR 声明）；`test/eval-cases.test.ts` 计数 pin 48→61；新用例不进既有红线分母，下一次扩容以本 run 为基线。
+
+---
+
+## 增量 mock 对照组（D032 开放问题②量化）——首轮基线
+
+- **形态**：`EvalCase` source 增 `incremental`（独立口径，不进能力评估，injection/repo/correlation 同款模式）。同一 fixture 写成 full（S0→S2，merge-base..head，全量审查输入）/ delta（S1→S2，base..head 只含 push2，增量审查输入）**成对用例**，repo 快照恒为 head 态（生产 zipball 同口径）——对照的唯一变量是 diff 区间。5 fixture × 2 口径 = 10 例：A 行同文件不变式绕过（inc-01，push1 加上限守卫 / push2 同文件 pushMany 绕过）、B 行跨文件显式引用（inc-02，push1 定 formatSize 入参 KB 契约 / push2 传字节）、C 行语义组合无引用 ×2（inc-03 重命名后新读者读旧字段、inc-04 跨文件常量 DRY）、FP 对照（inc-05，无缺陷两口径期望零意见）。
+- **三口径声明**：① **输入侧 mock**——只模拟喂给 `reviewDiff` 的 diff 区间（触及清单由 diff 推导、快照注入走既有 c.repo 分支，run.ts 零改动），marker/base 推导、block 继承等编排层逻辑不在模拟范围（归 Step 6 单测，spec §三）；② **taskContext 对称省略**——生产全量/增量两路径都带 D029 任务块，mock 两口径都不带，对称省略不影响对照；③ **同轮对照**——full/delta 同一轮跑，端点状态对两口径同施。
+- **首轮读数**（run `2026-11-04T05-49-01`，promptHash `d399f9d4ed17` 不变）：incremental 组 recall 62.5%（5/8）、precision 83.3%（5/6）。
+  - **A 行 inc-01：full ✓ / delta ✓**——同文件全文注入（D023）兜底假设成立；
+  - **B 行 inc-02：full ✓ / delta ✓**——hunk 显式引用 + 快照可读，工具循环救援成立；
+  - **C 行 inc-04：full ✓ / delta ✗——目标盲区形态实证**：full 口径两个 100 常量同 diff 可见报 DRY；delta 口径只见 PER_PAGE，「新增实现→搜既有词法相似」行为未触发（与 repo-03 词法 DRY miss 同根，cross-push 场景叠加了区间遮蔽）；
+  - **C 行 inc-03：full ✗ / delta ✗——双沉默，能力盲区而非增量盲区**（重命名 + 旧字段读者的关联推理超出当前能力，与 correlation 组 miss 同性质；两口径同 miss 即不构成「增量特有损失」，fixture 保留作能力迭代靶子）；
+  - **FP 对照 inc-05：两口径零意见** ✓。
+- **开放问题②首轮结论**：盲区真实存在（C 行 2 例中 1 例呈现 full✓/delta✗），但 A/B 行的兜底机制（同文件注入、工具循环）均守住——**暂无「混合口径」（全量触及清单 + 增量本体）直接进 Step 6 实现范围的证据**，等 fixture 扩量或 dogfood 加证再裁。
+- **本轮其他组（端点波动日，如实记录）**：能力 85.7%（30/35）；synthetic 90.0% 首现 miss 轮（bug-01 有意见但锚点/关键词不匹配；**linked-02 是 mustMention 收窄的首例严格判分效应**——模型有意见、被剔除的 diff 字面词不再放行，判分更严格方向的预期表现，非行为退化）；correlation 10.0%（沉默轮）；repo 40.0%（repo-04 首次 miss，与 repo-07 同为轮间振荡）。**红线不受扰动**：54 个非工具用例 inputTokens 逐位一致（合计 42,876）——输入侧全绿证明本轮波动全部在输出侧（端点）。
+- 计数 pin 61→71；增量组为工具循环用例，token 逐位无构造保证，按两级口径归观察层（本轮 repo 组 3 例漂移同层）。
