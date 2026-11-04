@@ -14,7 +14,7 @@ export function reviewMarker(headSha: string, base?: string | null): string {
 
 // 标记解析（本文件是标记的家，增量/去重共用同一解析——hasReviewed 曾用裸 includes("sha:X -->") 匹配，
 // 增量标记 "sha:X base:Y -->" 不命中导致同 SHA 重派重复发 review（PR #59 复审 major））
-export const MARKER_RE = /<!-- pr-review-agent sha:([0-9a-f]{6,40})(?: base:([0-9a-f]{6,40}))? -->/g;
+export const MARKER_RE = /<!-- pr-review-agent sha:([0-9a-f]{7,40})(?: base:([0-9a-f]{7,40}))? -->/g;
 
 export type BotReview = {
   id: number;
