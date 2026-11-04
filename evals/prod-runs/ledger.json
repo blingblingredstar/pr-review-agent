@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-11-04T18:16:09.546Z",
+  "fetchedAt": "2026-11-04T18:25:54.602Z",
   "runs": {
     "5b54d-1793814736038-33f8a89f2211": {
       "startedAt": "2026-11-04T17:52:17.107Z",
@@ -104,9 +104,9 @@
       "environment": "production"
     },
     "c7c6f-1793814365327-032e9b41acdb": {
-      "startedAt": "2026-11-04T17:46:13.715Z",
+      "startedAt": "2026-11-04T17:46:05.924Z",
       "finishedAt": "2026-11-04T17:46:47.880Z",
-      "durationMs": 34165,
+      "durationMs": 41956,
       "pr": 53,
       "headSha": "aa692ea",
       "runKey": "#53@aa692ea",
@@ -237,6 +237,84 @@
       "outcome": null,
       "timeout": false,
       "deploymentId": "dpl_HRscwgRKnp1JGYxaVMqchh79DBEp",
+      "environment": "production"
+    },
+    "d849c-1793816340319-97ffebbcfe65": {
+      "startedAt": "2026-11-04T18:19:01.540Z",
+      "finishedAt": "2026-11-04T18:19:06.470Z",
+      "durationMs": 4930,
+      "pr": 55,
+      "headSha": "a50bd6e",
+      "runKey": "#55@a50bd6e",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [
+        "[github] REQUEST_CHANGES 被拒（422 自家 PR 或行号非法），回退 COMMENT"
+      ],
+      "outcome": {
+        "inline": 3,
+        "degraded": 0
+      },
+      "timeout": false,
+      "deploymentId": "dpl_AmvS6FZmW7eSMrgmEpsArPxYSzma",
+      "environment": "production"
+    },
+    "rw2z2-1793816284421-bfbc7addb659": {
+      "startedAt": "2026-11-04T18:18:05.062Z",
+      "finishedAt": "2026-11-04T18:19:00.297Z",
+      "durationMs": 55235,
+      "pr": 55,
+      "headSha": "a50bd6e",
+      "runKey": "#55@a50bd6e",
+      "routerTokens": {
+        "in": 5930,
+        "out": 344
+      },
+      "probeTokens": {
+        "in": 38847,
+        "out": 1153
+      },
+      "reviewTokens": {
+        "in": 77710,
+        "out": 2790,
+        "total": 80500
+      },
+      "toolRequests": "search 无 / read 无（预算 2）",
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [],
+      "outcome": null,
+      "timeout": false,
+      "deploymentId": "dpl_AmvS6FZmW7eSMrgmEpsArPxYSzma",
+      "environment": "production"
+    },
+    "5qxrh-1793816280999-fdefb998653c": {
+      "startedAt": "2026-11-04T18:18:04.385Z",
+      "finishedAt": "2026-11-04T18:18:04.386Z",
+      "durationMs": 1,
+      "pr": null,
+      "headSha": null,
+      "runKey": null,
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": "无关联 issue（closing keywords 未命中），不注入任务块",
+      "context": "上下文注入：触及 7 个文件 / 快照 300 个文件 / 61860 字符（预算 100000）",
+      "truncation": null,
+      "warnings": [],
+      "outcome": null,
+      "timeout": false,
+      "deploymentId": "dpl_AmvS6FZmW7eSMrgmEpsArPxYSzma",
       "environment": "production"
     },
     "c88t5-1793815674855-0fa4ac44ed09": {

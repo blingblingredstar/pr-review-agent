@@ -12,7 +12,9 @@ import { aggregateRuns, mergeLedger, parseLogLine, summarize, type Ledger } from
 const args = process.argv.slice(2);
 const flag = (name: string): string | undefined => {
   const i = args.indexOf(name);
-  return i >= 0 ? args[i + 1] : undefined;
+  // 取到的值以 "--" 开头 = 实际是下一个开关（如 --seed --since 10m），视为未提供
+  const v = i >= 0 ? args[i + 1] : undefined;
+  return v !== undefined && !v.startsWith("--") ? v : undefined;
 };
 const seed = flag("--seed");
 const since = flag("--since");
@@ -32,9 +34,16 @@ if (!seed || !process.argv.includes("--seed-only")) {
   const argv = ["-y", "vercel@latest", "logs", "--json", ...(since ? ["--since", since] : [])];
   console.log(`[prodlogs] 运行 ${cmd} ${argv.join(" ")} …`);
   const r = spawnSync(cmd, argv, { encoding: "utf8", cwd: new URL("..", import.meta.url).pathname, shell: process.platform === "win32" });
-  if (r.status !== 0) {
+  if (r.error) {
+    console.error(`[prodlogs] spawn 失败：${String(r.error)}`);
+    process.exitCode = 1;
+  } else if (r.status !== 0) {
     console.error(String(r.stderr || r.stdout));
     process.exitCode = 1;
+  }
+  if (process.exitCode === 1) {
+    console.error("[prodlogs] 采集失败，跳过写台账（保留既有 ledger 不被空数据覆盖）；可用 --seed-only 走纯导入");
+    process.exit(1);
   }
   if (r.stdout) collected.push(...r.stdout.split("\n"));
 }

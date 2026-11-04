@@ -146,14 +146,19 @@ export function mergeLedger(prev: Ledger | null, fresh: Record<string, ProdRun>,
   return { fetchedAt, runs: { ...prev?.runs, ...fresh } };
 }
 
-// 台账汇总（报告/journal 引用的机械出口）：按 runKey（= 一次审查）计数——run 数、完成数、
-// token 合计、超时数、带工具调用审查数
+// 台账汇总（报告/journal 引用的机械出口）：审查次数 = distinct runKey（一次审查的多段请求归组）。
+// runKey 为 null 的记录（prepare 段：只有 [task]/[context]/[snapshot] 行、无 [worker] 行，日志本身不携带
+// pr/sha、与审查段无 requestId 关联）不计入审查数，单列 unattributed 防止 Step 4 门槛被虚增计数
 export function summarize(ledger: Ledger): string {
   const runs = Object.values(ledger.runs);
   const byRun = new Map<string, ProdRun[]>();
+  const unattributed: ProdRun[] = [];
   for (const r of runs) {
-    const key = r.runKey ?? `__req_${r.startedAt}`;
-    byRun.set(key, [...(byRun.get(key) ?? []), r]);
+    if (r.runKey === null) {
+      unattributed.push(r);
+      continue;
+    }
+    byRun.set(r.runKey, [...(byRun.get(r.runKey) ?? []), r]);
   }
   const reviews = [...byRun.values()].map((rs) => {
     const withOutcome = rs.find((r) => r.outcome !== null);
@@ -175,6 +180,7 @@ export function summarize(ledger: Ledger): string {
   return (
     `审查 ${reviews.length} 次（完成 ${finished}，超时 ${timeouts}）` +
     `；review in ${reviewIn} / out ${reviewOut}，router out ${routerOut}` +
-    `；带工具调用审查 ${toolRuns} 次`
+    `；带工具调用审查 ${toolRuns} 次` +
+    `；未归组段 ${unattributed.length}（prepare 阶段 request，无 [worker] 行不计数）`
   );
 }

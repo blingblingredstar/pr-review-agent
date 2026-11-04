@@ -16,6 +16,7 @@ npm run prodlogs -- --seed <jsonl>     # 追加 dashboard 导出的 JSONL（窗�
 ## 口径
 
 - **审查次数** = distinct `runKey`（不是 requestId）；**完成** = 该 runKey 任意段出现「完成：N 条行内，M 条降级」行。
-- `reviewTokens` = `[reviewDiff] tokens`（两段合计或单段，SDK 返回值）；`routerTokens` = D028 路由段；`probeTokens` = 工具循环第一段。
+- **prepare 段不计数**：只有 `[task]`/`[context]`/`[snapshot]` 行的 requestId 没有 `[worker]` 行（日志本身不携带 pr/sha、与审查段无 requestId 关联），`runKey=null` 在汇总中单列为「未归组段」——不算审查次数，防 Step 4 门槛虚增。
+- `reviewTokens` = `[reviewDiff] tokens`（两段合计或单段，SDK 返回值）；`routerTokens` = D028 路由段；`probeTokens` = 工具循环第一段。token 数据全部落在带 `[worker]` 行的段上（prepare 段无 token 输出），排除不丢数。
 - `timeout=true` = 命中超时路径（D011 优雅跳过 / postTimeoutNotice）。
 - 2026-11-04 前的历史 run（#51 两笔等）只有 dashboard 截图，未入机器台账（数字在 journal 会话 38）。

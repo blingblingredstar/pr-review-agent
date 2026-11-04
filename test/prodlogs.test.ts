@@ -85,7 +85,8 @@ test("mergeLedger：requestId 合并、新记录覆盖旧记录、fetchedAt 更�
 
 test("summarize：机械出口含 run 数/完成数/超时/工具 run 数", () => {
   const b = aggregateRuns([
-    parseLogLine(L("2026-11-04T17:00:00Z", "r1", "[reviewDiff] tokens: in 100 / out 5"))!,
+    parseLogLine(L("2026-11-04T17:00:00Z", "r1", "[worker] x/y#7@aaa0000 主评审预算 200000ms"))!,
+    parseLogLine(L("2026-11-04T17:00:02Z", "r1", "[reviewDiff] tokens: in 100 / out 5"))!,
     parseLogLine(L("2026-11-04T17:00:05Z", "r1", '[tools] step 1: read src/a.ts (100 chars)'))!,
     parseLogLine(L("2026-11-04T17:01:00Z", "r2", "[worker] x/y#1@abc 完成：0 条行内，0 条降级"))!,
   ])!;
@@ -93,4 +94,18 @@ test("summarize：机械出口含 run 数/完成数/超时/工具 run 数", () =
   assert.match(s, /审查 2 次（完成 1，超时 0）/);
   assert.match(s, /review in 100 \/ out 5/);
   assert.match(s, /带工具调用审查 1 次/);
+});
+
+test("summarize：prepare 段（runKey=null）不计入审查数、单列未归组（自审 major 口径）", () => {
+  const b = aggregateRuns([
+    parseLogLine(L("2026-11-04T17:00:00Z", "prep", "[task] 无关联 issue（closing keywords 未命中），不注入任务块"))!,
+    parseLogLine(L("2026-11-04T17:00:01Z", "prep", "[context] 上下文注入：触及 3 个文件 / 快照 244 个文件 / 50582 字符（预算 100000）"))!,
+    parseLogLine(L("2026-11-04T17:00:09Z", "rev", "[worker] x/y#1@abc 主评审预算 250000ms"))!,
+    parseLogLine(L("2026-11-04T17:00:30Z", "rev", "[reviewDiff] tokens: in 20000 / out 500"))!,
+    parseLogLine(L("2026-11-04T17:00:40Z", "pub", "[worker] x/y#1@abc 完成：0 条行内，0 条降级"))!,
+  ])!;
+  const s = summarize(mergeLedger(null, b, "t"));
+  assert.match(s, /审查 1 次（完成 1，超时 0）/, "rev+pub 同 #1@abc 归组为 1 次审查，prepare 段不独立计数");
+  assert.match(s, /未归组段 1/, "prepare 段单列不消失");
+  assert.match(s, /review in 20000 \/ out 500/, "token 统计不丢");
 });
