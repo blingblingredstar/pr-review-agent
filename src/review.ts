@@ -26,13 +26,37 @@ export function loadPrompt(): string {
   return readFileSync(new URL("../prompts/review.md", import.meta.url), "utf8");
 }
 
+// JSON 模式（D002 厂商中立扩展点）：端点不支持 response_format json_schema（DeepSeek 全系，文档仅 text/json_object，
+// 且 json_object 要求 prompt 自带 JSON 指示）时的结构化输出降级。LLM_JSON_MODE=1 时：
+// system 追加 prompts/json-output.md（端点要求的 JSON 关键词 + 输出形状），extraBody() 自动注入 json_object；
+// 未设置时所有路径字节级不变（GLM 生产走 json_schema，promptHash 不受影响）。
+// 注意：只用于产出 ReviewResult 的调用段；工具循环 probe 段（产出工具请求）不追加，否则与 review-tools.md
+// 的两段协议判据冲突（模型会直接输出审查结果而非工具请求）
+export const jsonMode = (): boolean => process.env.LLM_JSON_MODE === "1";
+
+function loadJsonOutputPrompt(): string {
+  return readFileSync(new URL("../prompts/json-output.md", import.meta.url), "utf8");
+}
+
+// 导出给 evals/run.ts 的 promptHash：指纹跟随实际生效的 system（GLM 下字节不变 → hash 不变）
+export function withJsonSuffix(base: string): string {
+  return jsonMode() ? `${base}\n\n${loadJsonOutputPrompt()}` : base;
+}
+
 // 端点扩展点（D002 厂商中立）：LLM_EXTRA_BODY 为 JSON 对象，合并进每次请求体（显式配置优先）。
 // GLM 等 thinking 模型用它传 {"thinking":{"type":"disabled"}} 控制延迟（D012）；其他端点可传各自扩展参数。
+// JSON 模式（jsonMode()）下额外做 response_format 降级：SDK 发 json_schema 的调用段（= ReviewResult 产出段）
+// 替换为 json_object（DeepSeek 全系不支持 json_schema，文档仅 text/json_object）；无 response_format 的
+// 调用段（工具循环 probe 段，D027 实测 response_format 会抑制工具请求形态）保持原样不动
 export function withExtraBody(fetchImpl: typeof fetch, extra: Record<string, unknown>): typeof fetch {
   return async (input, init) => {
     if (typeof init?.body === "string" && init.body.startsWith("{")) {
       try {
-        init = { ...init, body: JSON.stringify({ ...JSON.parse(init.body), ...extra }) };
+        const body = JSON.parse(init.body) as Record<string, unknown>;
+        if (jsonMode() && extra.response_format === undefined && (body.response_format as { type?: string } | undefined)?.type === "json_schema") {
+          body.response_format = { type: "json_object" };
+        }
+        init = { ...init, body: JSON.stringify({ ...body, ...extra }) };
       } catch {
         // 非 JSON 请求体按原样透传
       }
@@ -157,7 +181,7 @@ export async function reviewDiff(diff: string, context?: string, opts?: ReviewDi
   const { output, usage } = await generateText({
     model: llm.chat(LLM_MODEL),
     output: Output.object({ schema: reviewResultSchema, name: "ReviewResult" }),
-    system: loadPrompt(),
+    system: withJsonSuffix(loadPrompt()),
     prompt,
     // 超时可被调用方覆写（worker 阶段机 D026：review 阶段按「300s 墙钟 - 续链/落灯预留」封顶，
     // 保证最坏路径「LLM 打满 + 续链失败 + 落灯」整体不超墙钟）；不传走 LLM_TIMEOUT_MS（D011）
@@ -443,7 +467,7 @@ async function reviewDiffWithTools(
   const { output, usage } = await generateText({
     model: llm.chat(modelId),
     output: Output.object({ schema: reviewResultSchema, name: "ReviewResult" }),
-    system,
+    system: withJsonSuffix(system),
     prompt: `${toolBlock}${prompt}`,
     abortSignal,
   });

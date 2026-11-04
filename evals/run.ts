@@ -8,6 +8,7 @@ import {
   loadPrompt,
   reviewDiff,
   sumUsage,
+  withJsonSuffix,
   type ReviewDiffOpts,
   type ReviewOutcome,
   type ReviewResult,
@@ -85,8 +86,9 @@ async function main() {
   const evalOnly = parseEvalOnly(process.env.EVAL_ONLY, allCases.map(sourceOf));
   const cases = evalOnly ? allCases.filter((c) => evalOnly.includes(sourceOf(c))) : allCases;
   const model = process.env.LLM_MODEL ?? "(unknown)";
-  // prompt 内容指纹：同 prompt 多轮与改版后的 run 机械可分（D006——eval 报告引用具体 prompt 版本）
-  const promptHash = createHash("sha256").update(loadPrompt()).digest("hex").slice(0, 12);
+  // prompt 内容指纹：同 prompt 多轮与改版后的 run 机械可分（D006——eval 报告引用具体 prompt 版本）；
+  // 指纹跟随实际生效的 system（JSON 模式含 json-output.md 后缀，DeepSeek 类端点；GLM 下字节不变 hash 不变）
+  const promptHash = createHash("sha256").update(withJsonSuffix(loadPrompt())).digest("hex").slice(0, 12);
   const startedAt = new Date().toISOString();
   console.log(`eval 开始：${cases.length} 个用例，模型 ${model}，prompt ${promptHash}` + (evalOnly ? `，子集（EVAL_ONLY）${evalOnly.join(",")}` : ""));
 
