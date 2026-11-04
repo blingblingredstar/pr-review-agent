@@ -227,12 +227,13 @@ async function main() {
   mkdirSync(new URL("./runs/", import.meta.url), { recursive: true });
   const stamp = startedAt.replace(/[:.]/g, "-").slice(0, 19);
   const safeModel = model.replace(/[^a-zA-Z0-9._-]/g, "_");
-  // 文件名带 extraBody 指纹：同模型不同配置（如 thinking disabled/low/high）并行跑时 startedAt 同秒 + 模型名相同
-  // → 文件互覆（2026-11-05 DeepSeek 三档实测事故，见 evals/runs/recovery-20261105-deepseek-tiers/README.md）
+  // 文件名带 promptHash + extraBody 指纹：同模型不同配置/不同 prompt 版本并行跑时 startedAt 同秒
+  // → 文件互覆（2026-11-05 DeepSeek 三档实测事故，见 evals/runs/recovery-20261105-deepseek-tiers/README.md）；
+  // promptHash 在手顺带入，文件名自证 prompt 版本
   const extraBodyHash = process.env.LLM_EXTRA_BODY
     ? `-${createHash("sha256").update(process.env.LLM_EXTRA_BODY).digest("hex").slice(0, 6)}`
     : "";
-  const base = `${stamp}-${safeModel}${extraBodyHash}`;
+  const base = `${stamp}-${safeModel}-${promptHash}${extraBodyHash}`;
   writeFileSync(
     new URL(`./runs/${base}.json`, import.meta.url),
     // schemaVersion 1 = groups 不含 injection、summary.injection 携带拦截率块、echo 口径为违规意见数；
