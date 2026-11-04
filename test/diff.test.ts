@@ -320,3 +320,60 @@ test("diffMaxChars：未配置默认 300000，非法值告警回退，合法值�
     else process.env.DIFF_MAX_CHARS = saved;
   }
 });
+
+test("truncateDiff：装不下的大新建文件 hunk 级部分保留——锚点有效 + 截断标注（D018 缺口修复）", () => {
+  const src = ["diff --git a/src/app.ts b/src/app.ts", "@@ -1,1 +1,2 @@", " ctx", "+" + "y".repeat(60)].join("\n") + "\n";
+  const hunk = (start: number) => [`@@ -0,0 +${start},2 @@`, "+" + `x${start} `.padEnd(200, "v"), "+" + `w${start} `.padEnd(200, "u")].join("\n");
+  const big = ["diff --git a/src/new-module.ts b/src/new-module.ts", "new file mode 100644", hunk(1), hunk(3), hunk(5)].join("\n") + "\n";
+  // 预算 = src + header + 恰好 1 个 hunk 的量级：整块装不下、header+首 hunk 装得下
+  const out = truncateDiff(big + src, src.length + 600);
+  assert.ok(out.includes("diff --git a/src/new-module.ts b/src/new-module.ts"), "header 保留");
+  assert.ok(out.includes("@@ -0,0 +1,2 @@"), "首 hunk 保留（行号锚点）");
+  assert.ok(out.includes("+x1 "), "首 hunk 内容保留");
+  assert.ok(!out.includes("+x3"), "装不下的 hunk 不保留");
+  assert.ok(out.includes("仅保留前 1/3 个 hunk"), `截断标注: ${out.slice(-200)}`);
+  assert.ok(out.includes("其余内容未经审查"), "盲区声明");
+  assert.ok(!out.includes("省略 src/new-module.ts"), "不再整块省略");
+});
+
+test("truncateDiff：预算连 header+首 hunk 都装不下 → 维持整块省略行（原行为）", () => {
+  const src = ["diff --git a/src/app.ts b/src/app.ts", "@@ -1,1 +1,2 @@", " ctx", "+" + "y".repeat(60)].join("\n") + "\n";
+  const big = [
+    "diff --git a/src/new-module.ts b/src/new-module.ts",
+    "new file mode 100644",
+    "@@ -0,0 +1,2 @@",
+    "+" + "x".repeat(400),
+    "+" + "w".repeat(400),
+  ].join("\n") + "\n";
+  const out = truncateDiff(big + src, src.length + 60);
+  assert.equal(out, src + "\n[diff 截断] 省略 src/new-module.ts（新建文件） (+2/-0)");
+});
+
+test("truncateDiff：修改文件超预算仍整块省略（D018 本体不动），新建文件才走 hunk 级", () => {
+  const src = ["diff --git a/src/app.ts b/src/app.ts", "@@ -1,1 +1,2 @@", " ctx", "+" + "y".repeat(60)].join("\n") + "\n";
+  const mod = ["diff --git a/src/changed.ts b/src/changed.ts", "@@ -1,3 +1,3 @@", "-" + "a".repeat(300), "+" + "b".repeat(300), "+" + "c".repeat(300)].join("\n") + "\n";
+  const out = truncateDiff(mod + src, src.length + 110);
+  assert.ok(out.includes("省略 src/changed.ts (+2/-1)"), `修改文件整块省略: ${out.slice(-120)}`);
+  assert.ok(!out.includes("@@ -1,3"), "不产出部分保留");
+});
+
+test("truncateDiff：新建文件部分保留计入预算，剩余预算仍够省略行原样输出", () => {
+  const src = ["diff --git a/src/app.ts b/src/app.ts", "@@ -1,1 +1,2 @@", " ctx", "+" + "y".repeat(60)].join("\n") + "\n";
+  const hunk = (start: number) => [`@@ -0,0 +${start},1 @@`, "+" + `x${start}`.padEnd(120, "v")].join("\n");
+  const big = ["diff --git a/src/new-module.ts b/src/new-module.ts", "new file mode 100644", hunk(1), hunk(2), hunk(3)].join("\n") + "\n";
+  // 预算宽裕：src + big 全部 + 省略行——不触发截断（回归保护：部分保留不误伤装得下的场景）
+  const out = truncateDiff(big + src, (big + src).length + 200);
+  assert.equal(out, big + src, "预算内零截断，输出与输入一致");
+});
+
+test("truncateDiff：部分保留的标注行不产生幻影行号（diffCoveredLines 口径，自审 minor 闭环）", () => {
+  const src = ["diff --git a/src/app.ts b/src/app.ts", "@@ -1,1 +1,2 @@", " ctx", "+" + "y".repeat(60)].join("\n") + "\n";
+  const hunk = (start: number) => [`@@ -0,0 +${start},2 @@`, "+" + `x${start} `.padEnd(200, "v"), "+" + `w${start} `.padEnd(200, "u")].join("\n");
+  const big = ["diff --git a/src/new-module.ts b/src/new-module.ts", "new file mode 100644", hunk(1), hunk(3), hunk(5)].join("\n") + "\n";
+  const out = truncateDiff(big + src, src.length + 600);
+  const covered = diffCoveredLines(out);
+  const lines = covered.get("src/new-module.ts");
+  assert.ok(lines);
+  assert.deepEqual([...lines].sort((a, b) => a - b), [1, 2], "只保留首 hunk 的 1-2 行，标注行/被截 hunk 不产生幻影行号");
+  assert.ok(out.indexOf("[diff 截断] 本文件超出预算") < out.indexOf("@@ -0,0 +1,2 @@"), "标注行在 header 区（首个 @@ 之前）");
+});
