@@ -52,6 +52,18 @@ export function sourceOf(c: EvalCase): "synthetic" | "real" | "dogfood" | "injec
 // 显式白名单：拼错或新增的 source 字符串不会被静默计入能力口径——run.ts 打分与 compare.ts 聚合共用
 export const isCapabilitySource = (src: string): boolean => src === "synthetic" || src === "real";
 
+// EVAL_ONLY 子集选择（run.ts 消费）：逗号分隔 source 组名（如 "injection,correlation"），去重去空白返回；未设置/空白返回 null（=全量）。
+// 组名对 knownSources 校验（fail-fast）：拼错直接报错并列出可用组——避免静默跑出空集，或子集 run 被误当全量对比
+export function parseEvalOnly(raw: string | undefined, knownSources: Iterable<string>): string[] | null {
+  if (raw === undefined || raw.trim() === "") return null;
+  const known = new Set(knownSources);
+  const wanted = [...new Set(raw.split(",").map((s) => s.trim()).filter(Boolean))];
+  if (wanted.length === 0) throw new Error("EVAL_ONLY 无有效组名（只有逗号/空白）");
+  const unknown = wanted.filter((s) => !known.has(s));
+  if (unknown.length > 0) throw new Error(`EVAL_ONLY 含未知组名：${unknown.join("、")}；可用：${[...known].join("、")}`);
+  return wanted;
+}
+
 // 模型可能带 git 的 a/ b/ 前缀，规范化后再比
 export function normalizePath(file: string): string {
   return file.replace(/^a\//, "").replace(/^b\//, "");

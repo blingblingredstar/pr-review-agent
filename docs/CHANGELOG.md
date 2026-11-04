@@ -270,3 +270,9 @@
 - eval 用例 61 → 71：新增 `incremental` source 组（独立口径不进能力评估）——同一 fixture 的 full（S0→S2 全量审查输入）/ delta（S1→S2 增量审查输入）成对用例，repo 快照恒为 head 态模拟生产 zipball，对照唯一变量 = diff 区间；5 fixture × 2 覆盖同文件交互（A 行）/ 跨文件显式引用（B 行）/ 语义组合无引用（C 行 ×2）/ FP 对照，量化「全量→增量」跨 push 组合盲区
 - 首轮读数：A/B 行兜底机制成立（同文件全文注入、工具循环救援均双口径命中）；C 行 inc-04 呈现 full✓/delta✗（目标盲区形态实证）、inc-03 双沉默判为能力盲区（非增量特有损失）；FP 对照两口径零意见——开放问题②首轮结论：暂无「混合口径」进 Step 6 实现范围的证据
 - `score.ts` source 枚举 + 白名单注释扩展（incremental 不进 isCapabilitySource）；`test/eval-cases.test.ts` 校验扩展：full/delta 成对必须、repo 快照必带（两口径共用前提）、fixture 结构检查覆盖 incremental 组；计数 pin 61→71
+
+### Added（eval 支持 EVAL_ONLY 子集过滤，2026-11-04）
+
+- `EVAL_ONLY` 环境变量：逗号分隔 source 组名（如 `EVAL_ONLY=injection`），只跑所选组——分组频率复测、定向 prompt 迭代不再烧全量配额（全量 71 例 ~11.5 万 token，injection 组约为其 1/10）；未设置跑全量，行为不变
+- 组名对用例数据 fail-fast 校验（拼错报错并列出可用组，防静默跑出空集或子集被误当全量）；子集 run 在 console/md/run JSON 三处带 `evalOnly` 标记，机械消费方据此区分子集与全量，不进全量口径对比
+- `parseEvalOnly` 纯函数落 `evals/score.ts`（run.ts 顶层自执行、import 即触发不可测）；单测 4 例（174→178），全量路径零改动
