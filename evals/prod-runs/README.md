@@ -7,6 +7,7 @@
 ```bash
 npm run prodlogs                       # 拉最近 30m（CLI 默认窗），合并进 ledger.json
 npm run prodlogs -- --seed <jsonl>     # 追加 dashboard 导出的 JSONL（窗口外历史）
+npm run prodlogs -- --seed <jsonl> --seed-only   # 纯导入不实时拉取（端点不可达时）
 ```
 
 - **Hobby 保留期 ~30 分钟**：`--since 1h` 会报 "outside the available retention"。想不丢数据就勤跑——台账按 requestId 合并，重复执行安全，跑得越勤台账越全。

@@ -31,28 +31,29 @@ if (seed) {
   console.log(`[prodlogs] seed 文件：${seed}（${collected.filter((l) => l.trim()).length} 行）`);
 }
 
-if (!seed || !process.argv.includes("--seed-only")) {
+if (process.argv.includes("--seed-only") && !seed) {
+  console.error("[prodlogs] --seed-only 需要搭配 --seed <jsonl文件>（纯导入开关，不接受无数据的纯导出）");
+  process.exit(1);
+}
+if (!process.argv.includes("--seed-only")) {
   const cmd = "npx";
   const argv = ["-y", "vercel@latest", "logs", "--json", ...(since ? ["--since", since] : [])];
   console.log(`[prodlogs] 运行 ${cmd} ${argv.join(" ")} …`);
   const r = spawnSync(cmd, argv, { encoding: "utf8", cwd: fileURLToPath(new URL("..", import.meta.url)), shell: process.platform === "win32" });
-  if (r.error) {
-    console.error(`[prodlogs] spawn 失败：${String(r.error)}`);
-    process.exitCode = 1;
-  } else if (r.status !== 0) {
-    console.error(String(r.stderr || r.stdout));
-    process.exitCode = 1;
-  }
-  if (process.exitCode === 1) {
+  const fetchFailed = r.error !== undefined || r.status !== 0;
+  if (r.error) console.error(`[prodlogs] spawn 失败：${String(r.error)}`);
+  else if (r.status !== 0) console.error(String(r.stderr || r.stdout));
+  if (fetchFailed) {
+    // 降级：seed 数据完好则只用 seed 写台账；失败输出可能是错误信息/残缺行，不并入 collected
     if (seed && collected.some((l) => l.trim())) {
       console.error("[prodlogs] 实时拉取失败，但 seed 数据可用——降级为 seed-only 写台账（告警不中断）");
-      process.exitCode = 0;
     } else {
-      console.error("[prodlogs] 采集失败，跳过写台账（保留既有 ledger 不被空数据覆盖）；可用 --seed-only 走纯导入");
+      console.error("[prodlogs] 采集失败，跳过写台账（保留既有 ledger 不被空数据覆盖）；可用 --seed <f> --seed-only 走纯导入");
       process.exit(1);
     }
+  } else if (r.stdout) {
+    collected.push(...r.stdout.split("\n"));
   }
-  if (r.stdout) collected.push(...r.stdout.split("\n"));
 }
 
 const parsed = collected.map(parseLogLine);
