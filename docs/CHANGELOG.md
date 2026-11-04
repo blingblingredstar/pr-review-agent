@@ -289,3 +289,10 @@
 - 工具循环 probe 段（产出工具请求）不追加 JSON 块也不带 response_format——避免与 review-tools.md 两段协议判据冲突（D027 实测 response_format 抑制工具请求形态）；SDK 的 json_schema 有无即天然的段标记
 - `evals/run.ts` 的 promptHash 跟随实际生效 system（GLM 下字节不变 hash 不变；JSON 模式 run 自成指纹）
 - 单测 +3（178→181）：json 模式 system/降级、显式 response_format 优先、probe 段豁免；DeepSeek 真端点探针全链路验证（reviewDiff 结构化意见返回正常）
+
+### Added（生产 run 台账：log 采集脚本，2026-11-05 夜）
+
+- `npm run prodlogs`（`scripts/fetch-prod-usage.ts` + `src/prodlogs.ts`）：拉取 Vercel runtime log（`vercel logs --json`）→ 按 requestId 聚合 → `runKey`（`#PR@sha`）归组 → `evals/prod-runs/ledger.json` 累积台账；`--seed` 支持导入 dashboard 导出 JSONL（兼容其扁平形态 + epoch 毫秒时间戳）
+- 动机：Hobby runtime log 保留仅 ~30 分钟，bot 每审一个 PR 数据就在蒸发；台账让 Step 4 门槛（≥10 run）与成本/行为观测（router/probe/review tokens、工具调用、超时、降级）机械可测，替代手贴截图
+- 只读采集：零 LLM 调用、零 prompt 接触（能力组红线由构造保证）；解析/聚合/合并纯函数 + 7 个单测（182→189）
+- 首份台账随本 PR 入库：8 次审查 / 4 笔完整（#52、#53×2、#54，全部 glm-5.3@low），0 超时，review 合计 in 363,710 / out 4,403

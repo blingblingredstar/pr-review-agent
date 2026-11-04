@@ -13,7 +13,8 @@
     "review:local": "node --env-file=.env --import tsx scripts/local.ts",
     "review:pr": "node --env-file=.env --import tsx scripts/review-pr.ts",
     "setup:webhook": "node --env-file=.env --import tsx scripts/setup-webhook.ts",
-    "resolve:threads": "node --env-file=.env --import tsx scripts/resolve-threads.ts"
+    "resolve:threads": "node --env-file=.env --import tsx scripts/resolve-threads.ts",
+    "prodlogs": "node --env-file=.env --import tsx scripts/fetch-prod-usage.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.104",
