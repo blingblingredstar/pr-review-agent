@@ -195,19 +195,18 @@ export async function postReview(
         `</details>`,
       ].join("\n")
     : "";
-  const body = [
-    summary,
-    ...(degraded.length
-      ? [
-          "",
-          "> 以下意见的行号不在 diff 内，无法行内定位（无法进入意见闭环线程），处理时请对照文件：",
-          ...degraded.map((c) => `- \`${c.file}:${c.line}\` **[${c.severity}]** ${c.body}`),
-        ]
-      : []),
-    foldBlock,
-  ]
-    .filter((s) => s !== "")
-    .join("\n");
+  // 结构化块拼装：块间 \n\n（可选块整体缺席才不进数组，块内部的空行分隔符不受影响）
+  const bodyBlocks = [summary];
+  if (degraded.length) {
+    bodyBlocks.push(
+      [
+        "> 以下意见的行号不在 diff 内，无法行内定位（无法进入意见闭环线程），处理时请对照文件：",
+        ...degraded.map((c) => `- \`${c.file}:${c.line}\` **[${c.severity}]** ${c.body}`),
+      ].join("\n"),
+    );
+  }
+  if (minorish.length) bodyBlocks.push(foldBlock);
+  const body = bodyBlocks.join("\n\n");
   const reviewEvent = blocking.length > 0 ? "REQUEST_CHANGES" : "COMMENT";
   // 实际落点计数：422 回落全量降级后 inline=0——日志与 pr-review status 必须反映真实落点
   // （行内意味着可闭环线程，降级意味着需人工看 body），不能沿用预定位切分；folded = 折叠进 body 的 minor/nit
