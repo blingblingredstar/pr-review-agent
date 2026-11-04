@@ -153,13 +153,27 @@ test("reviewTriggerUsers 解析：空白 / 纯逗号视同未配置", () => {
 
 test("reviewMarker / hasReviewed：按 body 内嵌 sha 标记判定", async () => {
   const ref = { owner: "acme", repo: "demo", pullNumber: 7 };
-  assert.equal(reviewMarker("abc123"), `<!-- pr-review-agent sha:abc123 -->`);
+  assert.equal(reviewMarker("abc1234"), `<!-- pr-review-agent sha:abc1234 -->`);
   const client = (bodies: (string | null)[]) =>
     ({
       paginate: async () => bodies.map((body) => ({ body })),
       rest: { pulls: { listReviews: () => undefined } },
     }) as unknown as Parameters<typeof hasReviewed>[0];
-  assert.equal(await hasReviewed(client([null, `意见\n${reviewMarker("abc123")}`]), ref, "abc123"), true);
-  assert.equal(await hasReviewed(client([reviewMarker("other-sha")]), ref, "abc123"), false);
-  assert.equal(await hasReviewed(client([]), ref, "abc123"), false);
+  // sha 用 7 位（git 短 SHA 标准长度；MARKER_RE 下限即 7，6 位串不构成合法标记）
+  assert.equal(await hasReviewed(client([null, `意见\n${reviewMarker("abc1234")}`]), ref, "abc1234"), true);
+  assert.equal(await hasReviewed(client([reviewMarker("other-sha")]), ref, "abc1234"), false);
+  assert.equal(await hasReviewed(client([]), ref, "abc1234"), false);
+});
+
+test("hasReviewed：增量标记（sha:X base:Y）同样命中——裸 includes 会漏判（PR #59 复审 major 回归）", async () => {
+  const ref = { owner: "acme", repo: "demo", pullNumber: 7 };
+  const mkClient = (bodies: (string | null)[]) =>
+    ({
+      paginate: async () => bodies.map((body) => ({ body })),
+      rest: { pulls: { listReviews: () => undefined } },
+    }) as unknown as Parameters<typeof hasReviewed>[0];
+  const incrementalMarker = "<!-- pr-review-agent sha:abc1234 base:bbbb222 -->";
+  assert.equal(await hasReviewed(mkClient([`意见\n${incrementalMarker}`]), ref, "abc1234"), true, "base 后缀不影响 sha 命中");
+  assert.equal(await hasReviewed(mkClient([incrementalMarker]), ref, "bbbb222"), false, "base 值不是已审集合成员");
+  assert.equal(await hasReviewed(mkClient([reviewMarker("abc1234")]), ref, "abc1234"), true, "旧形态兼容");
 });
