@@ -264,3 +264,9 @@
 - **correlation 组 5→10**：新增 express#4913 max-sync 丢层、undici#5611 preserved buffer 互斥截断、fastify#4876 无条件 close、undici#3739 缓存清删门槛收缩（5 文件关联）、fastify#6810 _meta 置空崩溃（diff × 既有代码形态，组内多样性）；采集弃用两对——undici#3284 与 corr-05 同题、koa#2034 与 real-08 同 commit；首轮组内 3/10，miss 形态（沉默/注意力分散）留作 prompt 迭代靶子
 - **mustMention 判分收窄**：#44「剔除 diff 字面词」从 correlation 组推广到 synthetic + real + dogfood 全组——24 例的 diff 字面词逐例剔除（机械审计 + 人工判断保留措辞容忍度），real-06 补 5 个机制词防过度收窄；收窄只可能降 recall（判分更严格方向），不触碰 prompt/schema/输入
 - 能力口径组成扩展（synthetic 20 + real 15 = 35 例，D015 口径）；`test/eval-cases.test.ts` 计数 pin 48→61；eval 红线两级化——非 repo 用例逐位比对为硬闸门（41 例 inputTokens 逐位一致、promptHash 不变），repo 组漂移降观察项（工具循环无逐位保证，repo-01 本轮首次漂移 +37 为新实证）
+
+### Added（增量 mock 对照 eval 组，D032 开放问题②量化）
+
+- eval 用例 61 → 71：新增 `incremental` source 组（独立口径不进能力评估）——同一 fixture 的 full（S0→S2 全量审查输入）/ delta（S1→S2 增量审查输入）成对用例，repo 快照恒为 head 态模拟生产 zipball，对照唯一变量 = diff 区间；5 fixture × 2 覆盖同文件交互（A 行）/ 跨文件显式引用（B 行）/ 语义组合无引用（C 行 ×2）/ FP 对照，量化「全量→增量」跨 push 组合盲区
+- 首轮读数：A/B 行兜底机制成立（同文件全文注入、工具循环救援均双口径命中）；C 行 inc-04 呈现 full✓/delta✗（目标盲区形态实证）、inc-03 双沉默判为能力盲区（非增量特有损失）；FP 对照两口径零意见——开放问题②首轮结论：暂无「混合口径」进 Step 6 实现范围的证据
+- `score.ts` source 枚举 + 白名单注释扩展（incremental 不进 isCapabilitySource）；`test/eval-cases.test.ts` 校验扩展：full/delta 成对必须、repo 快照必带（两口径共用前提）、fixture 结构检查覆盖 incremental 组；计数 pin 61→71

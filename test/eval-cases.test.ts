@@ -80,11 +80,11 @@ function parseDiff(diff: string): { files: Set<string>; newLineRanges: Map<strin
   return { files, newLineRanges, errors };
 }
 
-test("用例集：61 个、id 唯一、synthetic 20（bug/linked 各 10）+ real 15 + dogfood 2 + injection 7 + repo 7 + correlation 10", async () => {
+test("用例集：71 个、id 唯一、synthetic 20（bug/linked 各 10）+ real 15 + dogfood 2 + injection 7 + repo 7 + correlation 10 + incremental 10", async () => {
   const cases = await loadCases();
-  assert.equal(cases.length, 61, `应有 61 个用例，实际 ${cases.length}`);
+  assert.equal(cases.length, 71, `应有 71 个用例，实际 ${cases.length}`);
   const ids = cases.map((c) => c.id);
-  assert.equal(new Set(ids).size, 61, "id 有重复");
+  assert.equal(new Set(ids).size, 71, "id 有重复");
   const synthetic = cases.filter((c) => (c.source ?? "synthetic") === "synthetic");
   assert.equal(synthetic.length, 20, "synthetic 应 20 个");
   assert.equal(synthetic.filter((c) => c.kind === "bug").length, 10, "synthetic bug 类应 10 个");
@@ -94,6 +94,13 @@ test("用例集：61 个、id 唯一、synthetic 20（bug/linked 各 10）+ real
   assert.equal(cases.filter((c) => c.source === "injection").length, 7, "injection 应 7 个");
   assert.equal(cases.filter((c) => c.source === "repo").length, 7, "repo 应 7 个");
   assert.equal(cases.filter((c) => c.source === "correlation").length, 10, "correlation 应 10 个");
+  assert.equal(cases.filter((c) => c.source === "incremental").length, 10, "incremental 应 10 个");
+  // 增量对照组（D032 开放问题②）：full/delta 成对（5 fixture × 2 口径）；id 前缀防漏写；
+  // repo 快照必带（head 态模拟生产 zipball，两口径共用同一快照——对照的唯一变量是 diff 区间）
+  const incIds = cases.filter((c) => c.source === "incremental").map((c) => c.id);
+  for (const base of ["inc-01-samefile-guard", "inc-02-contract-units", "inc-03-rename-old-field", "inc-04-const-dry", "inc-05-clean-helper"]) {
+    assert.ok(incIds.includes(`${base}-full`) && incIds.includes(`${base}-delta`), `${base} 缺 full/delta 成对用例`);
+  }
   // source 必须显式声明：real/dogfood 漏写会静默混进 synthetic 污染能力评估
   for (const c of cases) {
     assert.ok(c.source, `${c.id} 未显式声明 source`);
@@ -114,8 +121,13 @@ test("用例集：61 个、id 唯一、synthetic 20（bug/linked 各 10）+ real
     if (c.source === "repo") {
       assert.ok(c.id.startsWith("repo-"), `${c.id} source=repo 但 id 前缀不符`);
       assert.ok(c.repo && Object.keys(c.repo).length > 0, `${c.id} source=repo 但缺 repo fixture`);
-    } else {
-      assert.equal(c.repo, undefined, `${c.id} 非 repo 组不得携带 repo fixture（裸路径红线）`);
+    } else if (c.source !== "incremental") {
+      assert.equal(c.repo, undefined, `${c.id} 非 repo/incremental 组不得携带 repo fixture（裸路径红线）`);
+    }
+    // 增量对照组：repo 必带（head 态快照是两口径共用的前提，缺快照 delta 用例退化为裸路径、对照失效）
+    if (c.source === "incremental") {
+      assert.ok(c.id.startsWith("inc-"), `${c.id} source=incremental 但 id 前缀不符`);
+      assert.ok(c.repo && Object.keys(c.repo).length > 0, `${c.id} source=incremental 但缺 repo fixture`);
     }
     // 对抗性关联组（路线图第 1 项）：id 前缀防漏写；describe 里的 provenance（引入/修复 commit）随 description 必填，
     // 防止「手写想当然用例」混进组里（D015 教训：底料必须可追溯到真实仓库配对）
@@ -132,8 +144,8 @@ test("用例集：61 个、id 唯一、synthetic 20（bug/linked 各 10）+ real
   }
 });
 
-test("repo 组 fixture 结构：diff 触及文件都在快照中（head 态）、非 diff 文件 ≥2（答案文件 + 诱饵）", async () => {
-  const cases = (await loadCases()).filter((c) => c.source === "repo");
+test("repo/incremental 组 fixture 结构：diff 触及文件都在快照中（head 态）、非 diff 文件 ≥2（答案文件 + 诱饵）", async () => {
+  const cases = (await loadCases()).filter((c) => c.source === "repo" || c.source === "incremental");
   assert.ok(cases.length >= 6, "repo 组应有足够用例");
   for (const c of cases) {
     const repo = c.repo!;
