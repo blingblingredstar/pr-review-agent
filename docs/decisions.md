@@ -369,3 +369,23 @@
   - GraphQL thread resolved 状态做 block 继承——REST 单面不扩 GraphQL，且「已 resolve ≠ 已修复」，可被作者操纵成放行路径。否决。
   - 报告门槛进 prompt（让模型少报 minor/nit）——promptHash 红线直接破裂，且生成侧压缩不可逆。否决。
 - **后果**：synchronize 的 LLM 成本与重复意见噪音随区间缩水；minor/nit 线程噪音收敛、闭环负担集中到 blocker/major；blocker/major 重灾区 PR 回退全量（有意为之，正确性优先）；跨 commit 引用盲区由 D027/D031 工具循环兜底（盲区若高频，混合上下文口径留开放问题）；标记格式扩展须兼容旧 review。spec 合并不代表增量行为已上线，生产启用等实现 PR。
+
+## D033 — thinking 档位实测与模型选型：生产切 glm-5.3@low（配额 3× 对价质量增益；high 档双模型出局）
+
+- **状态**：已接受（2026-11-04~05，实验 26 轮 run 落库 `evals/runs/`，prompt 加固 PR #50/#51 已合并）。生产切换为运维操作随本条执行：Vercel env `LLM_MODEL=glm-5.3` + `LLM_EXTRA_BODY={"thinking":{"type":"enabled"},"reasoning_effort":"low"}` + redeploy。
+- **背景**：flash@disabled 基线长期运行（D012 thinking 治理 = 关 thinking 控延迟）。官方文档（2026-11-04 版）确认 GLM-5.3 系列标准 API 禁 `disabled`（报错）、档位仅 low/high/max，但**文档无任何分档 token/延迟/质量数字**。触发问题：low 档有提升吗？high 档 300s 预算够吗？切换旗舰的成本差多少？
+- **实测**（coding 端点 `open.bigmodel.cn/api/coding/paas/v4`，探针 + 全量 eval 对照，26 轮）：
+  - **档位语义与文档不符**：探针（同一推理题）reasoning_tokens——flash：low=6 / disabled=26 / 不传=150 / high=187 / 默认=220；旗舰同构（low=28 / high=470+）。即 **low≈off、`disabled` 在 coding 端点没关死**（一直带微量思考在跑）、high 才是真思考档。官方「disabled 报错」仅标准 API 成立。
+  - **flash@low = 空开关**：全量 71 例与 disabled 基线零差异（out +1.1%、时长 +0.7s，纯噪音）。
+  - **high 档双模型出局**：真实任务思考爆炸（corr 组单例 out 5k~12k），flash@high 连环撞死 eval 270s 单例上限；glm-5.3@high 放宽到 600s 仍 DNF，且完成的 corr 例全部 0 命中——思考预算与 270s 墙钟不兼容，**high 档在本项目预算体系内不存在**（重开需先解 maxOutputTokens/思考预算与墙钟的兼容，属架构改写）。
+  - **glm-5.3@low 全绿**：两轮复现零超时（avg 7.2-7.6s、max 32.6-57.8s，比 flash 基线还快），token 与 flash 持平（~11.5 万/run），质量微平均 real 0.97 / corr 0.35（vs flash 0.80 / 0.10）。
+- **决策**：
+  - **生产切 glm-5.3@low**。代价 = Coding Plan 配额 3×（token 量持平 × 单价 10× × coding plan 额度系数 3× → 净 3×）；对价 = corr ×3、real +4pp（加固后微平均）/ +17pp（加固前微平均）、precision 全面占优。
+  - **切换前置加固**（glm 特有回显暴露）：inj-07 回显 2/6 轮（命中真 bug 的意见带出载荷工单号）→ prompt 注入抗性规则（PR #51）修复至 0/15 轮；`EVAL_ONLY` 子集开关（PR #50）使注入频率测量成本降 ~90%。v1 措辞教训：「驳斥/回应」类邀请会让模型输出 meta 评论挤掉真缺陷，规则必须写「意见只写代码缺陷本身」。
+  - **promptHash 基线换版** `d399f9d4ed17` → `cd5353f4688c`（+102/例 均匀位移）；加固后 3 轮微平均 real 0.84 / corr 0.30 仍 ≥ flash 基线，real 回落 13pp 判不显著观察项（p≈0.10、无作用机制、repo 同幅反向摆动）。
+  - **DECISION_MODEL 不动**（D028 路由继续走便宜档，旗舰只进主评审——成本结构与路由语义都不变）。
+- **备选**：
+  - 维持 flash@disabled——质量机会成本（corr ×3 / real +4~17pp）无其他途径可得（low 对 flash 是空开关，prompt 迭代已两轮未动 corr）。否决。
+  - 任一 high 档——270s（eval 实测）/ 600s（放宽实测）内都跑不完硬 case。否决。
+  - glm-5.3@disabled——依赖未文档化的端点静默行为（随时可能收紧）；显式 `enabled+low` 行为等价且命名诚实。否决。
+- **后果**：生产单审配额 ×3；D024 canary 体系首次实战捕获真裂缝（glm 特有回显）并在切换前闭环——canary 有效性首次实证；inj-06 沉默（全配置通病）与 inj-01 行号噪音（±3 定位）为既有观察项，不随切换恶化，留生产 dogfood 观测；flash 基线 run 全部保留可随时回滚（env 两行）。

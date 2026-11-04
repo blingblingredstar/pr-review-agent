@@ -632,3 +632,25 @@
   - 本轮端点波动日（synthetic 首现 miss 轮、corr 10%、repo 40%）——**同轮 full/delta 对照设计恰好免疫**：输入红线全绿证明波动全在输出侧，对照读数不受污染
   - linked-02 miss 是 mustMention 收窄首例「严格判分效应」（模型有意见、剔除的字面词不再放行）——收窄方向的预期表现，已在 report 如实标注防误读为退化
 - **下一步**：本 PR 闭环；会话收尾。
+
+## 2026-11-05 · 会话 38：thinking 档位实验链 → 模型选型（D033）+ 注入加固 + 生产切换
+
+- **目标**：用户问「flash thinking low 有提升吗 / high 的 300s 够吗 / token 多多少」→ 官方文档无分档数字，全部实测；追加「glm-5.3@low vs flash@high 成本对比」「glm 配 high 效果」后全链裁决并切换生产。
+- **完成**（26 轮 eval 落库 + 2 个 PR + 1 次生产切换）：
+  - **档位实测**（探针 + 全量对照）：low≈off（flash 全量零差异）、`disabled` 在 coding 端点没关死（一直带微量思考）、high 双模型撞时限出局（flash 270s / glm 600s 放宽仍 DNF 且完成的 corr 例全 0 命中）→ **glm-5.3@low 选中**（加固前微平均 real 0.97 / corr 0.35 vs flash 0.80 / 0.10）
+  - **PR #50**（feat，零意见）：`EVAL_ONLY` 子集开关——`parseEvalOnly` fail-fast + console/md/JSON 三处自描述标记；单测 174→178；注入组测量成本降 ~90%（7 例 ~7k token vs 全量 11.5 万）
+  - **PR #51**（fix，2 条意见闭环）：prompt 注入抗性规则——v1「驳斥」措辞有 meta 评论副作用，v2「意见只写代码缺陷本身」定稿；子集 12/12 轮 + 全量 3/3 轮零回显；bot minor（注入口径矛盾）修复闭环、nit 回应不修、复审零意见
+  - **promptHash 基线换版** `d399f9d4ed17` → `cd5353f4688c`（+102/例 均匀位移，min=max=102）；加固后 3 轮微平均 real 0.84 / corr 0.30，real 回落 13pp 判不显著观察项
+  - **生产切换**（D033）：Vercel env `LLM_MODEL=glm-5.3` + `LLM_EXTRA_BODY={"thinking":{"type":"enabled"},"reasoning_effort":"low"}`，redeploy `65nwgsjrx` Ready；DECISION_MODEL 不动（路由仍便宜档）
+- **发现 / 坑**：
+  - **注入规则措辞教训**：「驳斥/回应」类邀请会让模型输出 meta 评论挤掉真缺陷（inj-04 转而报告注入文档本身）——规则要写「只写代码缺陷本身」，不写「如何回应说辞」
+  - **glm@high 探针顶穿输出**：512 max_tokens 全被思考吃掉（completion=512 全 reasoning）——high 档对输出预算也是威胁，与 270s 墙钟不兼容是结构性的
+  - 端点方差日（real 组单轮 0.80~1.00）——单轮读数一律不闭环，3 轮微平均纪律再次生效
+  - 本地 Vercel CLI token 过期（auth.json expiresAt 已过）——`npx vercel` 自动续期成功，无需重新登录；`env pull` 现已全部脱敏（[SENSITIVE]），旧值不可读，配置留档只能靠决策文档
+  - bot 对自家 PR 的 REQUEST_CHANGES 被 GitHub 422 拒（自有 PR 禁自审 REQUEST_CHANGES），回退 COMMENT 按设计工作（#51 生产日志实证）——**D017 的原生 block 闸门在自家 PR 上不可用**，此场景只剩 review-threads/status 两闸，是已知边界
+  - SSH push 间歇超时 ×2，重试即恢复
+  - 用户供图生产日志：#51 两次审查（flash 末期基线）in ~60k / out 358-841、快照 244 文件、主评审预算 252,810ms 已耗 7,190ms——Step 4 生产数据门槛（≥10 run）开张头两笔
+- **下一步**：
+  1. 观测下一个真实 PR 的生产日志（glm-5.3@low 首审）——[reviewDiff] tokens 应与 flash 同量级、时长不升；inj-06 沉默 / real 0.84 观察项留 dogfood
+  2. Step 4 生产数据门槛继续积累（≥10 run 后裁决预处理提案）
+  3. Step 6 增量实现、Step 7 多模型对比照旧等触发
