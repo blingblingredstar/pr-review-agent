@@ -1,0 +1,66 @@
+// npm run prodlogs —— 拉取 Vercel runtime log 聚合生产 run 台账（Step 4 数据出口）。
+// 数据源 = `npx vercel logs --json`（默认 30 分钟窗；Hobby 的 runtime log 保留期即 ~30 分钟，
+// 1h 会报 "outside the available retention"）。台账按 requestId 合并累积（重复执行安全，跑得越勤台账越全）。
+// 用法：
+//   npm run prodlogs                        # 拉最近 30m，合并进 evals/prod-runs/ledger.json
+//   npm run prodlogs -- --seed <jsonl文件>   # 追加解析 dashboard 导出的 JSONL（窗口外的历史数据）
+//   npm run prodlogs -- --seed <f> --seed-only  # 只导入不实时拉取（端点不可达时的纯导入路径）
+//   npm run prodlogs -- --since 10m         # 透传给 vercel logs
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { aggregateRuns, mergeLedger, parseLogLine, summarize, type Ledger } from "../src/prodlogs.ts";
+
+const args = process.argv.slice(2);
+const flag = (name: string): string | undefined => {
+  const i = args.indexOf(name);
+  // 取到的值以 "--" 开头 = 实际是下一个开关（如 --seed --since 10m），视为未提供
+  const v = i >= 0 ? args[i + 1] : undefined;
+  return v !== undefined && !v.startsWith("--") ? v : undefined;
+};
+const seed = flag("--seed");
+const since = flag("--since");
+
+const outUrl = new URL("../evals/prod-runs/ledger.json", import.meta.url);
+const readLedger = (): Ledger | null =>
+  existsSync(outUrl) ? (JSON.parse(readFileSync(outUrl, "utf8")) as Ledger) : null;
+
+const collected: string[] = [];
+if (seed) {
+  collected.push(...readFileSync(seed, "utf8").split("\n"));
+  console.log(`[prodlogs] seed 文件：${seed}（${collected.filter((l) => l.trim()).length} 行）`);
+}
+
+if (process.argv.includes("--seed-only") && !seed) {
+  console.error("[prodlogs] --seed-only 需要搭配 --seed <jsonl文件>（纯导入开关，不接受无数据的纯导出）");
+  process.exit(1);
+}
+if (!process.argv.includes("--seed-only")) {
+  const cmd = "npx";
+  const argv = ["-y", "vercel@latest", "logs", "--json", ...(since ? ["--since", since] : [])];
+  console.log(`[prodlogs] 运行 ${cmd} ${argv.join(" ")} …`);
+  const r = spawnSync(cmd, argv, { encoding: "utf8", cwd: fileURLToPath(new URL("..", import.meta.url)), shell: process.platform === "win32" });
+  const fetchFailed = r.error !== undefined || r.status !== 0;
+  if (r.error) console.error(`[prodlogs] spawn 失败：${String(r.error)}`);
+  else if (r.status !== 0) console.error(String(r.stderr || r.stdout));
+  if (fetchFailed) {
+    // 降级：seed 数据完好则只用 seed 写台账；失败输出可能是错误信息/残缺行，不并入 collected
+    if (seed && collected.some((l) => l.trim())) {
+      console.error("[prodlogs] 实时拉取失败，但 seed 数据可用——降级为 seed-only 写台账（告警不中断）");
+    } else {
+      console.error("[prodlogs] 采集失败，跳过写台账（保留既有 ledger 不被空数据覆盖）；可用 --seed <f> --seed-only 走纯导入");
+      process.exit(1);
+    }
+  } else if (r.stdout) {
+    collected.push(...r.stdout.split("\n"));
+  }
+}
+
+const parsed = collected.map(parseLogLine);
+const fresh = aggregateRuns(parsed);
+const merged = mergeLedger(readLedger(), fresh, new Date().toISOString());
+mkdirSync(new URL("../evals/prod-runs/", import.meta.url), { recursive: true });
+writeFileSync(outUrl, JSON.stringify(merged, null, 2) + "\n");
+console.log(`[prodlogs] 本次解析 ${parsed.filter((p) => p !== null).length} 行 → ${Object.keys(fresh).length} 个 request → 台账 ${Object.keys(merged.runs).length} 个 run`);
+console.log(`[prodlogs] ${summarize(merged)}`);
+console.log(`[prodlogs] 已写入 evals/prod-runs/ledger.json`);
