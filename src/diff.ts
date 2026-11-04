@@ -211,10 +211,54 @@ export function truncateDiff(diff: string, budget: number = diffMaxChars()): str
     keep.add(i);
     used += blocks[i].size;
   }
+  // 新建文件 hunk 级部分保留（D018 缺口修复，2026-11-05）：整块装不下的新建文件原样整块省略 =
+  // 审查盲区（大新建源码文件恰是最值得审的内容）。新建文件全为 + 行、hunk 头自带新文件行号起点，
+  // 前缀保留的行号锚点完整性不受影响；修改文件的 hunk 与上下文/-行交错，维持整块语义（D018 本体不动）。
+  // 预算内装不下 header+首 hunk 时仍走整块省略行（原行为）；按块原顺序分配剩余预算（确定性）。
+  const splitNewFileHunks = (b: (typeof blocks)[number]): { header: string[]; hunks: string[][] } | null => {
+    if (!b.isNew || b.noise || b.binary || b.pseudo) return null;
+    const header: string[] = [];
+    const hunks: string[][] = [];
+    let cur: string[] | null = null;
+    for (const line of b.lines) {
+      if (line.startsWith("@@ ")) {
+        cur = [line];
+        hunks.push(cur);
+      } else if (cur) cur.push(line);
+      else header.push(line);
+    }
+    return hunks.length > 0 ? { header, hunks } : null;
+  };
+  const partials = new Map<number, { lines: string[]; kept: number; total: number }>();
+  let usedWithPartials = used;
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i]!;
+    if (keep.has(i)) continue;
+    const split = splitNewFileHunks(b);
+    if (!split) continue;
+    let size = split.header.join("\n").length + 1;
+    if (size > budget - usedWithPartials) continue;
+    let keptHunks = 0;
+    for (const h of split.hunks) {
+      const hunkSize = h.join("\n").length + 1;
+      if (size + hunkSize > budget - usedWithPartials) break;
+      size += hunkSize;
+      keptHunks++;
+    }
+    if (keptHunks === 0) continue;
+    const lines = [...split.header, ...split.hunks.slice(0, keptHunks).flat()];
+    lines.push(`[diff 截断] 本文件超出预算：仅保留前 ${keptHunks}/${split.hunks.length} 个 hunk（新建文件全文 +${b.adds} 行，其余内容未经审查）`);
+    partials.set(i, { lines, kept: keptHunks, total: split.hunks.length });
+    usedWithPartials += size;
+  }
   const kept = blocks.filter((_, i) => keep.has(i));
-  // 非文件的 pseudo 块被丢弃时不产出省略行、不进汇总计数
-  const omitTargets = blocks.filter((b, i) => !keep.has(i) && !b.pseudo);
-  const out = kept.flatMap((b) => b.lines);
+  // 非文件的 pseudo 块被丢弃时不产出省略行、不进汇总计数；部分保留的块不进省略行（已带自身截断标注）
+  const omitTargets = blocks.filter((b, i) => !keep.has(i) && !b.pseudo && !partials.has(i));
+  const out: string[] = [];
+  for (let i = 0; i < blocks.length; i++) {
+    if (keep.has(i)) out.push(...blocks[i]!.lines);
+    else if (partials.has(i)) out.push(...partials.get(i)!.lines);
+  }
   const omitLines = omitTargets.map((b) => {
     // 标注让模型分清「预算丢的普通文件」「规则跳过的生成物」「没看到内容的新建文件」——最后者是审查盲区，最值得人工补看
     const tag = b.noise ? "生成物" : b.isNew ? "新建文件" : "";
@@ -222,7 +266,7 @@ export function truncateDiff(diff: string, budget: number = diffMaxChars()): str
   });
   // 省略行自身也占输出：丢弃文件极多时会反噬预算——超了就压缩成一行汇总（总量有界，无条件核对）。
   // 压缩会让逐条标注消失，汇总行带各类计数把「生成物/新建文件」信号保留给模型（PR #18 自审意见）
-  if (used + omitLines.join("\n").length + 1 > budget) {
+  if (usedWithPartials + omitLines.join("\n").length + 1 > budget) {
     const adds = omitTargets.reduce((s, b) => s + b.adds, 0);
     const dels = omitTargets.reduce((s, b) => s + b.dels, 0);
     const noise = omitTargets.filter((b) => b.noise).length;
@@ -238,7 +282,10 @@ export function truncateDiff(diff: string, budget: number = diffMaxChars()): str
   const noiseCount = blocks.filter((b) => b.noise).length;
   console.log(
     `[truncateDiff] 预算 ${budget} 字符：${blocks.length} 个文件块保留 ${kept.length} 个、省略 ${blocks.length - kept.length} 个` +
-      (noiseCount > 0 ? `，其中生成物按规则跳过 ${noiseCount} 个` : ""),
+      (noiseCount > 0 ? `，其中生成物按规则跳过 ${noiseCount} 个` : "") +
+      (partials.size > 0
+        ? `；新建文件 hunk 级截断 ${partials.size} 个（${[...partials.values()].map((p) => `${p.kept}/${p.total} hunk`).join("、")}）`
+        : ""),
   );
   return out.join("\n");
 }
