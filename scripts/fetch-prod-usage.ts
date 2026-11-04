@@ -4,8 +4,10 @@
 // 用法：
 //   npm run prodlogs                        # 拉最近 30m，合并进 evals/prod-runs/ledger.json
 //   npm run prodlogs -- --seed <jsonl文件>   # 追加解析 dashboard 导出的 JSONL（窗口外的历史数据）
+//   npm run prodlogs -- --seed <f> --seed-only  # 只导入不实时拉取（端点不可达时的纯导入路径）
 //   npm run prodlogs -- --since 10m         # 透传给 vercel logs
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { aggregateRuns, mergeLedger, parseLogLine, summarize, type Ledger } from "../src/prodlogs.ts";
 
@@ -33,7 +35,7 @@ if (!seed || !process.argv.includes("--seed-only")) {
   const cmd = "npx";
   const argv = ["-y", "vercel@latest", "logs", "--json", ...(since ? ["--since", since] : [])];
   console.log(`[prodlogs] 运行 ${cmd} ${argv.join(" ")} …`);
-  const r = spawnSync(cmd, argv, { encoding: "utf8", cwd: new URL("..", import.meta.url).pathname, shell: process.platform === "win32" });
+  const r = spawnSync(cmd, argv, { encoding: "utf8", cwd: fileURLToPath(new URL("..", import.meta.url)), shell: process.platform === "win32" });
   if (r.error) {
     console.error(`[prodlogs] spawn 失败：${String(r.error)}`);
     process.exitCode = 1;
@@ -42,8 +44,13 @@ if (!seed || !process.argv.includes("--seed-only")) {
     process.exitCode = 1;
   }
   if (process.exitCode === 1) {
-    console.error("[prodlogs] 采集失败，跳过写台账（保留既有 ledger 不被空数据覆盖）；可用 --seed-only 走纯导入");
-    process.exit(1);
+    if (seed && collected.some((l) => l.trim())) {
+      console.error("[prodlogs] 实时拉取失败，但 seed 数据可用——降级为 seed-only 写台账（告警不中断）");
+      process.exitCode = 0;
+    } else {
+      console.error("[prodlogs] 采集失败，跳过写台账（保留既有 ledger 不被空数据覆盖）；可用 --seed-only 走纯导入");
+      process.exit(1);
+    }
   }
   if (r.stdout) collected.push(...r.stdout.split("\n"));
 }
