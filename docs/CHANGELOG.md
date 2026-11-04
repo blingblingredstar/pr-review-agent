@@ -296,3 +296,10 @@
 - 动机：Hobby runtime log 保留仅 ~30 分钟，bot 每审一个 PR 数据就在蒸发；台账让 Step 4 门槛（≥10 run）与成本/行为观测（router/probe/review tokens、工具调用、超时、降级）机械可测，替代手贴截图
 - 只读采集：零 LLM 调用、零 prompt 接触（能力组红线由构造保证）；解析/聚合/合并纯函数 + 7 个单测（182→189）
 - 首份台账随本 PR 入库（种子 + 首次实时拉取，fetchedAt 18:25Z）：5 个 runKey 全部完成（#52、#53×2、#54、#55@a50bd6e，glm-5.3@low），0 超时，review 合计 in 441,420 / out 7,193；台账为活文件（每次采集按 requestId 字段级合并累积，PR 合并时的数字可能因 bot 复审继续增长，以 ledger.json 实际内容为准）
+
+### Added（DeepSeek 三档对照归档 + run 文件名防碰撞，2026-11-05 夜）
+
+- eval 三档对照归档：`deepseek-flash` disabled/low/high 全量（71 例 × 3 全 0 错误，promptHash `7be33f4d6fbc`）——high 档 corr 0.50 / repo 1.00（历史首次满分）、low 档能力 recall 91.4% + synthetic 满分、disabled 1.9s/例极快极省；三档 injection 全 7/7 零回显。「同名档位不同语义」第三厂商复现（DeepSeek disabled 真关 / low 真思考，与 GLM 相反）
+- **数据事故与恢复**：三档并行同秒启动 → run 文件名互覆（disabled/low JSON 被 high 覆盖）；stdout 流式日志完整抢救（`evals/runs/recovery-20261105-deepseek-tiers/`），报告级数据无损失
+- 根因修复：`evals/run.ts` 文件名加 `LLM_EXTRA_BODY` sha256 指纹后缀 + run JSON 落盘 `llmExtraBody` 原文——同模型不同配置并行不再互覆，配置自描述
+- `evals/report.md` 增补三档对照段（跨 glm-5.3@low 与 flash 基线对比 + 生产选型不动、DECISION_MODEL 候选结论）
