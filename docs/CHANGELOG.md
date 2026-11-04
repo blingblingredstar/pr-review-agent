@@ -314,3 +314,11 @@
 - 大新建文件整块装不下预算时不再整块静默丢弃（审查盲区：最值得审的内容最先消失）——新建文件全为 + 行、hunk 头自带新文件行号起点，前缀保留（header + 预算内的前 K 个 hunk）+ 截断标注行（「仅保留前 K/N 个 hunk（新建文件全文 +N 行，其余内容未经审查）」），行号锚点完整性不破
 - 修改文件维持 D018 整块语义（hunk 与上下文/-行交错，切分破坏锚点）；预算连 header+首 hunk 都装不下时维持整块省略行（原行为）；生成物/二进制/伪块不参与部分保留
 - 单测 +5（192→197）：部分保留锚点与标注、装不下维持省略、修改文件不降级、预算内零截断回归、标注行幻影行号口径（diffCoveredLines）
+
+### Added（D032 增量审查实现 + 报告门槛细化，2026-11-05 夜）
+
+- **增量审查**（spec `docs/plans/incremental-review.md` 落地）：`src/incremental.ts`——已审 SHA 集合从 review 标记现查推导（`sha:` 键语义不变，增量 run 标记扩 `base:` 键、旧标记缺省合法）；base = 过滤后最新有效 review（有效 = SHA 仍在 PR commits 列表，force-push 自动回退全量）；block 继承同源同滤（上条有效 review 含 blocker/major → 回退全量，旧意见的解除依据只能来自全量重审）；区间 diff = compare API + `fileToDiffBlock` 原样复用（空区间 / 超 300 files 单响应上限 / 任何失败上抛 → worker 回退全量——增量是优化不是依赖）。worker prepare 接线（决策失败 console.log + 全量），review/publish 阶段零改动（state 袋透传）
+- **发布门槛细化**（`postReview`，全量/增量统一）：blocker/major 行内必报（可定位线程 / 不可定位降级列表，现状语义）；minor/nit 不再逐条行内，折叠进 body `<details>` 段（逐条一行与降级列表同构、机器可解析）；REQUEST_CHANGES 收窄为「有 blocker/major」（D017 收窄非翻案）；标记支持 `base:` 与 summary 增量区间可读行；posted 返回值增 `folded` 计数（日志与 status description 同步）
+- 处置口径随实现扩展：AGENTS.md「意见闭环」更新为三处核对（行内线程 + 降级列表 + 折叠段，同标准逐条留痕）；architecture.md 组件表增 `src/incremental.ts`
+- 红线兑现（构造保证）：增量组装在 worker 编排层、门槛在发布层，evals 直调 `reviewDiff` 零接触——promptHash 不变、逐用例输入 tokens 不变
+- 单测 +6（197→203）：标记解析五形态、hasBlockerOrMajor 双形态、decideIncrement 四模式 + force-push 边界、fake octokit 端到端（compare files 同形拼装 + 删除文件 /dev/null 语义）、三失败回退上抛；worker 编排测试同步（paginate 4 次 / COMMENT 收窄 / 折叠段断言）

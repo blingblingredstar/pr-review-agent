@@ -117,15 +117,18 @@ async function assembleDiffViaFiles(client: Octokit, { owner, repo, pullNumber }
 
 const SEVERITY_ORDER = ["blocker", "major", "minor", "nit"] as const;
 
-function summaryBody(result: ReviewResult, headSha: string): string {
+function summaryBody(result: ReviewResult, headSha: string, incrementalBase: string | null = null): string {
   const bySeverity = SEVERITY_ORDER.map((s) => `${s}×${result.comments.filter((c) => c.severity === s).length}`)
     .filter((s) => !s.endsWith("×0"))
     .join(" / ");
   return [
     `🤖 pr-review-agent 审查意见（共 ${result.comments.length} 条${bySeverity ? `：${bySeverity}` : ""}）`,
-    "",
-    reviewMarker(headSha),
-  ].join("\n");
+    // 增量审查（D032）人工可读行：与隐藏标记互为印证（标记 base: 键记录同一信息）
+    incrementalBase ? `增量区间 \`${incrementalBase.slice(0, 7)}..${headSha.slice(0, 7)}\`（此前 SHA 已审，仅审区间 diff）` : "",
+    reviewMarker(headSha, incrementalBase),
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 // severity → 标签：blocker/major 是需要人介入的信号，minor/nit 常见、打满成噪音。
@@ -158,32 +161,56 @@ export function splitByLocatable(
   return { inline, degraded };
 }
 
+// 发布门槛（D032 §二.6）：blocker/major 行内必报（可定位 → 行内线程，不可定位 → body 降级列表，现状语义）；
+// minor/nit 不再逐条行内，折叠进 body `<details>` 汇总段（逐条一行、与降级意见列表同构、机器可解析）——
+// 线程只留给需要人介入的信号，resolve 闭环负担不随噪音增长；全量/增量统一生效，不为增量单开一支。
+// 层位在发布层不进 prompt：模型 schema 照常全量输出全部 severity，promptHash 红线零接触。
+// REQUEST_CHANGES 判定收窄为「有 blocker/major」（D017 收窄非翻案：block 的本意就是需要人介入）
 export async function postReview(
   client: Octokit,
   { owner, repo, pullNumber, commitId }: PrRef & { commitId: string },
   result: ReviewResult,
   diff: string,
-): Promise<{ inline: number; degraded: number }> {
-  const { inline, degraded } = splitByLocatable(result, diff);
+  opts?: { incrementalBase?: string | null },
+): Promise<{ inline: number; degraded: number; folded: number }> {
+  const blocking = result.comments.filter((c) => c.severity === "blocker" || c.severity === "major");
+  const minorish = result.comments.filter((c) => c.severity === "minor" || c.severity === "nit");
+  const { inline, degraded } = splitByLocatable({ comments: blocking }, diff);
   const comments = inline.map(({ comment: c, path }) => ({
     path,
     line: c.line,
     side: "RIGHT" as const,
     body: `**[${c.severity}]** ${c.body}`,
   }));
-  const summary = summaryBody(result, commitId);
-  const body = degraded.length
+  const summary = summaryBody(result, commitId, opts?.incrementalBase ?? null);
+  // 折叠段与降级列表同构：逐条一行 `- \`file:line\` **[severity]** 全文`，机器可解析——
+  // 意见处置口径（AGENTS.md）要求折叠段与降级列表同标准逐条核对留痕
+  const foldBlock = minorish.length
     ? [
-        summary,
         "",
+        `<details>`,
+        `<summary>minor/nit ×${minorish.length}（不进线程闭环，处置口径见 AGENTS.md「意见闭环」）</summary>`,
+        "",
+        ...minorish.map((c) => `- \`${c.file}:${c.line}\` **[${c.severity}]** ${c.body}`),
+        `</details>`,
+      ].join("\n")
+    : "";
+  // 结构化块拼装：块间 \n\n（可选块整体缺席才不进数组，块内部的空行分隔符不受影响）
+  const bodyBlocks = [summary];
+  if (degraded.length) {
+    bodyBlocks.push(
+      [
         "> 以下意见的行号不在 diff 内，无法行内定位（无法进入意见闭环线程），处理时请对照文件：",
         ...degraded.map((c) => `- \`${c.file}:${c.line}\` **[${c.severity}]** ${c.body}`),
-      ].join("\n")
-    : summary;
-  const reviewEvent = result.comments.length > 0 ? "REQUEST_CHANGES" : "COMMENT";
+      ].join("\n"),
+    );
+  }
+  if (minorish.length) bodyBlocks.push(foldBlock);
+  const body = bodyBlocks.join("\n\n");
+  const reviewEvent = blocking.length > 0 ? "REQUEST_CHANGES" : "COMMENT";
   // 实际落点计数：422 回落全量降级后 inline=0——日志与 pr-review status 必须反映真实落点
-  // （行内意味着可闭环线程，降级意味着需人工看 body），不能沿用预定位切分
-  let posted = { inline: inline.length, degraded: degraded.length };
+  // （行内意味着可闭环线程，降级意味着需人工看 body），不能沿用预定位切分；folded = 折叠进 body 的 minor/nit
+  let posted = { inline: inline.length, degraded: degraded.length, folded: minorish.length };
   // 统一提交通道：REQUEST_CHANGES 被 403（无写权限）/ 422（自家 PR 不能 request changes on own pull request）拒绝时
   // 回退 COMMENT——意见不丢，只降级为不 block。dogfood（bot = PR 作者）场景恒走回退，多仓产品化时原生生效
   const createReviewWithFallback = async (event: "COMMENT" | "REQUEST_CHANGES", reviewBody: string, withComments: boolean) => {
@@ -222,9 +249,9 @@ export async function postReview(
       "> 部分意见的行号不在 diff 内，无法行内定位，全部列在下面：",
       ...result.comments.map((c) => `- \`${c.file}:${c.line}\` **[${c.severity}]** ${c.body}`),
     ].join("\n");
-    // 降级只改意见落点（全部进 body），block 语义不变：有意见仍 REQUEST_CHANGES
+    // 降级只改意见落点（全部进 body），block 语义不变：有 blocker/major 仍 REQUEST_CHANGES
     await createReviewWithFallback(reviewEvent, fallback, false);
-    posted = { inline: 0, degraded: result.comments.length };
+    posted = { inline: 0, degraded: result.comments.length, folded: 0 };
   }
   const labels = severityLabels(result);
   if (labels.length > 0) {
