@@ -109,3 +109,22 @@ test("summarize：prepare 段（runKey=null）不计入审查数、单列未归�
   assert.match(s, /未归组段 1/, "prepare 段单列不消失");
   assert.match(s, /review in 20000 \/ out 500/, "token 统计不丢");
 });
+
+test("mergeLedger：字段级合并——跨窗口的同一 requestId 不丢已捕获字段（自审 major 口径）", () => {
+  // 第一次抓到 review 段（tokens + tools），第二次同 requestId 只剩 publish 段（outcome），
+  // 整记录覆盖会丢 tokens/toolCalls——字段级合并必须保留
+  const first = aggregateRuns([
+    parseLogLine(L("2026-11-04T17:00:00Z", "r1", "[worker] x/y#1@abc 主评审预算 250000ms"))!,
+    parseLogLine(L("2026-11-04T17:00:30Z", "r1", "[reviewDiff] tokens: in 20000 / out 500"))!,
+    parseLogLine(L("2026-11-04T17:00:31Z", "r1", '[tools] step 1: read src/a.ts (100 chars)'))!,
+  ])!;
+  const second = aggregateRuns([
+    parseLogLine(L("2026-11-04T17:00:40Z", "r1", "[worker] x/y#1@abc 完成：0 条行内，0 条降级"))!,
+  ])!;
+  const merged = mergeLedger({ fetchedAt: "t0", runs: first }, second, "t1");
+  const run = merged.runs["r1"]!;
+  assert.deepEqual(run.reviewTokens, { in: 20000, out: 500 }, "整记录覆盖会丢 tokens");
+  assert.equal(run.toolCalls.length, 1, "整记录覆盖会丢 toolCalls");
+  assert.deepEqual(run.outcome, { inline: 0, degraded: 0 }, "新捕获的 outcome 落位");
+  assert.equal(run.durationMs, 40_000, "时间窗取并集");
+});

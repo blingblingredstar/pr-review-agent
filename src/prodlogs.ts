@@ -141,9 +141,43 @@ export function aggregateRuns(lines: (VercelLogLine | null)[]): Record<string, P
   return runs;
 }
 
-// 台账合并：requestId 相同 = 同一次 run，新记录覆盖旧记录（后抓到的窗口信息更全：完成行只有跑完才有）
+// 台账合并：requestId 相同 = 同一次审查的多段请求。**字段级合并**（非 null 字段才落位、数组并集去重、
+// 时间窗取并集）而非整记录覆盖——同一 requestId 的日志行可能跨抓取窗口分布（上一次抓到 review 段、
+// 这一次只抓到 publish 段的完成行），整记录覆盖会把已捕获的 tokens/toolCalls 丢掉，台账只会越跑越少
 export function mergeLedger(prev: Ledger | null, fresh: Record<string, ProdRun>, fetchedAt: string): Ledger {
-  return { fetchedAt, runs: { ...prev?.runs, ...fresh } };
+  const runs: Record<string, ProdRun> = { ...prev?.runs };
+  for (const [rid, next] of Object.entries(fresh)) {
+    const prevRun = runs[rid];
+    runs[rid] = prevRun ? mergeRuns(prevRun, next) : next;
+  }
+  return { fetchedAt, runs };
+}
+
+function mergeRuns(a: ProdRun, b: ProdRun): ProdRun {
+  const startedAt = a.startedAt < b.startedAt ? a.startedAt : b.startedAt;
+  const finishedAt = a.finishedAt > b.finishedAt ? a.finishedAt : b.finishedAt;
+  const seen = new Set(a.toolCalls.map((t) => JSON.stringify(t)));
+  return {
+    startedAt,
+    finishedAt,
+    durationMs: Math.max(0, new Date(finishedAt).getTime() - new Date(startedAt).getTime()),
+    pr: a.pr ?? b.pr,
+    headSha: a.headSha ?? b.headSha,
+    runKey: a.runKey ?? b.runKey,
+    routerTokens: a.routerTokens ?? b.routerTokens,
+    probeTokens: a.probeTokens ?? b.probeTokens,
+    reviewTokens: a.reviewTokens ?? b.reviewTokens,
+    toolRequests: a.toolRequests ?? b.toolRequests,
+    toolCalls: [...a.toolCalls, ...b.toolCalls.filter((t) => !seen.has(JSON.stringify(t)))],
+    task: a.task ?? b.task,
+    context: a.context ?? b.context,
+    truncation: a.truncation ?? b.truncation,
+    warnings: [...new Set([...a.warnings, ...b.warnings])],
+    outcome: a.outcome ?? b.outcome,
+    timeout: a.timeout || b.timeout,
+    deploymentId: a.deploymentId ?? b.deploymentId,
+    environment: a.environment ?? b.environment,
+  };
 }
 
 // 台账汇总（报告/journal 引用的机械出口）：审查次数 = distinct runKey（一次审查的多段请求归组）。
