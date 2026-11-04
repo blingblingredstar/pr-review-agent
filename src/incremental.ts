@@ -3,31 +3,13 @@
 // 不是依赖，绝不因增量路径失败导致 push 无审查）。evals 直调 reviewDiff 不经过本模块，能力组红线零接触。
 import type { Octokit } from "octokit";
 import { fileToDiffBlock, type PrFile, type PrRef } from "./github.ts";
+// eslint-disable-next-line -- parseBotReviews 经上面 re-export + 本文件 listBotReviews 使用
 
-// review body 内嵌标记：`<!-- pr-review-agent sha:<head> -->`（全量，旧形态）与
-// `<!-- pr-review-agent sha:<head> base:<base> -->`（增量，D032 扩展；旧标记缺 base 合法）
-const MARKER_RE = /<!-- pr-review-agent sha:([0-9a-f]{7,40})(?: base:([0-9a-f]{7,40}))? -->/g;
+// 标记解析（MARKER_RE / parseBotReviews / BotReview）住在 dedupe.ts——标记的家在那里，
+// hasReviewed 与 base 推导共用同一解析（防止两处各写各的形态匹配漂移）
+export { parseBotReviews, type BotReview } from "./dedupe.ts";
 
-export type BotReview = {
-  id: number;
-  sha: string;
-  base: string | null;
-  submittedAt: string;
-  body: string;
-};
-
-// 从 review 列表抽取本 agent 的标记（sha + 可选 base）。人工 review / 第三方 bot 无此标记天然不参与；
-// 一条 review 只写一个标记（summaryBody），解析容忍多条（各产出独立条目，历史手拼 body 不炸）
-export function parseBotReviews(reviews: { id: number; body: unknown; submitted_at?: string | null }[]): BotReview[] {
-  const out: BotReview[] = [];
-  for (const r of reviews) {
-    if (typeof r.body !== "string") continue;
-    for (const m of r.body.matchAll(MARKER_RE)) {
-      out.push({ id: r.id, sha: m[1]!, base: m[2] ?? null, submittedAt: r.submitted_at ?? "", body: r.body });
-    }
-  }
-  return out;
-}
+import { parseBotReviews, type BotReview } from "./dedupe.ts";
 
 // 最新有效 review 的意见分布是否含 blocker/major——读自己写的 body：summary 行「blocker×N」与
 // 降级/折叠行「**[blocker]**」两类形态（自审：inline 评论 body 不在 review.body 里，但折叠/降级/

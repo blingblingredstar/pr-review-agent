@@ -163,3 +163,10 @@ test("reviewMarker / hasReviewed：按 body 内嵌 sha 标记判定", async () =
   assert.equal(await hasReviewed(client([reviewMarker("other-sha")]), ref, "abc123"), false);
   assert.equal(await hasReviewed(client([]), ref, "abc123"), false);
 });
+
+test("hasReviewed：增量标记（sha:X base:Y）同样命中——裸 includes 会漏判（PR #59 复审 major 回归）", async () => {
+  const ref = { owner: "o", repo: "r", pullNumber: 1 };
+  const incrementalMarker = "<!-- pr-review-agent sha:abc123 base:bbbb222 -->";
+  assert.equal(await hasReviewed(client([`意见\n${incrementalMarker}`]), ref, "abc123"), true, "base 后缀不影响 sha 命中");
+  assert.equal(await hasReviewed(client([incrementalMarker]), ref, "bbbb222"), false, "base 值不是已审集合成员");
+});
