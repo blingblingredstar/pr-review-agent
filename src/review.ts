@@ -40,7 +40,12 @@ function loadJsonOutputPrompt(): string {
 
 // 导出给 evals/run.ts 的 promptHash：指纹跟随实际生效的 system（GLM 下字节不变 → hash 不变）
 export function withJsonSuffix(base: string): string {
-  return jsonMode() ? `${base}\n\n${loadJsonOutputPrompt()}` : base;
+  return withJsonSuffixFor(base, loadJsonOutputPrompt());
+}
+
+// 通用形态（router.ts 用自己的形状文件 prompts/json-output-router.md——ReviewPlan 与 ReviewResult 契约不同）
+export function withJsonSuffixFor(base: string, suffix: string): string {
+  return jsonMode() ? `${base}\n\n${suffix}` : base;
 }
 
 // 端点扩展点（D002 厂商中立）：LLM_EXTRA_BODY 为 JSON 对象，合并进每次请求体（显式配置优先）。
