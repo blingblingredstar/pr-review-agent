@@ -231,23 +231,28 @@ export function truncateDiff(diff: string, budget: number = diffMaxChars()): str
   };
   const partials = new Map<number, { lines: string[]; kept: number; total: number }>();
   let usedWithPartials = used;
+  // 标注行（「仅保留前 K/N 个 hunk…」）自身占 60-90 字符，预算判定按 100 上限预留——
+  // 不预留则多个部分保留块叠加时标注行漏记、最终输出漂出预算（自审 minor：守恒缺口）
+  const MARKER_ALLOWANCE = 100;
   for (let i = 0; i < blocks.length; i++) {
     const b = blocks[i]!;
     if (keep.has(i)) continue;
     const split = splitNewFileHunks(b);
     if (!split) continue;
     let size = split.header.join("\n").length + 1;
-    if (size > budget - usedWithPartials) continue;
+    if (size + MARKER_ALLOWANCE > budget - usedWithPartials) continue;
     let keptHunks = 0;
     for (const h of split.hunks) {
       const hunkSize = h.join("\n").length + 1;
-      if (size + hunkSize > budget - usedWithPartials) break;
+      if (size + MARKER_ALLOWANCE + hunkSize > budget - usedWithPartials) break;
       size += hunkSize;
       keptHunks++;
     }
     if (keptHunks === 0) continue;
     const lines = [...split.header, ...split.hunks.slice(0, keptHunks).flat()];
-    lines.push(`[diff 截断] 本文件超出预算：仅保留前 ${keptHunks}/${split.hunks.length} 个 hunk（新建文件全文 +${b.adds} 行，其余内容未经审查）`);
+    const marker = `[diff 截断] 本文件超出预算：仅保留前 ${keptHunks}/${split.hunks.length} 个 hunk（新建文件全文 +${b.adds} 行，其余内容未经审查）`;
+    lines.push(marker);
+    size += marker.length;
     partials.set(i, { lines, kept: keptHunks, total: split.hunks.length });
     usedWithPartials += size;
   }

@@ -326,7 +326,7 @@ test("truncateDiff：装不下的大新建文件 hunk 级部分保留——锚�
   const hunk = (start: number) => [`@@ -0,0 +${start},2 @@`, "+" + `x${start} `.padEnd(200, "v"), "+" + `w${start} `.padEnd(200, "u")].join("\n");
   const big = ["diff --git a/src/new-module.ts b/src/new-module.ts", "new file mode 100644", hunk(1), hunk(3), hunk(5)].join("\n") + "\n";
   // 预算 = src + header + 恰好 1 个 hunk 的量级：整块装不下、header+首 hunk 装得下
-  const out = truncateDiff(big + src, src.length + 500);
+  const out = truncateDiff(big + src, src.length + 600);
   assert.ok(out.includes("diff --git a/src/new-module.ts b/src/new-module.ts"), "header 保留");
   assert.ok(out.includes("@@ -0,0 +1,2 @@"), "首 hunk 保留（行号锚点）");
   assert.ok(out.includes("+x1 "), "首 hunk 内容保留");
