@@ -26,7 +26,7 @@ index 21c3d4e..6e7f8a9 100644
     {
       file: "src/stats.ts",
       line: null,
-      mustMention: ["除零", "除以 0", "除以零", "空数组", "NaN", "length", "为 0", "守卫"],
+      mustMention: ["除零", "除以 0", "除以零", "空数组", "NaN", "为 0", "守卫"],
     },
   ],
 } satisfies EvalCase;

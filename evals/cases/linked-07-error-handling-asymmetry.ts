@@ -39,7 +39,7 @@ index 7a8b9c0..1c2d3e4 100644
     {
       file: "src/notify.ts",
       line: 26,
-      mustMention: ["ok", "错误", "检查", "抛", "throw", "不对称", "失败", "吞"],
+      mustMention: ["错误", "检查", "抛", "不对称", "失败", "吞"],
     },
   ],
 } satisfies EvalCase;

@@ -24,10 +24,6 @@ index f36f1665bdc94b..1bb255403b1a06 100644
       "file": "src/vs/workbench/services/dialogs/browser/simpleFileDialog.ts",
       "line": 514,
       "mustMention": [
-        "value",
-        "filepickboxuri",
-        "trailing",
-        "separator",
         "判断",
         "规范化",
         "尾",

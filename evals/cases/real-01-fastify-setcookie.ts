@@ -28,12 +28,10 @@ index 412ffc081fc..32182f55eb6 100644
       "mustMention": [
         "引用",
         "拷贝",
-        "slice",
         "污染",
         "可变",
         "外部",
         "跨请求",
-        "push",
         "共享",
         "mutation"
       ]

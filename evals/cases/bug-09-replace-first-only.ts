@@ -22,7 +22,7 @@ index 1b2c3d4..5c6d7e8 100644
     {
       file: "src/sanitize.ts",
       line: 11,
-      mustMention: ["第一个", "只替换", "仅替换", "replaceAll", "全局", "g 标志", "多次", "后续"],
+      mustMention: ["第一个", "只替换", "仅替换", "全局", "g 标志", "多次", "后续"],
     },
   ],
 } satisfies EvalCase;

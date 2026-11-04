@@ -27,7 +27,7 @@ index 1e2f3a4..5a6b7c8 100644
     {
       file: "src/cache.ts",
       line: 13,
-      mustMention: ["毫秒", "秒", "单位", "1000", "ttl", "date.now", "不一致", "换算"],
+      mustMention: ["毫秒", "秒", "单位", "1000", "不一致", "换算"],
     },
   ],
 } satisfies EvalCase;

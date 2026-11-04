@@ -24,10 +24,13 @@ index cf824d7e0..4e437e909 100644
       "file": "lib/search-params.js",
       "line": 7,
       "mustMention": [
-        "boolean",
         "布尔",
         "空串",
-        "''"
+        "丢失",
+        "丢弃",
+        "吞",
+        "兜底",
+        "静默"
       ]
     }
   ],

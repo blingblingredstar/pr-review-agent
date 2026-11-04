@@ -257,3 +257,10 @@
 ### Added（工具探针 tokens 单独落日志，Step 3 清单第 10 条收尾）
 
 - 两段协议第一段（工具请求声明段）tokens 单独落 `[tools] probe tokens` 行（in/out/total，与 `[router] tokens` 消融数据出口同型；覆盖 search+read 两类工具请求，故不叫 `[search]`）；`ReviewOutcome.usage` 契约不变（仍两段合计），仅拆观测面——生产 dogfood 的工具循环成本自此可按段回收
+
+### Added（eval 扩容 + 判分收窄，2026-11-04）
+
+- eval 用例 48 → 61：**real 组 7→15**（测量组样本量不足——单轮 14pp 摆动分不清退化与端点噪音），8 个新例全部为真实仓库 fix commit 反构（fix patch 反转 + hunk 头重算 + 头部合成），底料覆盖 koa/express/fastify/undici/got/fs-extra/body-parser/ws 八仓（旧 7 例集中四仓）、机制覆盖 URL 构造/协议头冲突/错误处理不对称/字符串边界/监听器泄漏/资源泄漏/流生命周期/数组越界；provenance（仓库/SHA/缺陷说明）随用例注释必填；首轮 7/8 命中、real 组整组 80.0%（12/15）
+- **correlation 组 5→10**：新增 express#4913 max-sync 丢层、undici#5611 preserved buffer 互斥截断、fastify#4876 无条件 close、undici#3739 缓存清删门槛收缩（5 文件关联）、fastify#6810 _meta 置空崩溃（diff × 既有代码形态，组内多样性）；采集弃用两对——undici#3284 与 corr-05 同题、koa#2034 与 real-08 同 commit；首轮组内 3/10，miss 形态（沉默/注意力分散）留作 prompt 迭代靶子
+- **mustMention 判分收窄**：#44「剔除 diff 字面词」从 correlation 组推广到 synthetic + real + dogfood 全组——24 例的 diff 字面词逐例剔除（机械审计 + 人工判断保留措辞容忍度），real-06 补 5 个机制词防过度收窄；收窄只可能降 recall（判分更严格方向），不触碰 prompt/schema/输入
+- 能力口径组成扩展（synthetic 20 + real 15 = 35 例，D015 口径）；`test/eval-cases.test.ts` 计数 pin 48→61；eval 红线两级化——非 repo 用例逐位比对为硬闸门（41 例 inputTokens 逐位一致、promptHash 不变），repo 组漂移降观察项（工具循环无逐位保证，repo-01 本轮首次漂移 +37 为新实证）

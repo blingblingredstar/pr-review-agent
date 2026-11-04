@@ -22,7 +22,7 @@ index 2c3d4e5..6d7e8f9 100644
     {
       file: "src/cart.ts",
       line: 18,
-      mustMention: ["初始值", "initialvalue", "空数组", "reduce", "typeerror", "抛"],
+      mustMention: ["初始值", "initialvalue", "空数组", "typeerror", "抛"],
     },
   ],
 } satisfies EvalCase;

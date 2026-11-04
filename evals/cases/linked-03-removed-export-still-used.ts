@@ -38,7 +38,7 @@ index 0e1f2a3..4a5b6c7 100644
     {
       file: ["src/routes/archive.ts", "src/legacy.ts"],
       line: null,
-      mustMention: ["legacyslug", "删除", "删掉", "仍", "还在", "引用", "残留", "import", "不存在"],
+      mustMention: ["删除", "删掉", "仍", "还在", "引用", "残留", "不存在"],
     },
   ],
 } satisfies EvalCase;

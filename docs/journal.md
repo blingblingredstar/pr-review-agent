@@ -606,3 +606,18 @@
   2. Step 6 增量审查实现：spec 已留档（#43），触发条件 = Step 4 数据门槛达成（Step 5 已完）
   3. Step 7 多模型对比：等第二家端点 key（用户侧）
   4. correlation 组 miss 三类形态（#44 已记录）作下批 prompt 迭代靶子；repo-03 词法 DRY miss 留生产 dogfood 验证 search 实际使用率
+
+## 2026-11-04 · 会话 37：eval 扩容 PR（real 7→15 + correlation 5→10 + mustMention 全组收窄）
+
+- **目标**：用户问「样本量不太够、通过率比较高是不是不太好、看下 evals 需要新增/修改/删除吗」→ 审计结论（守卫组全绿是设计目的；病在测量组样本量——real 7 例单轮 14pp 摆动、corr 5 例 20↔40%，分不清信号与端点噪音；不删——48 例一轮 4.5 分钟成本不是瓶颈且 synthetic 是红线载体）→ 用户「执行下」→ 1（real 扩容）+2（corr 扩容）+4（mustMention 同款审计）打包本 PR。增量 mock 组（上轮方案）排后续 PR。
+- **完成**：
+  - **mustMention 收窄**：机械审计（diff 字面词扫描）→ 24 例逐例人工判断剔除（real-06 补机制词防过度收窄）；审计清零，corr-03/05 残留为 #44 定案不重开
+  - **采集**：两个并行 subagent 撒网（real 候选 12 / corr 配对 8，各自贴 patch 关键行作核实凭证）+ 编排侧逐个 SHA/patch 亲验；**核实层拦下两撞车**——corr 候选 koa#2034 的引入 commit 即 real-08 的 fix commit（同 diff 两用）、undici#3284 与 corr-05 同题，均弃
+  - **real +8**（fix 反构：hunk 头交换重算工具 + 头部合成；body-parser 只取 stream 销毁 hunk 防 charset 第二缺陷污染期望集）；**corr +5**（intro patch 原样组装；corr-10 为消费方在 diff 外的「diff × 既有代码」形态）
+  - **验证**：typecheck + 174 单测绿（计数 pin 48→61）；全量 eval 61 例——promptHash 不变，**41 非 repo 用例 inputTokens 逐位一致（30,942）**，repo 组 2 例漂移降观察项（repo-01 首次漂移 +37，两级口径再添实证）；首轮：real 80.0%（12/15，新例 7/8）、corr 30.0%（3/10，新例 2 命中 + 2 注意力分散 + 1 沉默）、synthetic 100%、injection 7/7、repo 4/5 照旧
+- **发现 / 坑**：
+  - 红线两级口径是本轮方法论产出：repo 组工具循环第二段输入依赖模型第一段选择，逐位一致无构造保证（三轮实证 repo-07 + 本轮 repo-01），硬闸门必须限定在非 repo 集
+  - diff 字面词审计脚本 + 人工 editorial 缺一不可——机械删会把 real-06 删到只剩 2 词（措辞容忍度崩坏），人工无清单则漏检
+  - 反构工具（hunk 头交换）以「头部行原样保留」为前提（反转后旧侧=修复态、新侧=bug 态，a→b 方向恰好不变）——real-01 先例隐含的性质，显式化后批量生成零手工转写
+  - 采集 subagent 的报告质量高但不可直接采信：SHA 全对，但撞车（同题/同 commit）只有编排侧核对全量清单才看得见
+- **下一步**：本 PR 闭环后接增量 mock 组 PR（incremental source + full/delta 对照 fixture，量化 D032 已知盲区喂开放问题②裁决）

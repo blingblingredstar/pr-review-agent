@@ -43,7 +43,7 @@ index 6a7b8c9..0c1d2e3 100644
     {
       file: "src/format/invoice.ts",
       line: null,
-      mustMention: ["formatprice", "改名", "重命名", "旧名", "引用", "import", "同步"],
+      mustMention: ["改名", "重命名", "旧名", "引用", "同步"],
     },
   ],
 } satisfies EvalCase;

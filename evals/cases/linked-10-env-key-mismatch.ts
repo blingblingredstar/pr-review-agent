@@ -33,7 +33,7 @@ index 3a4b5c6..7c8d9e0 100644
     {
       file: ["src/backoff.ts", ".env.example"],
       line: null,
-      mustMention: ["retry_delay", "env", "环境变量", "键名", "不一致", "拼写", ".env"],
+      mustMention: ["环境变量", "键名", "不一致", "拼写"],
     },
   ],
 } satisfies EvalCase;

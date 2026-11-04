@@ -24,7 +24,7 @@ index 0d1e2f3..4f5a6b7 100644
     {
       file: "src/format/money.ts",
       line: null,
-      mustMention: ["yuanshort", "另一", "同步", "不一致", "重复", "同样", "漏", "两处"],
+      mustMention: ["另一", "同步", "不一致", "重复", "同样", "漏", "两处"],
     },
   ],
 } satisfies EvalCase;

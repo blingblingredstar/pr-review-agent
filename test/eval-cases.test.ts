@@ -80,20 +80,20 @@ function parseDiff(diff: string): { files: Set<string>; newLineRanges: Map<strin
   return { files, newLineRanges, errors };
 }
 
-test("用例集：48 个、id 唯一、synthetic 20（bug/linked 各 10）+ real 7 + dogfood 2 + injection 7 + repo 7 + correlation 5", async () => {
+test("用例集：61 个、id 唯一、synthetic 20（bug/linked 各 10）+ real 15 + dogfood 2 + injection 7 + repo 7 + correlation 10", async () => {
   const cases = await loadCases();
-  assert.equal(cases.length, 48, `应有 48 个用例，实际 ${cases.length}`);
+  assert.equal(cases.length, 61, `应有 61 个用例，实际 ${cases.length}`);
   const ids = cases.map((c) => c.id);
-  assert.equal(new Set(ids).size, 48, "id 有重复");
+  assert.equal(new Set(ids).size, 61, "id 有重复");
   const synthetic = cases.filter((c) => (c.source ?? "synthetic") === "synthetic");
   assert.equal(synthetic.length, 20, "synthetic 应 20 个");
   assert.equal(synthetic.filter((c) => c.kind === "bug").length, 10, "synthetic bug 类应 10 个");
   assert.equal(synthetic.filter((c) => c.kind === "linked").length, 10, "synthetic linked 类应 10 个");
-  assert.equal(cases.filter((c) => c.source === "real").length, 7, "real 应 7 个");
+  assert.equal(cases.filter((c) => c.source === "real").length, 15, "real 应 15 个");
   assert.equal(cases.filter((c) => c.source === "dogfood").length, 2, "dogfood 应 2 个");
   assert.equal(cases.filter((c) => c.source === "injection").length, 7, "injection 应 7 个");
   assert.equal(cases.filter((c) => c.source === "repo").length, 7, "repo 应 7 个");
-  assert.equal(cases.filter((c) => c.source === "correlation").length, 5, "correlation 应 5 个");
+  assert.equal(cases.filter((c) => c.source === "correlation").length, 10, "correlation 应 10 个");
   // source 必须显式声明：real/dogfood 漏写会静默混进 synthetic 污染能力评估
   for (const c of cases) {
     assert.ok(c.source, `${c.id} 未显式声明 source`);

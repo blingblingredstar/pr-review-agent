@@ -38,7 +38,7 @@ index 6f7a8b9..0b1c2d3 100644
     {
       file: ["README.md", "src/config.ts"],
       line: null,
-      mustMention: ["10000", "10000？", "文档", "readme", "过时", "不一致", "同步", "没更新", "未更新"],
+      mustMention: ["文档", "过时", "不一致", "同步", "没更新", "未更新"],
     },
   ],
 } satisfies EvalCase;

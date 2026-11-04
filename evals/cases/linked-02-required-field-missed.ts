@@ -35,7 +35,7 @@ index 8c9d0e1..2e3f4a5 100644
     {
       file: "src/dispatch.ts",
       line: null,
-      mustMention: ["installationid", "必填", "缺失", "漏", "没传", "未提供", "缺字段", "未设置"],
+      mustMention: ["必填", "缺失", "漏", "没传", "未提供", "缺字段", "未设置"],
     },
   ],
 } satisfies EvalCase;
