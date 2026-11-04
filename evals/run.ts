@@ -3,7 +3,7 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { loadCases } from "./cases/index.ts";
-import { isCapabilitySource, scoreCase, sourceOf, type CaseScore, type EvalCase } from "./score.ts";
+import { isCapabilitySource, parseEvalOnly, scoreCase, sourceOf, type CaseScore, type EvalCase } from "./score.ts";
 import {
   loadPrompt,
   reviewDiff,
@@ -79,12 +79,16 @@ const fmtInOut = (u: TokenUsage | null): string => (u ? `${fmtTok(u.inputTokens)
 type OkRun = CaseRun & { score: CaseScore };
 
 async function main() {
-  const cases = await loadCases();
+  const allCases = await loadCases();
+  // EVAL_ONLY 子集（分组频率复测/定向迭代）：按 source 组名过滤，未设置跑全量；
+  // console/md/JSON 三处都带子集标记，防子集 run 混进全量对比（parseEvalOnly 校验组名，见 score.ts）
+  const evalOnly = parseEvalOnly(process.env.EVAL_ONLY, allCases.map(sourceOf));
+  const cases = evalOnly ? allCases.filter((c) => evalOnly.includes(sourceOf(c))) : allCases;
   const model = process.env.LLM_MODEL ?? "(unknown)";
   // prompt 内容指纹：同 prompt 多轮与改版后的 run 机械可分（D006——eval 报告引用具体 prompt 版本）
   const promptHash = createHash("sha256").update(loadPrompt()).digest("hex").slice(0, 12);
   const startedAt = new Date().toISOString();
-  console.log(`eval 开始：${cases.length} 个用例，模型 ${model}，prompt ${promptHash}`);
+  console.log(`eval 开始：${cases.length} 个用例，模型 ${model}，prompt ${promptHash}` + (evalOnly ? `，子集（EVAL_ONLY）${evalOnly.join(",")}` : ""));
 
   const runs: CaseRun[] = [];
   for (const [i, c] of cases.entries()) {
@@ -207,6 +211,7 @@ async function main() {
     `- 模型：\`${model}\``
     + (process.env.LLM_BASE_URL ? `（${process.env.LLM_BASE_URL}）` : ""),
     `- prompt 指纹：\`${promptHash}\``,
+    ...(evalOnly ? [`- 子集（EVAL_ONLY）：\`${evalOnly.join(",")}\`（非全量，各指标只覆盖所列组）`] : []),
     `- 汇总（能力评估 = synthetic + real）：recall ${percent(recall)}（${totalHits}/${totalExpect}），precision ${precision === null ? "—" : percent(precision)}（${totalTp}/${totalComments}），失败用例 ${failed}（不计入指标），总耗时 ${(totalMs / 1000 / 60).toFixed(1)} 分钟`,
     `- token 用量（成功用例求和${failed > 0 ? `，失败 ${failed} 例未计量` : ""}）：${usageKnown ? `输入 ${fmtTok(usageTotal.inputTokens)} / 输出 ${fmtTok(usageTotal.outputTokens)} / 合计 ${fmtTok(usageTotal.totalTokens)}` : "端点未返回 usage"}`,
     ``,
@@ -225,7 +230,8 @@ async function main() {
     new URL(`./runs/${base}.json`, import.meta.url),
     // schemaVersion 1 = groups 不含 injection、summary.injection 携带拦截率块、echo 口径为违规意见数；
     // 此前落盘的 run 无此字段（历史上 groups 含 injection），消费方按 0 处理——runs JSON 无版本标记的盲区就此闭合
-    JSON.stringify({ startedAt, model, llmBaseUrl: process.env.LLM_BASE_URL ?? null, promptHash, capabilityScope: "synthetic+real", schemaVersion: 1, runs, summary: {
+    // evalOnly：非 null = 子集 run（EVAL_ONLY 过滤），机械消费方据此把子集 run 与全量 run 分开，不进全量口径的对比
+    JSON.stringify({ startedAt, model, llmBaseUrl: process.env.LLM_BASE_URL ?? null, promptHash, evalOnly, capabilityScope: "synthetic+real", schemaVersion: 1, runs, summary: {
       recall, precision, totalExpect, totalHits, totalComments, totalTp, failed, usage: usageTotal, groups: groupMetrics,
       // 注入组拦截率进 JSON（runs/*.json 是 compare 聚合与迭代对比的数据出口，只读 md 抄数会断机械聚合）
       ...(injDenom ? { injection: { passed: injPassed, denom: injDenom, echoViolations: injEchoTotal, echoCases: injEchoBad.length, suppressed: injSuppressed.length, failed: injFailed } } : {}),
