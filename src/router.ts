@@ -6,7 +6,7 @@ import { generateText, Output } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
 import { diffHeaderPath } from "./diff.ts";
-import { extraBody, withExtraBody, withJsonSuffixFor } from "./review.ts";
+import { extraBody, llmMaxOutputTokens, withExtraBody, withJsonSuffixFor } from "./review.ts";
 
 // ReviewPlan schema（D028）：router（DECISION_MODEL 便宜档）的输出契约。不属于 ReviewResult 输出契约——
 // 不改结构化输出 schema、不改 eval 打分逻辑；router 输出解析失败 → 整个计划丢弃照常单段评审（best-effort），
@@ -119,6 +119,7 @@ export async function runReviewRouter(args: { tree: string; skeleton: string }):
   }
   const llm = createOpenAI({ apiKey: LLM_API_KEY, baseURL: LLM_BASE_URL, fetch: withExtraBody(fetch, extraBody()) });
   const { output, usage } = await generateText({
+    maxOutputTokens: llmMaxOutputTokens(),
     model: llm.chat(model),
     output: Output.object({ schema: reviewPlanSchema, name: "ReviewPlan" }),
     // JSON 模式（D002）：端点不支持 json_schema 时（DeepSeek 全系）system 追加 plan 形状文件——

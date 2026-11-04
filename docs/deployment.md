@@ -46,6 +46,7 @@ Git 集成（Vercel 控制台导入仓库，push main 自动部署）或 CLI（`
 | `WEBHOOK_SECRET` | ✅ | 与本地 `.env` 同值（第二步生成） |
 | `LLM_TIMEOUT_MS` | 可选 | 默认 270000，Hobby 300s 上限留回帖余量（D011） |
 | `LLM_EXTRA_BODY` | 可选 | 端点扩展参数 JSON；GLM 等 thinking 模型建议 `{"thinking":{"type":"disabled"}}` 控延迟（D012） |
+| `LLM_MAX_OUTPUT_TOKENS` | 可选 | 输出 token 护栏，透传 `maxOutputTokens`；未设置不传（thinking 档位单例 output 可达数万，防烧穿） |
 | `DIFF_MAX_CHARS` | 可选 | diff 截断预算，默认 300000（D018） |
 | `CONTEXT_MAX_CHARS` | 可选 | 仓库上下文预算（触及文件全文 + 文件树，zipball 单请求下载），默认 100000，`0` 关闭；失败自动降级为无上下文审查（D023） |
 | `REVIEW_TRIGGER_USERS` | 可选 | 触发白名单：逗号分隔 GitHub 用户名，仅名单内 PR 作者触发审查；未设置 = 所有人，`*` 全放行（D021）。单人自用建议设为自己的用户名，他人 PR / fork 贡献不再消耗 LLM 额度 |

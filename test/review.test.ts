@@ -674,3 +674,34 @@ test("reviewDiff：opts.taskContext 不传 = 裸路径字节级不变（能力�
     await fake.close();
   }
 });
+
+test("LLM_MAX_OUTPUT_TOKENS：设置 → 请求体带 max_tokens；未设置/非法值 → 不传（字节级不变）", async () => {
+  const fake = await startFakeLLM(() => ({ content: REVIEW_JSON, usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } }));
+  try {
+    await withEnv(
+      { LLM_BASE_URL: fake.url, LLM_API_KEY: "test", LLM_MODEL: "fake", LLM_EXTRA_BODY: undefined, LLM_TIMEOUT_MS: undefined, LLM_JSON_MODE: undefined, LLM_MAX_OUTPUT_TOKENS: "2048" },
+      async () => {
+        await reviewDiff("DIFF_TEXT", undefined, { timeoutMs: 10_000 });
+        assert.equal((fake.calls[0]!.body as { max_tokens?: number }).max_tokens, 2048, "设置 → max_tokens 透传");
+      },
+    );
+    await withEnv(
+      { LLM_BASE_URL: fake.url, LLM_API_KEY: "test", LLM_MODEL: "fake", LLM_EXTRA_BODY: undefined, LLM_TIMEOUT_MS: undefined, LLM_JSON_MODE: undefined, LLM_MAX_OUTPUT_TOKENS: undefined },
+      async () => {
+        fake.calls.length = 0;
+        await reviewDiff("DIFF_TEXT", undefined, { timeoutMs: 10_000 });
+        assert.equal((fake.calls[0]!.body as { max_tokens?: number }).max_tokens, undefined, "未设置 → 不传（字节级不变）");
+      },
+    );
+    await withEnv(
+      { LLM_BASE_URL: fake.url, LLM_API_KEY: "test", LLM_MODEL: "fake", LLM_EXTRA_BODY: undefined, LLM_TIMEOUT_MS: undefined, LLM_JSON_MODE: undefined, LLM_MAX_OUTPUT_TOKENS: "abc" },
+      async () => {
+        fake.calls.length = 0;
+        await reviewDiff("DIFF_TEXT", undefined, { timeoutMs: 10_000 });
+        assert.equal((fake.calls[0]!.body as { max_tokens?: number }).max_tokens, undefined, "非法值 → 按未设置处理");
+      },
+    );
+  } finally {
+    await fake.close();
+  }
+});

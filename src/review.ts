@@ -92,6 +92,20 @@ export function llmTimeoutMs(): number {
   return parsed;
 }
 
+// 输出 token 护栏（D002 扩展点）：thinking 档位会把单例 output 推到数万 token（DeepSeek low 实测 21,786/例、
+// thinking 模式默认输出上限 64K），护栏防单例烧穿。未设置 = 不传（请求字节级不变，「有数据再议」的数据
+// 2026-11-05 到位后解锁）；非法值告警并按未设置处理
+export function llmMaxOutputTokens(): number | undefined {
+  const raw = process.env.LLM_MAX_OUTPUT_TOKENS;
+  if (!raw) return undefined;
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    console.warn(`LLM_MAX_OUTPUT_TOKENS="${raw}" 不是正整数，按未设置处理（不加输出上限）`);
+    return undefined;
+  }
+  return parsed;
+}
+
 // token 用量（D021 盘点的待办）：部分端点不返回 usage，字段为 null——聚合时按非 null 求和，不虚构 0
 export type TokenUsage = {
   inputTokens: number | null;
@@ -184,6 +198,7 @@ export async function reviewDiff(diff: string, context?: string, opts?: ReviewDi
   // ai v7 起 generateObject 已废弃，结构化输出走 generateText + Output；
   // 超时预算见 docs/decisions.md D011（Vercel Hobby 函数上限 300s，留回帖余量）
   const { output, usage } = await generateText({
+    maxOutputTokens: llmMaxOutputTokens(),
     model: llm.chat(LLM_MODEL),
     output: Output.object({ schema: reviewResultSchema, name: "ReviewResult" }),
     system: withJsonSuffix(loadPrompt()),
@@ -455,7 +470,7 @@ async function reviewDiffWithTools(
 ): Promise<ReviewOutcome> {
   // system 追加指令来自 prompts/review-tools.md（仅 fileReader/searcher 注入时拼接）；review.md 一字不动
   const system = `${loadPrompt()}\n\n${loadToolsPrompt()}`;
-  const probe = await generateText({ model: llm.chat(modelId), system, prompt, abortSignal });
+  const probe = await generateText({ model: llm.chat(modelId), maxOutputTokens: llmMaxOutputTokens(), system, prompt, abortSignal });
   const requests = extractToolRequests(probe.text, maxSteps);
   const reqNote = (xs: string[], label: string) => (xs.length > 0 ? `${label} ×${xs.length}（${xs.join(" | ")}）` : `${label} 无`);
   console.log(`[tools] 第一段工具请求：${reqNote(requests.searches, "search")} / ${reqNote(requests.reads, "read")}（预算 ${maxSteps}）`);
@@ -470,6 +485,7 @@ async function reviewDiffWithTools(
   const hasRequests = requests.searches.length > 0 || requests.reads.length > 0;
   const toolBlock = `${hasRequests ? buildToolBlock(requests, fileReader, searcher) : "[工具结果]（本轮无工具请求，请直接给出审查意见）"}\n\n`;
   const { output, usage } = await generateText({
+    maxOutputTokens: llmMaxOutputTokens(),
     model: llm.chat(modelId),
     output: Output.object({ schema: reviewResultSchema, name: "ReviewResult" }),
     system: withJsonSuffix(system),

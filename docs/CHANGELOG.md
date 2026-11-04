@@ -303,3 +303,8 @@
 - **数据事故与恢复**：三档并行同秒启动 → run 文件名互覆（disabled/low JSON 被 high 覆盖）；stdout 流式日志完整抢救（`evals/runs/recovery-20261105-deepseek-tiers/`），报告级数据无损失
 - 根因修复：`evals/run.ts` 文件名加 `LLM_EXTRA_BODY` sha256 指纹后缀 + run JSON 落盘 `llmExtraBody` 原文——同模型不同配置并行不再互覆，配置自描述
 - `evals/report.md` 增补三档对照段（跨 glm-5.3@low 与 flash 基线对比 + 生产选型不动、DECISION_MODEL 候选结论）
+
+### Added（LLM_MAX_OUTPUT_TOKENS 输出护栏，2026-11-05 夜）
+
+- `LLM_MAX_OUTPUT_TOKENS`（D002 扩展点）：四处 `generateText`（主评审单段/工具两段/probe/router）统一透传 `maxOutputTokens`——thinking 档位实测单例 output 至 21,786（DeepSeek low corr 组）、thinking 模式默认输出上限 64K，护栏防单例烧穿；未设置 = 不传（请求字节级不变），非法值告警按未设置处理
+- 单测 +1（191→192）：设置/未设置/非法值三态
