@@ -314,6 +314,75 @@ test("reviewDiff：fileReader 不注入 = 现状单调用（system/prompt 字节
   }
 });
 
+test("JSON 模式（LLM_JSON_MODE=1）：system 追加 json-output.md + response_format json_schema 降级 json_object", async () => {
+  const fake = await startFakeLLM(() => ({ content: REVIEW_JSON, usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } }));
+  try {
+    await withEnv(
+      { LLM_BASE_URL: fake.url, LLM_API_KEY: "test", LLM_MODEL: "fake", LLM_EXTRA_BODY: undefined, LLM_TIMEOUT_MS: undefined, LLM_JSON_MODE: "1" },
+      async () => {
+        const out = await reviewDiff("DIFF_TEXT", undefined, { timeoutMs: 10_000 });
+        const body = fake.calls[0]!.body;
+        const [sys] = messagesOf(body).filter((m) => m.role === "system");
+        const jsonPrompt = readFileSync(new URL("../prompts/json-output.md", import.meta.url), "utf8");
+        assert.equal(sys!.content, `${loadPrompt()}\n\n${jsonPrompt}`, "system = review.md + json-output.md 追加");
+        assert.equal((body.response_format as { type?: string }).type, "json_object", "json_schema 降级为 json_object");
+        assert.deepEqual(out.comments, [{ file: "src/a.ts", line: 1, severity: "major", body: "b" }]);
+      },
+    );
+  } finally {
+    await fake.close();
+  }
+});
+
+test("JSON 模式显式配置优先：LLM_EXTRA_BODY 带 response_format 时不做降级替换", async () => {
+  const fake = await startFakeLLM(() => ({ content: REVIEW_JSON, usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } }));
+  try {
+    await withEnv(
+      {
+        LLM_BASE_URL: fake.url, LLM_API_KEY: "test", LLM_MODEL: "fake", LLM_TIMEOUT_MS: undefined, LLM_JSON_MODE: "1",
+        LLM_EXTRA_BODY: '{"response_format":{"type":"json_object","my_marker":1}}',
+      },
+      async () => {
+        await reviewDiff("DIFF_TEXT", undefined, { timeoutMs: 10_000 });
+        const body = fake.calls[0]!.body;
+        assert.deepEqual(body.response_format, { type: "json_object", my_marker: 1 }, "显式 response_format 原样透传");
+      },
+    );
+  } finally {
+    await fake.close();
+  }
+});
+
+test("JSON 模式 × 两段协议：probe 段不带 json 后缀与 response_format，产出段两者都有", async () => {
+  const fake = await startFakeLLM((i) => {
+    if (i === 0) return { content: '{"readRequests":["src/a.ts"]}', usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } };
+    return { content: REVIEW_JSON, usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 } };
+  });
+  try {
+    await withEnv(
+      { LLM_BASE_URL: fake.url, LLM_API_KEY: "test", LLM_MODEL: "fake", LLM_EXTRA_BODY: undefined, LLM_TIMEOUT_MS: undefined, LLM_JSON_MODE: "1", FILE_TOOL_MAX_STEPS: "2" },
+      async () => {
+        const entries = new Map<string, Uint8Array>([["src/a.ts", strToU8("export const a = 1;\n")]]);
+        await reviewDiff("DIFF_TEXT", undefined, { timeoutMs: 60_000, fileReader: fileReaderFromEntries(entries) });
+        assert.equal(fake.calls.length, 2, "两段协议 = 两次调用");
+
+        const first = fake.calls[0]!.body;
+        const firstSys = messagesOf(first).find((m) => m.role === "system")!;
+        assert.equal(firstSys.content, `${loadPrompt()}\n\n${TOOLS_PROMPT}`, "probe 段 system 不含 json-output.md（两段协议判据不被污染）");
+        assert.equal(first.response_format, undefined, "probe 段无 response_format（json_object 不压制工具请求形态）");
+
+        const second = fake.calls[1]!.body;
+        const secondSys = messagesOf(second).find((m) => m.role === "system")!;
+        const jsonPrompt = readFileSync(new URL("../prompts/json-output.md", import.meta.url), "utf8");
+        assert.equal(secondSys.content, `${loadPrompt()}\n\n${TOOLS_PROMPT}\n\n${jsonPrompt}`, "产出段 system 追加 json-output.md");
+        assert.equal((second.response_format as { type?: string }).type, "json_object", "产出段 json_schema 降级 json_object");
+      },
+    );
+  } finally {
+    await fake.close();
+  }
+});
+
 test("两段协议与单段同享 withExtraBody：两段请求体都合并 LLM_EXTRA_BODY（自审 major 误报的机械证明）", async () => {
   const bodies: unknown[] = [];
   const fake = await startFakeLLM((i) => {

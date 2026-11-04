@@ -140,3 +140,23 @@ test("runReviewRouter：schema 违规输出抛错（编排层捕获降级）；D
     await unused.close();
   }
 });
+
+test("JSON 模式（LLM_JSON_MODE=1）：router system 追加 plan 形状文件 + json_schema 降级 json_object（自审 major 闭环）", async () => {
+  const fake = await startFakeLLM(() => ({ content: JSON.stringify(PLAN), usage: { prompt_tokens: 500, completion_tokens: 80, total_tokens: 580 } }));
+  try {
+    await withEnv(
+      { DECISION_MODEL: "glm-4.5-air", LLM_BASE_URL: fake.url, LLM_API_KEY: "test", LLM_EXTRA_BODY: undefined, LLM_JSON_MODE: "1" },
+      async () => {
+        const plan = await runReviewRouter({ tree: "t", skeleton: "s" });
+        assert.deepEqual(plan, PLAN);
+        const body = fake.calls[0]!.body;
+        const [sys] = messagesOf(body).filter((m) => m.role === "system");
+        const routerJsonPrompt = readFileSync(new URL("../prompts/json-output-router.md", import.meta.url), "utf8");
+        assert.equal(sys!.content, `${ROUTER_PROMPT}\n\n${routerJsonPrompt}`, "system = review-router.md + json-output-router.md");
+        assert.equal((body.response_format as { type?: string }).type, "json_object", "json_schema 降级 json_object");
+      },
+    );
+  } finally {
+    await fake.close();
+  }
+});

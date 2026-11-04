@@ -6,7 +6,7 @@ import { generateText, Output } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
 import { diffHeaderPath } from "./diff.ts";
-import { extraBody, withExtraBody } from "./review.ts";
+import { extraBody, withExtraBody, withJsonSuffixFor } from "./review.ts";
 
 // ReviewPlan schema（D028）：router（DECISION_MODEL 便宜档）的输出契约。不属于 ReviewResult 输出契约——
 // 不改结构化输出 schema、不改 eval 打分逻辑；router 输出解析失败 → 整个计划丢弃照常单段评审（best-effort），
@@ -73,6 +73,11 @@ function loadRouterPrompt(): string {
   return readFileSync(new URL("../prompts/review-router.md", import.meta.url), "utf8");
 }
 
+// JSON 模式（D002）下追加的 plan 形状指示：ReviewPlan 与 ReviewResult 契约不同，单独成文件（json-output-router.md）
+function loadRouterJsonPrompt(): string {
+  return readFileSync(new URL("../prompts/json-output-router.md", import.meta.url), "utf8");
+}
+
 // diff 的「文件清单 + 每 ±N 行」骨架（D028）：首行 PR 规模摘要（文件数与总增删，来自 diff 头统计），
 // 随后逐文件 ± 行数。只看行首标记计数、不碰内容（+/− 前缀剥离口径与 truncateDiff 一致）；
 // 逐文件行数封顶防巨型 PR（files API 上限 3000）把 router 输入撑爆
@@ -116,7 +121,9 @@ export async function runReviewRouter(args: { tree: string; skeleton: string }):
   const { output, usage } = await generateText({
     model: llm.chat(model),
     output: Output.object({ schema: reviewPlanSchema, name: "ReviewPlan" }),
-    system: loadRouterPrompt(),
+    // JSON 模式（D002）：端点不支持 json_schema 时（DeepSeek 全系）system 追加 plan 形状文件——
+    // withExtraBody 会把本调用的 json_schema 换成 json_object（无 schema 强制，形状靠此文件 + zod 兜底）
+    system: withJsonSuffixFor(loadRouterPrompt(), loadRouterJsonPrompt()),
     prompt: `[仓库文件树]\n${args.tree}\n\n[diff 概要]\n${args.skeleton}`,
     abortSignal: AbortSignal.timeout(ROUTER_TIMEOUT_MS),
   });
