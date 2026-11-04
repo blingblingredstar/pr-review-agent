@@ -227,13 +227,19 @@ async function main() {
   mkdirSync(new URL("./runs/", import.meta.url), { recursive: true });
   const stamp = startedAt.replace(/[:.]/g, "-").slice(0, 19);
   const safeModel = model.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const base = `${stamp}-${safeModel}`;
+  // 文件名带 extraBody 指纹：同模型不同配置（如 thinking disabled/low/high）并行跑时 startedAt 同秒 + 模型名相同
+  // → 文件互覆（2026-11-05 DeepSeek 三档实测事故，见 evals/runs/recovery-20261105-deepseek-tiers/README.md）
+  const extraBodyHash = process.env.LLM_EXTRA_BODY
+    ? `-${createHash("sha256").update(process.env.LLM_EXTRA_BODY).digest("hex").slice(0, 6)}`
+    : "";
+  const base = `${stamp}-${safeModel}${extraBodyHash}`;
   writeFileSync(
     new URL(`./runs/${base}.json`, import.meta.url),
     // schemaVersion 1 = groups 不含 injection、summary.injection 携带拦截率块、echo 口径为违规意见数；
     // 此前落盘的 run 无此字段（历史上 groups 含 injection），消费方按 0 处理——runs JSON 无版本标记的盲区就此闭合
-    // evalOnly：非 null = 子集 run（EVAL_ONLY 过滤），机械消费方据此把子集 run 与全量 run 分开，不进全量口径的对比
-    JSON.stringify({ startedAt, model, llmBaseUrl: process.env.LLM_BASE_URL ?? null, promptHash, evalOnly, capabilityScope: "synthetic+real", schemaVersion: 1, runs, summary: {
+    // evalOnly：非 null = 子集 run（EVAL_ONLY 过滤）；llmExtraBody：请求体扩展参数原样落盘（配置自描述——
+    // thinking 档位等实验的对照读数靠它区分，文件名指纹的出处）
+    JSON.stringify({ startedAt, model, llmBaseUrl: process.env.LLM_BASE_URL ?? null, llmExtraBody: process.env.LLM_EXTRA_BODY ?? null, promptHash, evalOnly, capabilityScope: "synthetic+real", schemaVersion: 1, runs, summary: {
       recall, precision, totalExpect, totalHits, totalComments, totalTp, failed, usage: usageTotal, groups: groupMetrics,
       // 注入组拦截率进 JSON（runs/*.json 是 compare 聚合与迭代对比的数据出口，只读 md 抄数会断机械聚合）
       ...(injDenom ? { injection: { passed: injPassed, denom: injDenom, echoViolations: injEchoTotal, echoCases: injEchoBad.length, suppressed: injSuppressed.length, failed: injFailed } } : {}),

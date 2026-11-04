@@ -211,3 +211,31 @@ schema 加 `evidenceSnippet`（给出即校验），发帖双闸门（行号 D01
 - **红线换基线**：非工具用例 inputTokens +102/例 均匀位移（新增规则文本的机械效应，min=max=102），新基线 run `2026-11-04T15-22-44`（glm-5.3@low）；后续全量对比以 `cd5353f4688c` 为准。
 - 加固后单轮 output +50% 系 repo-04 单例工具循环方差（164s、out 2.1k），其余组 output 持平或下降，非规则效应。
 
+
+## DeepSeek 三档对照（2026-11-05）：deepseek-flash（V4.1-Flash）disabled / low / high
+
+> 用户建 `.envDeepSeek`（`deepseek-flash` @ `api.deepseek.com`），LLM_JSON_MODE 适配后三档全量并行（71 例 × 3，全部 0 错误，promptHash `7be33f4d6fbc`）。**数据事故与恢复**：三档并行同秒启动 → run 文件名（时间戳+模型）互覆，disabled/low 的 JSON 被 high 覆盖；三档 stdout 流式日志完整抢救（`evals/runs/recovery-20261105-deepseek-tiers/`），报告级数据无损失，根因修复 = run 文件名加 extraBody 指纹 + run JSON 落盘 extraBody。
+
+### 三档读数
+
+| 组 | disabled | low | high | glm-5.3@low（3 轮微平均） | flash 基线 |
+|---|---|---|---|---|---|
+| **能力 recall**（syn+real） | 85.7% | **91.4%** | 88.6% | ~85.7% | 85.7% |
+| 能力 precision | **86.8%** | 82.5% | 76.7% | ~85% | ~83% |
+| synthetic | 95.0% | **100%**（20/20） | 90.0% | 0.87 | 0.90 |
+| real | 73.3% | 80.0% | **86.7%** | 0.84（0.80-1.00 轮间） | 0.80 |
+| correlation | 30.0% | 30.0% | **50.0%**（历史最高） | 0.20-0.40 | 0.10 |
+| repo | 80.0% | 60.0% | **100%**（5/5 首次满分） | 0.20-0.67 | 0.40 |
+| incremental | 62.5% | 75.0% | 75.0% | 0.54 | 0.62 |
+| injection | 7/7 | 7/7 | 7/7 | 7/7 | 7/7 |
+| output tokens / run | **13,415** | 294,667（×22） | 394,856（×29） | 17-30k | 18-20k |
+| 总耗时 | **2.3 分钟** | 26.4 分钟 | 34.2 分钟 | ~8-11 分钟 | ~11.5 分钟 |
+| 单例 avg / max | **1.9s / 11.5s** | ~22s / 117.6s | 28.9s / **220.3s** | 7.2-8.8s / 32-164s | 9.6s / 80.1s |
+
+### 结论
+
+1. **同名档位不同语义，第三厂商再复现**：DeepSeek 的 `disabled` 是真关（out 13k/run、1.9s/例），low 是真思考（out ×22）——与 GLM 的「low≈off、disabled 没关死」正好相反。thinking 参数没有跨厂商语义，逐端点实测是唯一可靠路径。
+2. **high 档在 DeepSeek 上成立**（GLM 双模型 270s/600s 双双出局）：corr 0.50 + repo 1.00（**全配置历史首次满分**）——跨文件关联能力是三档中唯一随思考量单调上升的组，且赢家是小模型+真思考而非旗舰+轻思考（glm-5.3@low corr 0.30）。吴恩达课「评测循环找思考增益」的正面样本。
+3. **代价结构**：high 的 out ×29（39 万/run）+ 单例 max 220.3s——**已贴近生产 270s 单例红线**，直接上生产需过预算论证（D011 超时优雅跳过会频繁触发）；disabled 极快极省但 real 0.73 偏弱；**low 是平衡点**（能力 recall 最高 91.4% + synthetic 满分 + 26 分钟可接受）。
+4. **injection 三档全 7/7 零回显零抑制**——prompt 加固（#51）+ DeepSeek 自身抗性双重生效；对比 glm 需要加固才达标的形态，DeepSeek 的注入抗性开箱即强。
+5. **生产选型不动**：现产线 glm-5.3@low 在 real 微平均上仍强于 deepseek@disabled/low，且 DeepSeek high 的预算风险未解；deepseek-flash 作为 **DECISION_MODEL（路由档）候选**成立（router 任务简单、1.9s vs 8s 串行延迟收益），待生产台账积累后单独验证。Step 7 多模型对比的 infra 成本已由本轮摊薄（JSON 模式 + 台账 + 采集脚本全部就位）。
