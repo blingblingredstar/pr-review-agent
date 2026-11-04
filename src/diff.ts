@@ -249,9 +249,11 @@ export function truncateDiff(diff: string, budget: number = diffMaxChars()): str
       keptHunks++;
     }
     if (keptHunks === 0) continue;
-    const lines = [...split.header, ...split.hunks.slice(0, keptHunks).flat()];
+    // 标注行放在 header 区（首个 @@ 之前）：hunk 内尾接会被 diffCoveredLines 按内容行处理——
+    // 畸形 diff（hunk 声明行数未用尽）时 remain>0 会 mark 出幻影行号，锚上去行内发帖 422（本仓库修过的
+    // 幻影行号类问题）；header 区在解析器里被忽略（非 @@ 行直接跳过），任何 diff 形态下都不占行号语义
     const marker = `[diff 截断] 本文件超出预算：仅保留前 ${keptHunks}/${split.hunks.length} 个 hunk（新建文件全文 +${b.adds} 行，其余内容未经审查）`;
-    lines.push(marker);
+    const lines = [...split.header, marker, ...split.hunks.slice(0, keptHunks).flat()];
     size += marker.length;
     partials.set(i, { lines, kept: keptHunks, total: split.hunks.length });
     usedWithPartials += size;

@@ -365,3 +365,15 @@ test("truncateDiff：新建文件部分保留计入预算，剩余预算仍够�
   const out = truncateDiff(big + src, (big + src).length + 200);
   assert.equal(out, big + src, "预算内零截断，输出与输入一致");
 });
+
+test("truncateDiff：部分保留的标注行不产生幻影行号（diffCoveredLines 口径，自审 minor 闭环）", () => {
+  const src = ["diff --git a/src/app.ts b/src/app.ts", "@@ -1,1 +1,2 @@", " ctx", "+" + "y".repeat(60)].join("\n") + "\n";
+  const hunk = (start: number) => [`@@ -0,0 +${start},2 @@`, "+" + `x${start} `.padEnd(200, "v"), "+" + `w${start} `.padEnd(200, "u")].join("\n");
+  const big = ["diff --git a/src/new-module.ts b/src/new-module.ts", "new file mode 100644", hunk(1), hunk(3), hunk(5)].join("\n") + "\n";
+  const out = truncateDiff(big + src, src.length + 600);
+  const covered = diffCoveredLines(out);
+  const lines = covered.get("src/new-module.ts");
+  assert.ok(lines);
+  assert.deepEqual([...lines].sort((a, b) => a - b), [1, 2], "只保留首 hunk 的 1-2 行，标注行/被截 hunk 不产生幻影行号");
+  assert.ok(out.indexOf("[diff 截断] 本文件超出预算") < out.indexOf("@@ -0,0 +1,2 @@"), "标注行在 header 区（首个 @@ 之前）");
+});
