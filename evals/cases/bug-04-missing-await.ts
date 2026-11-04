@@ -36,7 +36,7 @@ index 6c7d8e9..0d1e2f3 100644
     {
       file: "src/session.ts",
       line: 33,
-      mustMention: ["await", "异步", "Promise", "未等待", "不等待", "fire-and-forget", "竞态"],
+      mustMention: ["异步", "未等待", "不等待", "fire-and-forget", "竞态"],
     },
   ],
 } satisfies EvalCase;

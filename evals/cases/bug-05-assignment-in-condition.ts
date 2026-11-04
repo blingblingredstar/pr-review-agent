@@ -26,7 +26,7 @@ index 7d8e9f0..1e2f3a4 100644
     {
       file: "src/feature-flags.ts",
       line: 22,
-      mustMention: ["赋值", "恒真", "永真", "恒为", "误写", "比较运算", "==="],
+      mustMention: ["赋值", "恒真", "永真", "恒为", "误写", "比较运算"],
     },
   ],
 } satisfies EvalCase;

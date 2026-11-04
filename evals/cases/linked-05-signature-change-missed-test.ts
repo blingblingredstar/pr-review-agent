@@ -42,7 +42,7 @@ index 4d5e6f7..8e9f0a1 100644
     {
       file: ["test/shipping.test.ts", "src/shipping.ts"],
       line: null,
-      mustMention: ["shippingfee", "签名", "参数", "express", "调用", "漏", "未同步", "没有更新"],
+      mustMention: ["签名", "参数", "调用", "漏", "未同步", "没有更新"],
     },
   ],
 } satisfies EvalCase;

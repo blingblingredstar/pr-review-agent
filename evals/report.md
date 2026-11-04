@@ -140,3 +140,20 @@ schema 加 `evidenceSnippet`（给出即校验），发帖双闸门（行号 D01
 - **能力组红线**：35 例 inputTokens 与基线 run `2026-11-03T18-11-27` 逐位一致（合计 23,376），inj-07 同样逐位一致（853）；promptHash `d399f9d4ed17` 不变——correlation 用例不带 repo/taskContext 走裸路径，既有用例零接触
 - **injection 组同轮**：拦截率 7/7（100%）、echo 违规 0；repo 组本轮 recall 4/5、precision 4/7（口径单列，未受本步扰动）
 - 后续：correlation 组随每轮 eval 单列观察；若生产 dogfood 出现同类「优化引入」漏审，与组内 miss 形态对读
+
+---
+
+## eval 扩容 + 判分收窄（2026-11-04）：real 7→15、correlation 5→10，用例 48→61
+
+- **背景**：测量组样本量不足——real 7 例一轮 14pp 摆动（57.1%↔90.5%，miss 集中在轮转沉默用例，单轮分不清退化与端点噪音）、correlation 5 例 20↔40% 同病；守卫组（synthetic 100% / dogfood / injection）全绿是设计目的不是病。扩容只针对测量组。
+- **real +8**（全部 fix commit 反构：fix patch 反转——hunk 头两侧区间交换重算、`diff --git`/`index parent..fix` 头合成；底料 SHA/patch 逐个经 API 亲自核实）：
+  - koa#1999（571938d1）absolute-form URL 直接拼接；express#4893（18e5985b）Content-Length 与 Transfer-Encoding 共存；fastify#7118（37df44a4）parser 同步 throw 未捕获（async 有 then 兜底、同步裸调用的不对称在 diff 内可见）；undici#6031（f4e4e450）尾斜杠剥到 query 值；got#2162（3cc40b54）AbortSignal 监听挂上不清理；fs-extra#1066（1c248ed4）futimes 抛错 fd 泄漏；body-parser GHSA-27r3（f7075eae）解压流不销毁致崩溃（**只取 stream 销毁 hunk**——fix 捆绑的 charset 时机改动会引入第二个真缺陷污染期望集，real-01 裁剪先例）；ws#2344（b54ca101）`split(':')` 取 `parts[1]` 边界
+  - 仓库多样性：koa/express/fastify/undici/got/fs-extra/body-parser/ws（旧 7 例集中在 fastify/axios/koa/vscode）；机制覆盖 URL 构造 / 协议头冲突 / 错误处理不对称 / 字符串边界 / 监听器泄漏 / 资源泄漏 / 流生命周期 / 数组越界
+  - **首轮 7/8 命中**（run `2026-11-04T05-20-44`）：唯一 miss 为 real-09 沉默（0 意见，输出侧 807 tokens 但 schema 零意见——沉默类如实记录，不作 fixture 调整）；real 组整组 80.0%（12/15，老 miss real-03/07 轮转沉默照旧）
+- **correlation +5**（引入 commit patch 原样组装，多文件；配对均有修复 commit message 原文背书）：
+  - express#4913（引入 708ac4c → 修复 7ec5dd2）max-sync guard 后置 + sync=0 位置 → 丢层；undici#5611（74a2299 → f59b0f2）preserved buffer 互斥截断；fastify#4876（3a52ca6 → 5814956）server.close 无条件上提；undici#3739（68107da → 3030506）缓存 method 门槛收缩 → 写操作不清删（cache.js 门槛 × cache-handler.js 删 UNSAFE_METHODS 判定，5 文件关联）；fastify#6810（8b9c07b → 7f6d3198）socket._meta 置 null 后 handleTimeout 解构崩溃（**消费方在 diff 外**——有意保留的「diff × 既有代码」形态，组内多样性）
+  - **采集弃用两对**：undici#3284 pre-calculated length 与既有 corr-05 同题（fragmentsBytes）弃；koa#2034 引入 commit 即 real-08 的 fix commit（同 diff 两用冲突）弃
+  - **首轮 3/10**（新 5 例：corr-06 ✓ / corr-08 ✓ / corr-07 miss 有意见 0 TP / corr-09 miss 5 意见 0 TP（注意力分散型，与 corr-04 同形态）/ corr-10 沉默（形态符合设计预期）；旧 5 例 corr-03 再命中、其余照旧）——miss 是信号不是 fixture 缺陷，不调 fixture 迁就模型（#44 纪律）
+- **mustMention 判分收窄**（#44 correlation 组 bot 自审「剔除 diff 字面词、保留缺陷机制词」推广到 synthetic + real + dogfood 全组）：24 例存在 diff 字面词（判分恒真——引用改动行的评论自动过关键词关），逐例剔除（机械审计脚本产出工作清单 + 逐例人工判断保留集的措辞容忍度）；real-06 收窄后仅剩 2 词，补 5 个机制词（丢失/丢弃/吞/兜底/静默）防过度收窄；审计清零——corr-03/05 残留的 findroute/fragmentsbytes 为 #44 bot 复审定案的机制词，不重开。**收窄只可能降 recall（判分更严格方向）；历史 run 工件按其落盘时口径读**。顺带发现未处理项：real-07 的单字关键词（根/盘）存在子串误匹配隐患（如「根据」命中「根」），不属本口径、留观察。
+- **红线**（run `2026-11-04T05-20-44` vs 基线 `2026-11-03T20-10-56`）：promptHash `d399f9d4ed17` 不变；**41 个非 repo 用例 inputTokens 逐位一致（合计 30,942）**——mustMention 只进打分不进输入，红线由构造保证；repo 组 2 例漂移（repo-07 3183→3133、repo-01 3158→3195 **首次漂移**）按两级口径降为观察项——工具循环第二段输入依赖模型第一段工具选择，无逐位保证（本次再添一例实证）。
+- **口径变化声明**：能力评估 = synthetic 20 + real 15 = 35 例（D015 口径的组成扩展，随本 PR 声明）；`test/eval-cases.test.ts` 计数 pin 48→61；新用例不进既有红线分母，下一次扩容以本 run 为基线。

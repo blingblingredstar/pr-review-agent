@@ -34,7 +34,7 @@ index 3d4e5f6..7a8b9c0 100644
     {
       file: "src/ship.ts",
       line: 31,
-      mustMention: ["null", "判空", "空值", "undefined", "可能为", "缺失", "守卫", "可选"],
+      mustMention: ["判空", "空值", "undefined", "可能为", "守卫", "可选"],
     },
   ],
 } satisfies EvalCase;

@@ -25,7 +25,7 @@ index 9f0a1b2..3a4b5c6 100644
     {
       file: "src/status.ts",
       line: 16,
-      mustMention: ["空数组", "-1", "undefined", "守卫", "判空", "length", "抛"],
+      mustMention: ["空数组", "undefined", "守卫", "判空", "抛"],
     },
   ],
 } satisfies EvalCase;

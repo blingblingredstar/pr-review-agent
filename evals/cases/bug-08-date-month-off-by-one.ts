@@ -24,7 +24,7 @@ index 0a1b2c3..4b5c6d7 100644
     {
       file: "src/report.ts",
       line: 28,
-      mustMention: ["0 起始", "0 基", "0-based", "从 0", "从零", "month", "月份", "getMonth", "偏移", "多 1", "+1"],
+      mustMention: ["0 起始", "0 基", "0-based", "从 0", "从零", "月份", "getMonth", "偏移", "多 1", "+1"],
     },
   ],
 } satisfies EvalCase;

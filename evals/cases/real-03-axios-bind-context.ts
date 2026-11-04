@@ -24,7 +24,6 @@ index 49904b0f15..529ca6676c 100644
       "file": "lib/core/AxiosHeaders.js",
       "line": 168,
       "mustMention": [
-        "context",
         "上下文",
         "绑定",
         "指向",
