@@ -322,3 +322,7 @@
 - 处置口径随实现扩展：AGENTS.md「意见闭环」更新为三处核对（行内线程 + 降级列表 + 折叠段，同标准逐条留痕）；architecture.md 组件表增 `src/incremental.ts`
 - 红线兑现（构造保证）：增量组装在 worker 编排层、门槛在发布层，evals 直调 `reviewDiff` 零接触——promptHash 不变、逐用例输入 tokens 不变
 - 单测 +6（197→203）：标记解析五形态、hasBlockerOrMajor 双形态、decideIncrement 四模式 + force-push 边界、fake octokit 端到端（compare files 同形拼装 + 删除文件 /dev/null 语义）、三失败回退上抛；worker 编排测试同步（paginate 4 次 / COMMENT 收窄 / 折叠段断言）
+
+### Changed（D018/D032 决策状态同步，2026-11-05 夜）
+
+- D032 状态「仅立项未实现」→「已实现（#59/#60）」；D018 状态补缺口修复记录（新建文件 hunk 级部分保留，#58）

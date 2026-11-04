@@ -171,7 +171,7 @@
 
 ## D018 — diff 截断用整文件块预算丢弃，不切 hunk、不分子调用
 
-- **状态**：已接受（2026-10-30）
+- **状态**：已接受（2026-10-30）。**缺口修复（2026-11-05，PR #58）**：大新建文件（全为 + 行、锚点安全）未装下时 hunk 级部分保留替代整块静默丢弃，标注行置 header 区防幻影行号；修改文件维持整块语义（D018 本体不动）
 - **背景**：`reviewDiff` 把整个 diff 全量喂模型。超大 PR 一是大半 token 花在 lock/生成物噪声上（PR #1 37KB diff 的教训），二是可能超模型上下文窗口直接失败。PLAN §三 预留的截断策略是唯一未落代码的关键工程细节，且验收标准 #4 要求 README 讲清它。
 - **决策**：以 `diff --git` 行为界切文件块，总长超 `DIFF_MAX_CHARS`（默认 300_000 字符，非法值告警回退）时按块大小升序贪心保留（小文件优先，大文件多为噪声），保留块按原顺序字节级重组，被丢弃文件在 diff 末尾附 `[diff 截断] 省略 path (+a/-b)` 行告知模型非全量；落点 `src/review.ts` `truncateDiff()`，`reviewDiff` 构造 prompt 前应用（webhook / eval / 本地脚本单点生效）。
 - **备选**：
@@ -359,6 +359,7 @@
 ## D032 — 增量审查立项：spec 先行留档（D019 第 4 条翻案；实现待触发条件）
 
 - **状态**：已接受（2026-11-04，spec `docs/plans/incremental-review.md` 留档，roadmap-execution.md Step 6 前置）。**仅立项未实现**——实现等触发条件（Step 4/5 收尾后），届时走 `feat:` PR；本条不含任何已实现声明。
+- **状态更新（2026-11-05，PR #59/#60）：已实现。** 触发条件提前说明——Step 4 数据门槛（5/10）未到，但 D033 切换使配额 3×、增量的成本价值同比放大，成本理由本身成立（用户点名动工）。实现要点：增量组装在 worker 编排层、门槛在发布层，evals 直调 reviewDiff 零接触（红线由构造保证）；开放问题 3（折叠段处置口径）落 AGENTS.md「意见闭环」三处核对；#60 修复 hasReviewed 增量标记漏判（复审 major）。
 - **背景**：路线图第 5 项（增量审查 + 报告门槛细化），roadmap-execution.md Step 6。D019 曾定「synchronize 维持全量重审：增量审查无新证据（超大 PR 场景由 D018 截断兜底）前不动」。D019 之后每次全量审查成本从 1 次 LLM 调用涨到 2-3 次（D028 router + D027/D031 两段工具循环），D025 补齐超大兜底，dogfood 使 synchronize 成为高频路径——增量的价值从「刚需补位」变为「常态成本优化 + 噪音治理」，立项前提成熟。
 - **决策**：
   - **spec 先行留档**（总原则 2），设计要点：①base 取自 D010 标记的语义扩展——`listReviews` 抽全部 `pr-review-agent sha:` 标记得已审集合，取「仍在本 PR commits 列表中的最新一条」为 base，无标记/交集空（force-push 重写）回退全量；②dedupe 键扩展为 (PR, 已审 SHA 集合)——集合不建存储、每次现查推导，沉淀载体就是 review body 标记本身（零基建取向原样延伸），标记扩为 `sha:<head> base:<base>`（缺 base 旧标记合法）；③显式翻案 D019 第 4 条（其余三条不动）——翻案理由是成本结构变化，非 D019 判断错误；④block 继承：上条 review 含 blocker/major → 回退全量（增量「干净」不得解除旧 blocker，保 D017 闭环推断）；⑤增量 diff 用 compare API + `fileToDiffBlock` 原样复用（D025 零耦合同款），任何一层失败回退全量；⑥报告门槛细化在发布层不进 prompt——blocker/major 行内必报，minor/nit 折叠进 body `<details>` 汇总段，REQUEST_CHANGES 判定收窄为「有 blocker/major」（D017 收窄非翻案）。

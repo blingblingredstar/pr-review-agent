@@ -654,3 +654,27 @@
   1. 观测下一个真实 PR 的生产日志（glm-5.3@low 首审）——[reviewDiff] tokens 应与 flash 同量级、时长不升；inj-06 沉默 / real 0.84 观察项留 dogfood
   2. Step 4 生产数据门槛继续积累（≥10 run 后裁决预处理提案）
   3. Step 6 增量实现、Step 7 多模型对比照旧等触发
+
+## 2026-11-05 · 会话 39（夜间批量三号）：log 采集 → 护栏 → D018 缺口 → D032 实现 + DeepSeek 三档
+
+- **目标**：用户睡前指令「能做的都做一下，先做 log 收集（免费版 1h 窗），根据 log 看生产效果，有问题记录能改就改；实现计划归档，按推荐顺序」（计划归档见 `docs/plans/overnight-execution-2026-11-05.md`，#54）。
+- **完成**（6 个 PR 严格串行过闸门）：
+  - **#55** 生产 run 台账：`npm run prodlogs`（`vercel logs --json` → requestId 聚合 → runKey 归组 → `evals/prod-runs/ledger.json` 累积）——Hobby runtime log 保留实测仅 ~30 分钟（`--since 1h` 直接 400）；首份台账 5 runKey 全完成。bot 五轮 8 条意见全闭环（两轮 major：prepare 段计数口径、字段级合并——整记录覆盖会「越跑越少」）
+  - **#56** DeepSeek 三档归档 + run 文件名防碰撞（extraBody 指纹 + promptHash 入文件名 + JSON 落盘 `llmExtraBody`）
+  - **#57** `LLM_MAX_OUTPUT_TOKENS` 护栏（四处 generateText 透传，未设置字节级不变——「有数据再议」由 thinking 档位实测数据解锁）
+  - **#58** D018 新建文件缺口修复：hunk 级部分保留（新建文件全为 + 行锚点安全；标注行置 header 区防幻影行号——bot 抓出复发路径；MARKER_ALLOWANCE 守恒）。bot 三轮 4 条全闭环
+  - **#59** D032 增量审查实现 + 发布门槛：`src/incremental.ts`（base 推导 / block 继承 / compare 区间 diff，任何失败回退全量）+ postReview 门槛（minor/nit 折叠 `<details>` 同构机器可解析、REQUEST_CHANGES 收窄为有 blocker/major）+ 标记扩 `base:` 键。AGENTS.md 意见闭环更新为三处核对
+  - **#60** hasReviewed 修复：#59 复审降级 major（增量标记 `sha:X base:Y` 裸 includes 漏判 → 同 SHA 重派重复发 review）；标记解析收敛 dedupe.ts 两处共用；复审一条误报（diff 误读）证据留痕 resolve
+- **生产观测**（dashboard log + 台账）：glm-5.3@low 前三笔全绿（#52/#53×2，review 阶段 20-30s，预算零压力）；#54 纯 docs PR out=14 直接空 comments；**D031 search_files 生产首证**（#53 主动 search "runReviewRouter" → read src/router.ts → 报出跨文件真 major）；D017 自家 PR 422 回退 COMMENT 边界复现
+- **DeepSeek 三档**（71 例 ×3 全 0 错误，report 新段 + recovery 目录）：high corr 0.50 / repo 1.00（全配置历史首次满分）；low 能力 recall 91.4% + synthetic 100%；disabled 1.9s/例；injection 三档全 7/7 零回显。「同名档位不同语义」第三厂商复现（disabled 真关/low 真思考，与 GLM 相反）
+- **发现 / 坑**：
+  - **并行 eval 同模型同秒 → run 文件名互覆**：extraBody 不在文件名也不在 JSON 的老坑实锤（disabled/low JSON 被 high 覆盖）；stdout 流式日志全量抢救（报告级数据无损失），根因修复随 #56
+  - **流程失误两起（自省）**：①#59 合并前没读降级 major——闸门绿 ≠ 无意见，降级/折叠意见不在闸门口径里；②两次带失败测试推送（均当场修复）。教训：合并前必读最新 review body 全文（含折叠段）
+  - 折叠段上线后 bot 自己的 minor 进 details（D032 自我生效首例）；resolve:threads 对折叠/降级意见不可见，留痕走 PR comment
+  - bot 复审 flip-flop 一例：#60 {7,40} major 声称「第一处用例未同步」实为 diff 误读（删除行当现存代码）——核对 git show 后按误报留痕 resolve
+  - Vercel 无公开 runtime logs REST 端点（Log Drains 要外部接收端）；CLI `logs --json` 是唯一可靠路径
+  - 环境杂音：SSH push 超时 ×1 重试即过；python 替换把 \n 变真换行的字符串断裂 ×2；后台长任务日志别接 tail
+- **下一步**：
+  1. 增量审查生产观察：下一个多 push PR 看「增量决策」日志行与折叠段实际形态；认领困难则启用回退分支（恢复 minor/nit 行内）
+  2. Step 4 门槛：勤跑 `npm run prodlogs`，≥10 run 后回看预处理提案；DECISION_MODEL 换 deepseek-flash 候选待单独验证
+  3. Step 7 多模型对比 infra 已摊薄（JSON 模式 + 台账 + 采集脚本 + EVAL_ONLY）
