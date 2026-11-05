@@ -329,14 +329,15 @@ for (const [gi, r] of glmRuns.entries()) {
   if (r.size !== caseIds.length) throw new Error(`GLM 轮 ${GLM_FILES[gi]} 用例数 ${r.size} != 交集 ${caseIds.length}`);
 }
 if (dsHigh.size !== caseIds.length) throw new Error(`DS high 用例数 ${dsHigh.size} != 交集 ${caseIds.length}`);
-// 触发兑现轮新增数据源同型校验（bot minor：缺例时 runs.get(id)! 会在 .comments 处抛裸 TypeError 难定位）
-if (dsLowFresh.size !== caseIds.length) throw new Error(`DS low 触发 run 用例数 ${dsLowFresh.size} != 交集 ${caseIds.length}`);
-for (const [gi, r] of glmFlashRounds.entries()) {
-  if (r.size !== caseIds.length) throw new Error(`GLM flash 轮 ${GLM_FLASH_FILES[gi]} 用例数 ${r.size} != 交集 ${caseIds.length}`);
-}
-for (const [ti, r] of dsDisabledRounds.entries()) {
-  if (r.size !== caseIds.length) throw new Error(`DS disabled 轮 ${DS_DISABLED_FILES[ti]} 用例数 ${r.size} != 交集 ${caseIds.length}`);
-}
+// 触发兑现轮新增数据源同型校验（bot minor：缺例时 runs.get(id)! 会在 .comments 处抛裸 TypeError 难定位）。
+// 注意断言口径是「覆盖交集」而非数量相等——触发 run 跑在 72 例集（含 inj-08）上，是交集的超集
+const requireCoverage = (label: string, r: Map<string, StoredRun>) => {
+  const absent = caseIds.filter((id) => !r.has(id));
+  if (absent.length) throw new Error(`${label} 缺交集用例：${absent.join("、")}`);
+};
+requireCoverage("DS low 触发 run", dsLowFresh);
+glmFlashRounds.forEach((r, gi) => requireCoverage(`GLM flash 轮 ${GLM_FLASH_FILES[gi]}`, r));
+dsDisabledRounds.forEach((r, ti) => requireCoverage(`DS disabled 轮 ${DS_DISABLED_FILES[ti]}`, r));
 if (missing.length > 0) console.log(`> 用例集：存档 run 71 例（当前用例目录 ${cases.length} 例，不在存档内的：${missing.join("、")}——口径取交集）`);
 else console.log(`> 用例集：${caseIds.length} 例全对齐`);
 
