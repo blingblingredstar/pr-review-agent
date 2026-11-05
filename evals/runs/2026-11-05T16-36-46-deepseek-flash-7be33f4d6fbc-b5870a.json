@@ -1,0 +1,3627 @@
+{
+  "startedAt": "2026-11-05T16:36:46.698Z",
+  "model": "deepseek-flash",
+  "llmBaseUrl": "https://api.deepseek.com",
+  "llmExtraBody": "{\"thinking\":{\"type\":\"disabled\"}}",
+  "promptHash": "7be33f4d6fbc",
+  "evalOnly": null,
+  "capabilityScope": "synthetic+real",
+  "schemaVersion": 1,
+  "runs": [
+    {
+      "caseId": "bug-01-pagination-off-by-one",
+      "kind": "bug",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/pagination.ts",
+          "line": 16,
+          "severity": "major",
+          "body": "分页切片上界多加了 1，每页会返回 size+1 条数据，与 pageCount 的 ceil(total/size) 页数契约不一致：最后一页可能多出下一条记录，调用方按 size 渲染或校验会出错。应去掉 \"+ 1\"，恢复为 items.slice(start, start + size)。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 804,
+        "outputTokens": 108,
+        "totalTokens": 912
+      },
+      "durationMs": 1420,
+      "score": {
+        "caseId": "bug-01-pagination-off-by-one",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/pagination.ts",
+              "line": 16,
+              "mustMention": [
+                "越界",
+                "多取",
+                "多一条",
+                "多返回",
+                "off-by-one",
+                "边界",
+                "超出",
+                "下一页"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 1,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "bug-02-divide-by-zero",
+      "kind": "bug",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/stats.ts",
+          "line": 14,
+          "severity": "major",
+          "body": "games 为空时 wins / games.length 为 0/0，结果为 NaN，Math.round(NaN) 仍是 NaN，函数返回 NaN 而非 0，调用方做百分比展示或比较时会出现异常结果。同文件 averageOrderValue 已对空集合显式返回 0，这里应保持一致，在计算前加 if (games.length === 0) return 0;。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 798,
+        "outputTokens": 117,
+        "totalTokens": 915
+      },
+      "durationMs": 1956,
+      "score": {
+        "caseId": "bug-02-divide-by-zero",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/stats.ts",
+              "line": null,
+              "mustMention": [
+                "除零",
+                "除以 0",
+                "除以零",
+                "空数组",
+                "NaN",
+                "为 0",
+                "守卫"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "bug-03-null-access",
+      "kind": "bug",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/ship.ts",
+          "line": 29,
+          "severity": "major",
+          "body": "类型从可选改为 `Address | null` 后，`address` 仍可为空，但 `cityOf` 直接访问 `user.address.city`，在 address 为 null 时会抛出 TypeError。同类函数 `shippingLabel` 已有 `if (!user.address)` 守卫，这个副本漏掉了同步修改。修法：与 `shippingLabel` 一致，先判断 `!user.address` 再返回，或返回空串/兜底值。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 805,
+        "outputTokens": 133,
+        "totalTokens": 938
+      },
+      "durationMs": 4290,
+      "score": {
+        "caseId": "bug-03-null-access",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/ship.ts",
+              "line": 31,
+              "mustMention": [
+                "判空",
+                "空值",
+                "undefined",
+                "可能为",
+                "守卫",
+                "可选"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "bug-04-missing-await",
+      "kind": "bug",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/session.ts",
+          "line": 33,
+          "severity": "major",
+          "body": "invalidate 已改为 async（返回 Promise<void>）并内部 await persist()，但这里调用没有 await，返回的 Promise 被丢弃：持久化是否完成不可知，reject 会变成 unhandled rejection 而不被 login 的 caller 看到；且 invalidate 内的 persist() 与紧随其后的 audit.log 之间存在竞态，登录流程可能在缓存尚未刷新完成时即宣告完成。改为 `await cache.invalidate(user.id);`。"
+        },
+        {
+          "file": "src/cache.ts",
+          "line": 12,
+          "severity": "minor",
+          "body": "invalidate 的接口从同步 void 变为返回 Promise，属于契约变更，仓库内若有其他调用点（如 logout、权限变更等）仍是 fire-and-forget 调用，会同样吞掉 reject。请同步检查并 await 所有调用点。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 880,
+        "outputTokens": 213,
+        "totalTokens": 1093
+      },
+      "durationMs": 1761,
+      "score": {
+        "caseId": "bug-04-missing-await",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/session.ts",
+              "line": 33,
+              "mustMention": [
+                "异步",
+                "未等待",
+                "不等待",
+                "fire-and-forget",
+                "竞态"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 2,
+        "truePositives": 1,
+        "precision": 0.5,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "bug-05-assignment-in-condition",
+      "kind": "bug",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/feature-flags.ts",
+          "line": 23,
+          "severity": "blocker",
+          "body": "把比较 `===` 改成了赋值 `=`，运行时会把 `user.isAdmin` 强制改写为 `true`（污染传入对象，任何后续读取 `user.isAdmin` 的代码都会被绕过），且赋值表达式恒为真，导致所有用户都获得 auditLog 权限，属于权限提升的安全漏洞。应改回 `if (user.isAdmin === true)`。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 776,
+        "outputTokens": 116,
+        "totalTokens": 892
+      },
+      "durationMs": 1261,
+      "score": {
+        "caseId": "bug-05-assignment-in-condition",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/feature-flags.ts",
+              "line": 22,
+              "mustMention": [
+                "赋值",
+                "恒真",
+                "永真",
+                "恒为",
+                "误写",
+                "比较运算"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "bug-06-variable-shadowing",
+      "kind": "bug",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/checkout.ts",
+          "line": 31,
+          "severity": "blocker",
+          "body": "用 `const total` 遮蔽了函数外层的 `let total`，块作用域内新声明的 total 只保存单项金额，外层的累加器在循环中再也不会被更新，函数始终返回 0。改为 `const lineTotal = item.price * item.quantity; receiptLines.push(...); total += lineTotal;`。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 785,
+        "outputTokens": 108,
+        "totalTokens": 893
+      },
+      "durationMs": 1504,
+      "score": {
+        "caseId": "bug-06-variable-shadowing",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/checkout.ts",
+              "line": 30,
+              "mustMention": [
+                "遮蔽",
+                "shadow",
+                "覆盖",
+                "外层",
+                "同名",
+                "重新声明",
+                "内层",
+                "累加"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "bug-07-last-element-empty",
+      "kind": "bug",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/status.ts",
+          "line": 16,
+          "severity": "major",
+          "body": "删除空数组保护后，events 为空时 events[-1] 为 undefined，访问 .state 会抛 TypeError（crash），而非原先返回 null。空输入在该函数契约内是合法场景，应保留空判断或改用 `events.at(-1)?.state ?? null`。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 757,
+        "outputTokens": 94,
+        "totalTokens": 851
+      },
+      "durationMs": 1465,
+      "score": {
+        "caseId": "bug-07-last-element-empty",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/status.ts",
+              "line": 16,
+              "mustMention": [
+                "空数组",
+                "undefined",
+                "守卫",
+                "判空",
+                "抛"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "bug-08-date-month-off-by-one",
+      "kind": "bug",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/report.ts",
+          "line": 28,
+          "severity": "major",
+          "body": "`new Date(year, month, day)` 的 month 参数从 0 开始计数，而 ISO 字符串（如 \"2024-03-15\"）中的月份从 1 开始，>因此解析结果整体提前一个月（3 月变成 2 月，1 月变成上一年的 12 月），日期错误。应改为 `new Date(year, month - 1, day)`。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 779,
+        "outputTokens": 122,
+        "totalTokens": 901
+      },
+      "durationMs": 1885,
+      "score": {
+        "caseId": "bug-08-date-month-off-by-one",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/report.ts",
+              "line": 28,
+              "mustMention": [
+                "0 起始",
+                "0 基",
+                "0-based",
+                "从 0",
+                "从零",
+                "月份",
+                "getMonth",
+                "偏移",
+                "多 1",
+                "+1"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "bug-09-replace-first-only",
+      "kind": "bug",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/sanitize.ts",
+          "line": 11,
+          "severity": "major",
+          "body": "把 replaceAll 改成 replace 后，只有第一个空格会被替换，标题中后续空格会残留在 slug 里（如 \"hello world foo\" → \"hello-world foo\"），破坏 slug 格式。应改回 replaceAll(\" \", \"-\")，或用 / /g 正则。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 742,
+        "outputTokens": 98,
+        "totalTokens": 840
+      },
+      "durationMs": 1130,
+      "score": {
+        "caseId": "bug-09-replace-first-only",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/sanitize.ts",
+              "line": 11,
+              "mustMention": [
+                "第一个",
+                "只替换",
+                "仅替换",
+                "全局",
+                "g 标志",
+                "多次",
+                "后续"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "bug-10-reduce-no-initial",
+      "kind": "bug",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/cart.ts",
+          "line": 18,
+          "severity": "blocker",
+          "body": "去掉 reduce 的初始值 0 后，空数组会直接抛 TypeError: Reduce of empty array with no initial value，购物车为空这一常见路径会直接崩溃。并且累加器初始值变成首元素，后续若 priceCents*quantity 为字符串型会被字符串拼接而非数值相加。恢复初始值 0。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 761,
+        "outputTokens": 104,
+        "totalTokens": 865
+      },
+      "durationMs": 1922,
+      "score": {
+        "caseId": "bug-10-reduce-no-initial",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/cart.ts",
+              "line": 18,
+              "mustMention": [
+                "初始值",
+                "initialvalue",
+                "空数组",
+                "typeerror",
+                "抛"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "corr-01-fastify-destroyed-guard",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/wrapThenable.js",
+          "line": 24,
+          "severity": "minor",
+          "body": "新增的 `reply.request.raw.destroyed === false` 会改变正常请求的判定语义：Node.js 中 socket 在请求体完全读取后可能因 keep-alive 之外的场景被标记 destroyed，但更关键的是 `reply.request.raw` 与 `reply.raw` 可能指向不同对象（后者是响应流），此处检查的是请求流的 destroyed。若请求流为 destroyed 而响应仍可写，则原本能正常发送的 payload 会被静默丢弃。建议确认 destroyed 与 aborted 的语义边界，或在注释中说明为何两者都需独立判断。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 898,
+        "outputTokens": 163,
+        "totalTokens": 1061
+      },
+      "durationMs": 1405,
+      "score": {
+        "caseId": "corr-01-fastify-destroyed-guard",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/wrapThenable.js",
+              "line": 24,
+              "mustMention": [
+                "挂起",
+                "hang",
+                "空响应",
+                "empty",
+                "不发送",
+                "无法响应",
+                "无响应",
+                "消费",
+                "consumed",
+                "误判"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 1,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "corr-02-undici-textdecoder-module",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1119,
+        "outputTokens": 5,
+        "totalTokens": 1124
+      },
+      "durationMs": 852,
+      "score": {
+        "caseId": "corr-02-undici-textdecoder-module",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": [
+                "lib/web/websocket/receiver.js",
+                "lib/web/websocket/util.js"
+              ],
+              "line": null,
+              "mustMention": [
+                "icu",
+                "intl",
+                "顶层",
+                "模块",
+                "加载"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "corr-03-fastify-findroute-head",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/route.js",
+          "line": 325,
+          "severity": "blocker",
+          "body": "把 router.find 改为 router.findRoute，但两者返回值语义可能不同：findRoute 通常返回完整的 route 对象（含 store/handler 数组），而 fastify 内置的 find 返回的是匹配结果节点。这里后续用 headHandler.store[kRouteByFastify] 访问 store，如果 findRoute 返回的是数组或结构不同，会导致 store 为 undefined 而抛 TypeError，或 hasHEADHandler 判断恒真/恒假。需要确认 findRoute 的返回契约，若它返回数组应取 [0]，并做空值保护。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 802,
+        "outputTokens": 153,
+        "totalTokens": 955
+      },
+      "durationMs": 1570,
+      "score": {
+        "caseId": "corr-03-fastify-findroute-head",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/route.js",
+              "line": 325,
+              "mustMention": [
+                "findroute",
+                "already declared",
+                "constraints",
+                "重复声明",
+                "清理"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "corr-04-axios-settle-abort",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/adapters/http.js",
+          "line": 1,
+          "severity": "blocker",
+          "body": "这里同时存在 `import { connect, constants } from 'http2'`（ESM）和原有 `import ... from` 语法，但文件删除了 `'use strict'`，文件的模块系统可能与项目其余部分不一致；如果该文件运行在 CJS 环境下，`import` 全部无法工作。更重要的是 `import ... from 'http2'` 是新增顶层依赖，若目标是保持双模打包，应以 `require`/动态导入兼容。请确认该文件确实是 ESM 模块并与 package.json 的 type/exports 一致，否则会导致整体加载失败。"
+        },
+        {
+          "file": "lib/adapters/http.js",
+          "line": 349,
+          "severity": "major",
+          "body": "`abort` 函数在 `onDone`/`onFinished` 内部使用，但这里把原来的 `emitter.removeAllListeners()` 改成 `abortEmitter.removeAllListeners()` 之后，`abortEmitter.once('abort', reject)` 在 line 318 注册后又在这里被移除。后续通过 `settle(resolve, abort, response)` / `abort(new AxiosError(...))` 时 `abortEmitter.emit('abort', ...)` 将没有任何监听器，遇到 maxContentLength 超限、timeout、取消信号等情况时 Promise 不会被 reject，导致请求悬挂。请恢复直接 reject 调用或保留一个持久的 abort 监听器。"
+        },
+        {
+          "file": "lib/adapters/http.js",
+          "line": 349,
+          "severity": "major",
+          "body": "`onDone` 回调签名改为 `(response, isRejected)`，当成功时 `response` 是 `settle` 传入的 response 对象并读取 `response.data`；但 `onDone` 的实际调用方（wrapAsync）在成功路径上不一定会传第二个参数 `response`，需要检查所有调用点。如果传入的是 resolve 的值而不是 response 对象，`const {data} = response` 会抛 TypeError。请在 diff 内核对 onDone 的调用点是否同步更新。"
+        },
+        {
+          "file": "lib/adapters/http.js",
+          "line": 364,
+          "severity": "major",
+          "body": "`config.signal.aborted ? abort() : ...` 中 `abort` 没有传入 reason，`abort()` 内部 `!reason || reason.type` 为真时会用 `new CanceledError(null, config, req)`，但此时 `req` 还是 undefined（请求尚未创建）。这会在取消场景下把 undefined 作为 `lastRequest` 记录进错误对象。原来的 `abort` 定义位置在 `req` 之后、且由同一路径触发，此处提前调用需要保证 `req` 已存在，或允许 `undefined`。"
+        },
+        {
+          "file": "lib/adapters/http.js",
+          "line": 193,
+          "severity": "major",
+          "body": "`getSession` 用 `authority` 作为 `Object.create(null)` 的键，但 authority 来自 `options.protocol + '//' + options.hostname + ':' + ...`，`hostname` 为 undefined 或包含 `__proto__` 之类字符串时虽然用 null 原型不会污染原型链，但会导致键不可控。更关键的是：`options.port || 80` 对 https 默认端口是 443 而非 80，会导致 https 默认端口被拼成 `:80`，与实际请求端口不一致（虽然作为 key 用途单一，但可能复用到错误 session）。应依据 protocol 选择默认端口。"
+        },
+        {
+          "file": "lib/adapters/http.js",
+          "line": 207,
+          "severity": "major",
+          "body": "`session.once('close', ...)` 引用了 `authoritySessions` 变量，但在 session 创建时如果 `this.sessions[authority]` 已存在则 `authoritySessions` 是之前赋值的旧值（line 73 `if ((authoritySessions = this.sessions[authority]))` 只在已有会话时赋值）；若走到新建分支且之前没有该 authority 的 session，`authoritySessions` 为 undefined，line 210 的 `entries.length` 会抛 TypeError。需在 `once('close')` 中重新取 `this.sessions[authority]` 并做空判断。"
+        },
+        {
+          "file": "lib/adapters/http.js",
+          "line": 216,
+          "severity": "minor",
+          "body": "`Http2Sessions.setTimeout` 在每个 session 创建时立刻设置 1000ms 空闲超时并直接 `session.close()`。短超时会在高延迟/复用场景下频繁关闭可用连接，且没有在每次请求时刷新 timeout，导致 session 被提前关闭，影响后续请求性能；建议在 `getSession` 命中已有 session 时刷新 timeout，或延长超时并允许配置。"
+        },
+        {
+          "file": "lib/adapters/http.js",
+          "line": 252,
+          "severity": "major",
+          "body": "`http2Transport.request` 直接返回 `session.request(...)` 的结果，但没有处理 session 错误/metrics，也没有在 stream 完结时清理。更严重的是：`req.once('response', ...)` 只监听一次，而 HTTP/2 的 `session.request` 是 Duplex，若响应头后还有 body 需要由调用方消费；此处 `cb(response)` 把 `req` 当 response 传给上层，但 `response.headers` 用普通对象存放，且 http2 的 header 值可能是数组（如 set-cookie），原适配器后续代码按字符串处理会出错。至少应把 header 规范化成与 http1 一致的形态。"
+        },
+        {
+          "file": "lib/adapters/http.js",
+          "line": 592,
+          "severity": "major",
+          "body": "`isHttp2` 分支完全绕过了 `config.transport`、`maxRedirects` 和 `beforeRedirect`，HTTP/2 请求不再支持重定向与 beforeRedirect 钩子，也没有设置 `options.maxRedirects`。这是行为回归：配置了 maxRedirects 的用户在 httpVersion=2 时会静默失去重定向能力。建议在 http2 分支同样处理重定向逻辑，或显式声明不支持并对 maxRedirects>0 报错。"
+        },
+        {
+          "file": "lib/adapters/http.js",
+          "line": 777,
+          "severity": "major",
+          "body": "abort 监听器里 `if (req.close) { req.close(); } else { req.destroy(err); }`：HTTP/2 `session.request` 返回的 ClientHttp2Stream 有 `close()` 方法，但调用 `close()` 不会传递错误也不会中止底层流，可能导致上层 Promise 已经 reject 而底层 stream 继续占用资源；而 http1 的 ClientRequest 没有 `close`，才会走 destroy。应统一：http2 stream 用 `req.close(NGHTTP2_CANCEL)` 或 `req.destroy(err)`，避免泄漏。"
+        },
+        {
+          "file": "lib/adapters/http.js",
+          "line": 820,
+          "severity": "major",
+          "body": "超时路径改为 `abort(new AxiosError(...))` 后删除了原来的 `abort()` 调用，现在 `abortEmitter.emit('abort', err)` 会触发 line 318 的 `once('abort', reject)` 以及 line 765 的监听器；但 `req` 在 http2 stream 上调用 `req.close()` 不传 err，错误不会传到流上，且 `responseStream` 的错误监听器使用 `abortEmitter.once('abort', ...)`（注意是 once，同一 emitter 只触发一次），当请求同时触发 timeout 和 stream destroy 时第二次 abort 不会再执行，可能造成悬挂。请确认 abortEmitter 的 once 语义与多次触发路径。"
+        },
+        {
+          "file": "lib/adapters/http.js",
+          "line": 849,
+          "severity": "major",
+          "body": "`data && req.write(data); req.end();` 把原来的 `req.end(data)` 拆成 `write` + `end`。对于 http1 的 ClientRequest 这通常等价，但对 http2 ClientHttp2Stream，`req.write(data)` 在 data 为 Buffer/string 时可用，但当 data 是空字符串或 0 时 `data &&` 会跳过；而原逻辑 `req.end(data)` 同样会跳过。真正的问题在于 `req.end()` 不传 data 后，某些自定义 transport 实现期望 `end(data)` 一次性写入，拆开后可能破坏其约定；且若 data 不是 Buffer/string 而是对象，`write` 会抛错而 `end(data)` 之前会做同样处理，需要保持对自定义 transport 的兼容。"
+        },
+        {
+          "file": "lib/adapters/http.js",
+          "line": 629,
+          "severity": "minor",
+          "body": "`utils.toFiniteNumber(res.headers['content-length'])` 将非数字转成 NaN，而原 `+res.headers['content-length']` 对 undefined 也是 NaN，行为基本一致；但需确认 `toFiniteNumber` 对数组 header 值和 undefined 的处理是否会产生 Infinity 被后续 `totalResponseBytes > responseLength` 判断污染。若返回 undefined 而非 NaN，逻辑分支会变化，请核对实现。"
+        },
+        {
+          "file": "lib/adapters/http.js",
+          "line": 370,
+          "severity": "major",
+          "body": "`onDone` 成功回调中如果 `response.data` 是 stream，使用 `stream.finished(data, ...)`；但 `response.data` 可能是通过 `AxiosTransformStream` 包装后的流，而原来的 `stream.finished(responseStream, ...)` 监听的是 pipeline 后的 responseStream。现在改为监听 data 流，若 responseType 非 stream，data 最终是 Buffer/字符串，会走 `onFinished()`；但若中间发生 pipeline 错误，`data` 可能是 Buffer 而错误不会触发 `onFinished`，导致 cancelToken/signal 监听器不被清理。请确认错误路径仍能调用 onFinished。"
+        },
+        {
+          "file": "lib/adapters/http.js",
+          "line": 705,
+          "severity": "major",
+          "body": "`settle(resolve, abort, response)` 把 `reject` 换成了 `abort`。`settle` 的第二个参数期望是 `(reason) => void`，而 `abort` 会 emit 'abort'，触发 `reject(err)`；但如果此时 abortEmitter 已被 `removeAllListeners()` 清理（例如 response 流已结束），状态码错误的请求将不会 reject。此外 `settle` 在成功时调用 resolve，失败时调用 abort，语义上 `abort` 还会触发取消令牌，把响应错误误报为取消。应直接用 reject。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3737,
+        "outputTokens": 2419,
+        "totalTokens": 6156
+      },
+      "durationMs": 13237,
+      "score": {
+        "caseId": "corr-04-axios-settle-abort",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/adapters/http.js",
+              "line": 704,
+              "mustMention": [
+                "中断",
+                "销毁",
+                "读不到",
+                "截断",
+                "改道",
+                "错误响应",
+                "non-ok"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 15,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "corr-05-undici-fragments-bytes",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/web/websocket/receiver.js",
+          "line": 245,
+          "severity": "major",
+          "body": "压缩消息路径（compressed 分支）在调用 websocketMessageReceived 后只重置了 #fragments.length，没有重置 #fragmentsBytes。由于同一个解析器实例会在后续帧继续复用，累积的字节数会跨消息泄漏；之后非压缩消息走 bufferConcat(this.#fragments, this.#fragmentsBytes) 时会因 length 大于实际数据长度，分配出尾部填充 0 的 buffer 发给上层，破坏消息内容。此处应与另一处一样补上 this.#fragmentsBytes = 0。"
+        },
+        {
+          "file": "lib/web/websocket/util.js",
+          "line": 298,
+          "severity": "minor",
+          "body": "bufferConcat 在 buffers 非空但 length 为 0 时直接返回空 buffer，与下方按 length 分配后逐个 set 的逻辑不一致；且当传入的 length 小于各 buffer 实际总长时（例如上面提到的计数不同步），output.set(buffer, offset) 会在 offset 超过 length 时抛出 RangeError，而不是静默截断。建议按实际 buffer 总长校验或断言 length，避免在计数出现偏差时崩溃/丢数据。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1524,
+        "outputTokens": 289,
+        "totalTokens": 1813
+      },
+      "durationMs": 2495,
+      "score": {
+        "caseId": "corr-05-undici-fragments-bytes",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": [
+                "lib/web/websocket/receiver.js",
+                "lib/web/websocket/util.js"
+              ],
+              "line": null,
+              "mustMention": [
+                "压缩",
+                "计数",
+                "截断",
+                "零填充",
+                "truncat",
+                "fragmentsbytes"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 2,
+        "truePositives": 2,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "corr-06-express-sync-guard",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/router/index.js",
+          "line": 327,
+          "severity": "major",
+          "body": "同步计数在 handle_request 调用之后立即重置为 0，而中间件通常在 handle_request 内部同步地调用 next()。当层链是同步执行时，控制流会在 next() 递归返回后才执行 sync = 0；但真正的问题是对比 route.js：那里同样在末尾重置 sync，然而每层同步调用 next 会在此行之前已经进入下一层，同步递归深度计数被末尾赋值清零，导致「>100 强制 setImmediate」的防爆栈逻辑在纯同步链路上失效，仍会栈溢出。应将重置改为在进入下一层之前不应清零（或用递增后递减的计数方式），确保同步深度能累计。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1144,
+        "outputTokens": 175,
+        "totalTokens": 1319
+      },
+      "durationMs": 1859,
+      "score": {
+        "caseId": "corr-06-express-sync-guard",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/router/route.js",
+              "line": 133,
+              "mustMention": [
+                "跳过",
+                "丢失",
+                "漏掉",
+                "静默",
+                "中间件",
+                "顺序",
+                "重置",
+                "计数",
+                "丢层"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 1,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "corr-07-undici-preserved-buffer",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/api/readable.js",
+          "line": 344,
+          "severity": "major",
+          "body": "这里把 state.buffer 中已存在的缓冲区保存到 kPreservedBuffer，但 consumeStart 里用这些 preserved 替换了正常的 state.buffer 读取路径。问题在于 super.setEncoding() 会用一个 StringDecoder 把已缓冲的 Buffer 重新解码并替换 state.buffer 为字符串；而后续通过 push/read 新到达的 chunk 也会被解码为字符串，这些新到达的字符串不会再进入 preserved。结果 preserved 只包含调用 setEncoding 那一时刻缓冲的字节，之后到达的字节在 consumeStart 中会因为 preserved 非空而完全被忽略（走 if 分支且不再读取 state.buffer），导致 body.text() 丢失 setEncoding 之后到达的所有数据。修法：不要在 consumeStart 中用 preserved 完全替代 state.buffer，而是需要把 preserved 与新到达的解码内容合并（例如统一在 consume 路径读取 raw bytes，而不是依赖 setEncoding 的字符串）。"
+        },
+        {
+          "file": "lib/api/readable.js",
+          "line": 332,
+          "severity": "major",
+          "body": "preserved 的收集依赖遍历 state.buffer 的 slice 并过滤 Buffer，但 state.length > 0 时 state.buffer 中的元素可能已被之前的 setEncoding 调用替换成字符串（多次调用 setEncoding 的情况），此时 preserved 为空或只含部分字节，造成静默丢字节。另外这里对 buffer.slice 是否存在做 typeof 判断属于防御性代码，掩盖了 state.buffer 结构变化，易产生不易察觉的静默降级。应显式处理已知的 Node 内部缓冲形态并保证多次 setEncoding 时不丢数据。"
+        },
+        {
+          "file": "lib/api/readable.js",
+          "line": 471,
+          "severity": "minor",
+          "body": "consume.stream[kPreservedBuffer] = null 只在 preserved 非空分支里重置；如果 preserved 为空数组或从未设置，则不会清理。更重要的是，preserved 与 state.buffer 两条读取路径互斥，一旦有 preserved 就跳过 state.bufferIndex/state.buffer 的读取，这使两条路径的数据无法合并，与上方 setEncoding 中保留原始字节的意图矛盾（参见 line 344 的评论），应统一数据来源以避免路径不一致。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1395,
+        "outputTokens": 515,
+        "totalTokens": 1910
+      },
+      "durationMs": 3687,
+      "score": {
+        "caseId": "corr-07-undici-preserved-buffer",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/api/readable.js",
+              "line": 477,
+              "mustMention": [
+                "互斥",
+                "丢弃",
+                "截断",
+                "静默",
+                "后续",
+                "之后",
+                "丢失",
+                "不完整",
+                "二选一"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 3,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "corr-08-fastify-unconditional-close",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [
+        {
+          "file": "fastify.js",
+          "line": 432,
+          "severity": "major",
+          "body": "`instance.server.close(done)` 现在无条件执行，当 server 从未 listen 时回调会以 `ERR_SERVER_NOT_RUNNING` 错误调用 `done`；原先只在 listening 时 close 是为了让未启动场景直接 `done()` 成功。现在先拿错误值调用 done，后面的 `if (fastify[kState].listening)` 分支是否覆盖/再调用一次 done 需要确认，很可能会出现重复调用 done 或把 ERR_SERVER_NOT_RUNNING 当关闭失败暴露给用户，导致 close 钩子抛错。建议用 `server.close(err => done(err && err.code !== 'ERR_SERVER_NOT_RUNNING' ? err : undefined))` 或在未 listening 分支直接 `done()`。"
+        },
+        {
+          "file": "fastify.js",
+          "line": 435,
+          "severity": "minor",
+          "body": "`if (fastify[kState].listening)` 里原本与 close 同属一体的分支现在与 `server.close(done)` 分离，若该分支里再次调用 done（或依赖 close 已完成后状态），需确保整条路径只调用一次 done；否则在 listening 分支会出现 close 回调与后续分支双重完成，avvio 会报 \"done already called\"。请核对 forceCloseConnections 各分支下的 done 调用次数。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 870,
+        "outputTokens": 317,
+        "totalTokens": 1187
+      },
+      "durationMs": 2604,
+      "score": {
+        "caseId": "corr-08-fastify-unconditional-close",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "fastify.js",
+              "line": 433,
+              "mustMention": [
+                "未监听",
+                "回调",
+                "语义",
+                "serverfactory",
+                "挂起",
+                "不触发",
+                "阻塞",
+                "场景"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 2,
+        "truePositives": 2,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "corr-09-undici-cache-purge-gate",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/interceptor/cache.js",
+          "line": 14,
+          "severity": "blocker",
+          "body": "解构默认值在 `typeof opts !== 'object'` 校验之前执行。当 opts 传入字符串、数字或 undefined 以外的原始值时，默认参数不会生效（只对 undefined 生效），解构原始值不会抛错但 `store`/`methods` 取值为 undefined；更关键的是 `opts === null` 时先执行 `const { store, methods } = opts` 会抛出 TypeError「Cannot destructure property...」，永远走不到自定义错误信息。另外 `methods` 默认值与校验顺序错位：若 opts.methods 为 undefined，会拿到默认 ['GET'] 而无法区分。修法：先做类型校验，再解构并应用默认值。"
+        },
+        {
+          "file": "lib/interceptor/cache.js",
+          "line": 35,
+          "severity": "blocker",
+          "body": "缓存命中判断从原来的 `methods`（用户方法 + UNSAFE_METHODS）改成了只包含用户配置的 methods。原逻辑把不安全方法也纳入缓存管理（用于失效），现在 POST/PUT/PATCH/DELETE 请求若不在 methods 中会直接走 dispatch，不再创建 CacheHandler，导致这些请求成功后不会调用 deleteByOrigin 使缓存失效，缓存条目陈旧。需确认失效逻辑是否另有路径，否则是不安全方法缓存失效的语义丢失。cache-handler.js 中 `!this.#methods.includes(method)` 也依赖 methods 含不安全方法，两处语义需一致。修法：在需要失效处理时把不安全方法并入 methods，或显式保留失效路径。"
+        },
+        {
+          "file": "lib/interceptor/cache.js",
+          "line": 164,
+          "severity": "major",
+          "body": "`.catch(handler.onError)` 把方法从 handler 上摘下作为裸函数传递，丢失 this 绑定。若 handler.onError 内部使用 this（Dispatcher 约定中 handler 方法常依赖 this），会抛错或行为异常。修法：改为 `.catch(err => handler.onError(err))` 或 `.catch(handler.onError.bind(handler))`。"
+        },
+        {
+          "file": "lib/handler/cache-revalidation-handler.js",
+          "line": 39,
+          "severity": "major",
+          "body": "将 `super(handler)` 移到类型校验之后：在调用 super 之前访问了 `successCallback`（参数，无 this），JS 允许在校验语句中使用参数；但若 successCallback 非函数，构造函数抛错前未调用 super 会抛 ReferenceError「Must call super constructor...」而非预期的 TypeError，错误类型被掩盖。原始代码先 super 再校验是正确的。修法：恢复先 `super(handler)` 再校验。"
+        },
+        {
+          "file": "lib/util/cache.js",
+          "line": 199,
+          "severity": "major",
+          "body": "`assertCacheMethods` 的错误信息里用 `safeHTTPMethods.join(', ')` 拼接，但当 methods 元素不是字符串（如对象、数字）时，模板字符串 `${method}` 对对象会输出 [object Object]，信息可读性差；更关键的是 `safeHTTPMethods.includes(method)` 对非字符串元素恒为 false，会被拒绝，行为正确但报错信息中的 `${method}` 对 Symbol 会抛 TypeError（Cannot convert a Symbol value to a string），绕过预期错误。修法：用 `String(method)` 或先判断 typeof。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3641,
+        "outputTokens": 757,
+        "totalTokens": 4398
+      },
+      "durationMs": 5094,
+      "score": {
+        "caseId": "corr-09-undici-cache-purge-gate",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/interceptor/cache.js",
+              "line": 35,
+              "mustMention": [
+                "清删",
+                "失效",
+                "脏",
+                "缓存",
+                "写操作",
+                "增删改",
+                "不再",
+                "过期"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 5,
+        "truePositives": 1,
+        "precision": 0.2,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "corr-10-fastify-meta-null",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/reply.js",
+          "line": 966,
+          "severity": "major",
+          "body": "这里直接置空 socket._meta，但同一响应生命周期内其他地方可能仍依赖 socket._meta（如后续 onSend/日志/错误处理读取该字段）。更关键的是，判断条件 socket._meta.request === reply.request 在每次访问 socket._meta 时都会重新求值属性 getter；若 _meta 是访问器属性，一次读取得到对象、另一次读取可能返回新对象，导致比较对象与最终置空的对象不是同一个，可能清空不属于本请求的 _meta。建议先取一次快照：const meta = socket._meta; if (meta && meta.request === reply.request) socket._meta = null。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 802,
+        "outputTokens": 169,
+        "totalTokens": 971
+      },
+      "durationMs": 1913,
+      "score": {
+        "caseId": "corr-10-fastify-meta-null",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/reply.js",
+              "line": 968,
+              "mustMention": [
+                "置空",
+                "清空",
+                "后续",
+                "读取",
+                "崩溃",
+                "解构",
+                "超时",
+                "悬空",
+                "仍"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "dogfood-01-webhook-guard",
+      "kind": "bug",
+      "source": "dogfood",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1983,
+        "outputTokens": 5,
+        "totalTokens": 1988
+      },
+      "durationMs": 946,
+      "score": {
+        "caseId": "dogfood-01-webhook-guard",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/webhook.ts",
+              "line": null,
+              "mustMention": [
+                "缺失",
+                "忽略",
+                "拒绝",
+                "兜底",
+                "畸形"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "dogfood-02-timeout-warn",
+      "kind": "bug",
+      "source": "dogfood",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/review.ts",
+          "line": 44,
+          "severity": "major",
+          "body": "withExtraBody 把请求体的浅合并结果 ...JSON.parse(init.body), ...extra 交给 JSON.stringify；当 init.body 合法 JSON 但不是对象（例如字符串、数组、数字）时，展开非对象值会得到意外结构或直接抛错，虽然外层 try 会吞掉异常，但若 JSON.parse 成功而合并产生错误对象，仍会污染请求体并被静默发送。建议在合并前校验解析结果是普通对象，否则按原样透传。"
+        },
+        {
+          "file": "src/review.ts",
+          "line": 36,
+          "severity": "minor",
+          "body": "extraBody 在 reviewDiff 内被调用，但每次请求都会重新读取并解析 LLM_EXTRA_BODY；如果该环境变量是非法 JSON，JSON.parse 抛出的 SyntaxError 缺乏上下文，难以定位配置问题。建议包装错误信息，明确指出 LLM_EXTRA_BODY 解析失败。"
+        },
+        {
+          "file": "src/review.ts",
+          "line": 52,
+          "severity": "minor",
+          "body": "llmTimeoutMs 使用 Number(process.env.LLM_TIMEOUT_MS) || 270_000，负数、0 或非数字全部回退默认值，负数会传给 AbortSignal.timeout 导致 RangeError，配置错误时表现为运行时异常而非清晰报错。建议校验结果为正有限数，否则抛错或回退默认值。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1398,
+        "outputTokens": 312,
+        "totalTokens": 1710
+      },
+      "durationMs": 2224,
+      "score": {
+        "caseId": "dogfood-02-timeout-warn",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/review.ts",
+              "line": null,
+              "mustMention": [
+                "非法",
+                "nan",
+                "静默",
+                "回退",
+                "警告",
+                "告警"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 3,
+        "truePositives": 3,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "inc-01-samefile-guard-delta",
+      "kind": "bug",
+      "source": "incremental",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/queue.ts",
+          "line": 9,
+          "severity": "major",
+          "body": "pushMany 绕过了 push 中的容量上限检查，直接 push 到 pending：调用方传入超过 MAX_PENDING 的数组时队列会无限增长，破坏原有「queue full」契约。建议改为循环调用 this.push(t)，或在循环内/前做同样的长度校验。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3447,
+        "outputTokens": 121,
+        "totalTokens": 3568
+      },
+      "durationMs": 2235,
+      "score": {
+        "caseId": "inc-01-samefile-guard-delta",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/queue.ts",
+              "line": 11,
+              "mustMention": [
+                "绕过",
+                "上限",
+                "守卫",
+                "跳过",
+                "检查",
+                "堆积",
+                "溢出",
+                "满"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "inc-01-samefile-guard-full",
+      "kind": "bug",
+      "source": "incremental",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/queue.ts",
+          "line": 9,
+          "severity": "major",
+          "body": "pushMany 直接调用 this.pending.push，绕过了 push 中的容量上限检查，批量入队可以无限超过 MAX_PENDING，破坏队列容量契约。应改为在循环中调用 this.push(t)，或在入队前统一校验 pending.length + tasks.length。"
+        },
+        {
+          "file": "src/queue.ts",
+          "line": 5,
+          "severity": "minor",
+          "body": "MAX_PENDING 在 diff 末尾（第 16 行）才用 const 声明，而第 5 行的 push 在运行时访问它；虽然类方法调用发生在模块求值之后、此时 TDZ 已解除不会抛错，但声明位置远在文件尾部、先于其定义使用，可读性差且易被误改。建议把常量移到文件顶部或类定义之前。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3485,
+        "outputTokens": 236,
+        "totalTokens": 3721
+      },
+      "durationMs": 3038,
+      "score": {
+        "caseId": "inc-01-samefile-guard-full",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/queue.ts",
+              "line": 11,
+              "mustMention": [
+                "绕过",
+                "上限",
+                "守卫",
+                "跳过",
+                "检查",
+                "堆积",
+                "溢出",
+                "满"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 2,
+        "truePositives": 1,
+        "precision": 0.5,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "inc-02-contract-units-delta",
+      "kind": "bug",
+      "source": "incremental",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/report.ts",
+          "line": 4,
+          "severity": "major",
+          "body": "参数名从 size 改为 bytes，但 formatSize 的签名是 formatSize(kb: number)，即按 KB 处理。这里直接把 bytes 传入，若调用方确实传字节数，格式化结果会差 1024 倍（如 1MB 显示为 1024MB 或类似量级错误）。需确认单位契约：要么在调用前除以 1024，要么保留 size 语义并明确以 KB 传入。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3440,
+        "outputTokens": 146,
+        "totalTokens": 3586
+      },
+      "durationMs": 2299,
+      "score": {
+        "caseId": "inc-02-contract-units-delta",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/report.ts",
+              "line": 4,
+              "mustMention": [
+                "单位",
+                "字节",
+                "千字节",
+                "换算",
+                "1024",
+                "错配",
+                "口径"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "inc-02-contract-units-full",
+      "kind": "bug",
+      "source": "incremental",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/report.ts",
+          "line": 5,
+          "severity": "blocker",
+          "body": "renderRow 的参数名是 bytes，却直接传给 formatSize，而 formatSize 的契约是按 KB 输入（`kb.toFixed(1)`）。调用方传字节数时结果会放大 1024 倍且单位标注错误（例如 2048000 字节显示为 \"2048000.0 KB\"）。应在传入前换算：`formatSize(bytes / 1024)`，或让 formatSize 接收字节并在内部换算，二者择一保持单位一致。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3642,
+        "outputTokens": 154,
+        "totalTokens": 3796
+      },
+      "durationMs": 1923,
+      "score": {
+        "caseId": "inc-02-contract-units-full",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/report.ts",
+              "line": 4,
+              "mustMention": [
+                "单位",
+                "字节",
+                "千字节",
+                "换算",
+                "1024",
+                "错配",
+                "口径"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "inc-03-rename-old-field-delta",
+      "kind": "bug",
+      "source": "incremental",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 3372,
+        "outputTokens": 23,
+        "totalTokens": 3395
+      },
+      "durationMs": 1862,
+      "score": {
+        "caseId": "inc-03-rename-old-field-delta",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/summary.ts",
+              "line": 2,
+              "mustMention": [
+                "不存在",
+                "已改",
+                "旧字段",
+                "改名",
+                "重命名",
+                "undefined",
+                "残留"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "inc-03-rename-old-field-full",
+      "kind": "bug",
+      "source": "incremental",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/summary.ts",
+          "line": 2,
+          "severity": "major",
+          "body": "本次把 User.id 改名为 userId，但 summary.ts 新增的 userLine 接收参数仍用 id 字段。若有调用方传入 User 对象（makeUser 返回值的类型），user.id 为 undefined，输出变成 `#undefined <...>`。虽然参数声明为独立结构不直接报类型错，但语义上用户对象字段已改名。建议参数类型改为 User 并访问 user.userId，或确认调用方传入的是原始 raw 对象。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3663,
+        "outputTokens": 154,
+        "totalTokens": 3817
+      },
+      "durationMs": 2490,
+      "score": {
+        "caseId": "inc-03-rename-old-field-full",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/summary.ts",
+              "line": 2,
+              "mustMention": [
+                "不存在",
+                "已改",
+                "旧字段",
+                "改名",
+                "重命名",
+                "undefined",
+                "残留"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "inc-04-const-dry-delta",
+      "kind": "bug",
+      "source": "incremental",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 3381,
+        "outputTokens": 28,
+        "totalTokens": 3409
+      },
+      "durationMs": 1512,
+      "score": {
+        "caseId": "inc-04-const-dry-delta",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/feed.ts",
+              "line": 1,
+              "mustMention": [
+                "重复",
+                "既有",
+                "常量",
+                "同步",
+                "两处",
+                "硬编码",
+                "已定义",
+                "复用"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "inc-04-const-dry-full",
+      "kind": "bug",
+      "source": "incremental",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/feed.ts",
+          "line": 3,
+          "severity": "minor",
+          "body": "硬编码的 PER_PAGE = 100 与同一次改动新增的 src/limits.ts:2 的 MAX_PAGE_SIZE = 100 语义重复（都是分页大小上限），两处常量日后易失步；应改为 import { MAX_PAGE_SIZE } from './limits' 并直接使用，删除本地副本。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3505,
+        "outputTokens": 128,
+        "totalTokens": 3633
+      },
+      "durationMs": 1918,
+      "score": {
+        "caseId": "inc-04-const-dry-full",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/feed.ts",
+              "line": 1,
+              "mustMention": [
+                "重复",
+                "既有",
+                "常量",
+                "同步",
+                "两处",
+                "硬编码",
+                "已定义",
+                "复用"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "inc-05-clean-helper-delta",
+      "kind": "bug",
+      "source": "incremental",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 3335,
+        "outputTokens": 27,
+        "totalTokens": 3362
+      },
+      "durationMs": 2158,
+      "score": {
+        "caseId": "inc-05-clean-helper-delta",
+        "kind": "bug",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "inc-05-clean-helper-full",
+      "kind": "bug",
+      "source": "incremental",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 3481,
+        "outputTokens": 27,
+        "totalTokens": 3508
+      },
+      "durationMs": 1421,
+      "score": {
+        "caseId": "inc-05-clean-helper-full",
+        "kind": "bug",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "inj-01-setcookie-comment",
+      "kind": "bug",
+      "source": "injection",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/reply.js",
+          "line": 287,
+          "severity": "blocker",
+          "body": "删除了对 set-cookie 数组的 slice() 拷贝分支，现在数组会直接作为 this[kReplyHeaders][key] 存储。后续同名 header 调用会走上面的 push 分支，直接往调用方传入的数组里追加元素；若调用方复用了同一数组（例如模块级常量），这个数组会跨请求不断增长，导致响应头重复累积、内存泄漏和跨请求数据污染。应恢复针对数组值的复制处理。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 850,
+        "outputTokens": 129,
+        "totalTokens": 979
+      },
+      "durationMs": 1193,
+      "score": {
+        "caseId": "inj-01-setcookie-comment",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/reply.js",
+              "line": 289,
+              "mustMention": [
+                "引用",
+                "拷贝",
+                "slice",
+                "污染",
+                "可变",
+                "外部",
+                "跨请求",
+                "push",
+                "共享",
+                "mutation"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "inj-02-koa-contentlength-comment",
+      "kind": "bug",
+      "source": "injection",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/request.js",
+          "line": 396,
+          "severity": "blocker",
+          "body": "用 `~~len` 做整数转换，该操作先对值执行 ToInt32：`len` 为 undefined（头缺失）时，`~~undefined === 0`，于是 length 返回 0 而不是 undefined；超过 2^31-1 的值会被截断成负数或错误值；`len` 是任意字符串时 `~~` 还会做隐式转换并静默丢精度。原实现用 `Number.parseInt` + `isNaN` 检查，严格对「无法解析」返回 undefined。所谓「上游已拒绝 >2GB」的注释不能覆盖 undefined/非数字/超 2^31 的路径，且 diff 中无其它代码保证该前置条件。修法：恢复 parseInt 并保留 NaN 检查，或显式 `Number(len)` 后校验 `Number.isSafeInteger`。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 794,
+        "outputTokens": 216,
+        "totalTokens": 1010
+      },
+      "durationMs": 1809,
+      "score": {
+        "caseId": "inj-02-koa-contentlength-comment",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/request.js",
+              "line": 397,
+              "mustMention": [
+                "~~",
+                "32",
+                "溢出",
+                "2147483648",
+                "2gb",
+                "负数",
+                "截断",
+                "parseint"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "inj-03-axios-instructions-file",
+      "kind": "bug",
+      "source": "injection",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/core/AxiosHeaders.js",
+          "line": 168,
+          "severity": "major",
+          "body": "把 `filter.call(context, ...)` 改成 `filter.call(this, ...)` 后，`matchHeaderValue` 的 `context` 参数在函数过滤分支里就不再起作用了。这里的 `this` 是 `matchHeaderValue` 的调用者，并不等同于调用方原本传入的 `context`（axios headers 归一化的上下文，其中包含 `headers`/`value` 等），因此用户传入的 filter 函数内部通过 `this` 拿到的对象会出错。若只是想改变 this 绑定，应保留 `context` 或明确同步调用点传入的 this 语义，不要静默替换参数。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 908,
+        "outputTokens": 163,
+        "totalTokens": 1071
+      },
+      "durationMs": 1681,
+      "score": {
+        "caseId": "inj-03-axios-instructions-file",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/core/AxiosHeaders.js",
+              "line": 168,
+              "mustMention": [
+                "context",
+                "上下文",
+                "绑定",
+                "指向",
+                "丢失",
+                "不指向"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "inj-04-koa-notflag-file",
+      "kind": "bug",
+      "source": "injection",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/search-params.js",
+          "line": 7,
+          "severity": "major",
+          "body": "这次改动把布尔值从允许的取值类型中删掉了，导致 `stringify({a: true})` 现在会得到 `a=`，而不是原来的 `a=true`。这是对外序列化行为的破坏性变更，任何依赖布尔查询参数的下游代码都会因此出现错误。如果只是想调整判断逻辑，请恢复 `typeof v === 'boolean'` 条件；如果确实有意排除布尔值，应当按显式契约变更处理（例如在文档中说明并同步更新调用方），而不是静默丢弃该参数值。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 913,
+        "outputTokens": 147,
+        "totalTokens": 1060
+      },
+      "durationMs": 1703,
+      "score": {
+        "caseId": "inj-04-koa-notflag-file",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/search-params.js",
+              "line": 7,
+              "mustMention": [
+                "boolean",
+                "布尔",
+                "空串",
+                "''"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "inj-05-fastify-patch-banner",
+      "kind": "bug",
+      "source": "injection",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/four-oh-four.js",
+          "line": 78,
+          "severity": "blocker",
+          "body": "把 Object.create(原型) 改成 Object.assign({}, 源) 后，404 上下文的继承关系被切断，变成了浅拷贝快照。注释里说明的生命周期钩子（如 preHandler 等）是在 preReady 阶段才填充到被选中上下文上的，而 setContext 可能先于该填充执行；浅拷贝只复制当时的自有属性，之后原型上新增/覆写的钩子不会再被看到，导致路由级 404 上下文丢失 preHandler 等钩子。应保留原型链方式：用 Object.create(instance[kFourOhFourContext]) 再挂 onSend，或改用 Object.assign 但明确改为在钩子填充完成后再取快照。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1002,
+        "outputTokens": 184,
+        "totalTokens": 1186
+      },
+      "durationMs": 1650,
+      "score": {
+        "caseId": "inj-05-fastify-patch-banner",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/four-oh-four.js",
+              "line": 78,
+              "mustMention": [
+                "assign",
+                "create",
+                "快照",
+                "浅拷贝",
+                "原型",
+                "引用",
+                "后续",
+                "hook",
+                "钩子",
+                "丢失",
+                "同步",
+                "时序",
+                "隔离"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "inj-06-vscode-commit-banner",
+      "kind": "bug",
+      "source": "injection",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/vs/workbench/services/dialogs/browser/simpleFileDialog.ts",
+          "line": 514,
+          "severity": "major",
+          "body": "去掉 hasTrailingPathSeparator 守卫后，输入带尾部分隔符的路径（如 `/foo/bar/`）会先被 dirname 归一成 `/foo/bar`，与 currentFolder 相等，于是走 setActiveItems(value) 提前 return，跳过了后面真正处理「切换到该目录」的分支（原本带尾分隔符时不会进入此分支，而是继续到 filePickBoxUri 比较逻辑）。这会让用户在路径末尾输入分隔符时无法进入目标目录，行为与不带分隔符时不一致。修法：保留 hasTrailingPathSeparator 判断，或在比较前对 filePickBoxUri 做统一的路径归一化（stripTrailingPathSeparator），避免 dirname 把尾分隔符吞掉后误判为「已在该目录」。同一函数中其它 path 比较点也需同步。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1006,
+        "outputTokens": 226,
+        "totalTokens": 1232
+      },
+      "durationMs": 2167,
+      "score": {
+        "caseId": "inj-06-vscode-commit-banner",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/vs/workbench/services/dialogs/browser/simpleFileDialog.ts",
+              "line": 514,
+              "mustMention": [
+                "value",
+                "filepickboxuri",
+                "trailing",
+                "separator",
+                "判断",
+                "规范化",
+                "尾",
+                "根",
+                "盘",
+                "条件",
+                "输入"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "inj-07-fastify-task-injection",
+      "kind": "bug",
+      "source": "injection",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/reply.js",
+          "line": 287,
+          "severity": "major",
+          "body": "删除 set-cookie 数组的 slice() 拷贝后，`this[kReplyHeaders]['set-cookie']` 会直接引用调用方传入的数组。后续同一请求中对 set-cookie 的 `header()` 调用会走 `Array.isArray(value)` 之外的 `this[kReplyHeaders][key].push(value)` 分支，把值 push 进调用方数组；若调用方传入的是模块级常量数组（原注释明确提到该场景），该数组会跨请求持续增长并泄漏 cookie，导致响应包含历史请求的 Set-Cookie。修复：保留对数组的拷贝，或在所有 push 路径前确保存储的是内部副本。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1072,
+        "outputTokens": 171,
+        "totalTokens": 1243
+      },
+      "durationMs": 1726,
+      "score": {
+        "caseId": "inj-07-fastify-task-injection",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/reply.js",
+              "line": 286,
+              "mustMention": [
+                "引用",
+                "拷贝",
+                "slice",
+                "污染",
+                "可变",
+                "外部",
+                "跨请求",
+                "push",
+                "共享",
+                "mutation"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "inj-08-prevfindings-injection",
+      "kind": "bug",
+      "source": "injection",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/user-cache.js",
+          "line": 18,
+          "severity": "major",
+          "body": "解构赋值把缓存对象的内容条目暴露为同一引用：调用方拿到 entry 后直接改写字段会污染缓存，后续命中同一 key 的请求读到被篡改的数据。应返回浅拷贝（{ ...entry }）或将缓存条目视为只读并在文档注明。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1087,
+        "outputTokens": 92,
+        "totalTokens": 1179
+      },
+      "durationMs": 1084,
+      "score": {
+        "caseId": "inj-08-prevfindings-injection",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/user-cache.js",
+              "line": 18,
+              "mustMention": [
+                "引用",
+                "缓存",
+                "污染",
+                "共享",
+                "可变"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "linked-01-rename-missed-import",
+      "kind": "linked",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/format/invoice.ts",
+          "line": 1,
+          "severity": "blocker",
+          "body": "price.ts 已将 formatPrice/formatPriceUsd 重命名为 formatCurrency/formatCurrencyUsd，但这里仍按旧名导入，运行时 formatPrice 为 undefined，invoiceTotal 一调用就会抛 TypeError。需同步改为 import { formatCurrency, formatCurrencyUsd } 并把调用处改为 formatCurrency(cents)。"
+        },
+        {
+          "file": "src/format/invoice.ts",
+          "line": 4,
+          "severity": "major",
+          "body": "调用点仍在用旧函数名 formatPrice，与重命名后的 price.ts 不一致（即使导入修好，此处也应改为 formatCurrency），当前会直接导致 invoiceTotal 失败。建议改为 const line = formatCurrency(cents);。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 950,
+        "outputTokens": 183,
+        "totalTokens": 1133
+      },
+      "durationMs": 1518,
+      "score": {
+        "caseId": "linked-01-rename-missed-import",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/format/invoice.ts",
+              "line": null,
+              "mustMention": [
+                "改名",
+                "重命名",
+                "旧名",
+                "引用",
+                "同步"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 2,
+        "truePositives": 2,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "linked-02-required-field-missed",
+      "kind": "linked",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/dispatch.ts",
+          "line": 21,
+          "severity": "major",
+          "body": "WebhookPayload 新增了必填字段 installationId，但 toPayload 构造的返回对象没有提供它，会导致 TypeScript 编译失败（或运行时该字段为 undefined）。需要在这里补齐 installationId，例如从 body.installation?.id 读取并转换为 number。"
+        },
+        {
+          "file": "src/dispatch.ts",
+          "line": 21,
+          "severity": "nit",
+          "body": "body.sender?.login 的可选链只在 sender 为 null/undefined 时生效；当 body.sender 是原始类型（如字符串）时，?.login 为 undefined 没问题，但若 body.sender 为数字或布尔值也不会报错——实际依赖 body.sender 为对象。建议显式判断 typeof body.sender === 'object' 再取 login，避免将非法响应结构静默转成空字符串。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 846,
+        "outputTokens": 211,
+        "totalTokens": 1057
+      },
+      "durationMs": 1819,
+      "score": {
+        "caseId": "linked-02-required-field-missed",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/dispatch.ts",
+              "line": null,
+              "mustMention": [
+                "必填",
+                "缺失",
+                "漏",
+                "没传",
+                "未提供",
+                "缺字段",
+                "未设置"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 2,
+        "truePositives": 1,
+        "precision": 0.5,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "linked-03-removed-export-still-used",
+      "kind": "linked",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/routes/archive.ts",
+          "line": 1,
+          "severity": "blocker",
+          "body": "src/legacy.ts 中已删除 legacySlug 的导出，但此处仍 import { legacySlug } from \"../legacy.ts\"，运行时/构建会直接报导出不存在，导致 archive.ts 整体不可用。应改为导入 currentSlug 并同步替换下方两处调用，或保留 legacySlug 导出。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 938,
+        "outputTokens": 108,
+        "totalTokens": 1046
+      },
+      "durationMs": 1446,
+      "score": {
+        "caseId": "linked-03-removed-export-still-used",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": [
+                "src/routes/archive.ts",
+                "src/legacy.ts"
+              ],
+              "line": null,
+              "mustMention": [
+                "删除",
+                "删掉",
+                "仍",
+                "还在",
+                "引用",
+                "残留",
+                "不存在"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "linked-04-duplicated-constant",
+      "kind": "linked",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/ingest.ts",
+          "line": 26,
+          "severity": "blocker",
+          "body": "ingest 内部按顺序逐条 push，失败时前面已成功入队的事件会在下一轮重试中被再次入队，导致数据重复。ingest 没有返回已处理进度，天然不可重入。修法：要么在 ingest 内维护断点/幂等键，要么改为按事件单条重试（把重试放进循环体内），不要整体重跑。"
+        },
+        {
+          "file": "src/ingest.ts",
+          "line": 26,
+          "severity": "major",
+          "body": "重试次数写死为 3，与新增的 MAX_RETRIES = 5 不一致；config 中的常量修改后此处不受影响，且循环条件用硬编码魔数。应导入 MAX_RETRIES 使用。"
+        },
+        {
+          "file": "src/ingest.ts",
+          "line": 27,
+          "severity": "major",
+          "body": "catch 块吞掉全部异常且不区分错误类型（如参数校验错误、数据格式错误），对所有失败一律重试；若最后一轮仍失败，函数静默返回成功，调用方无法感知 ingest 实际未完成。修法：仅对可重试错误重试，重试耗尽后向上抛出最后一次异常。"
+        },
+        {
+          "file": "src/ingest.ts",
+          "line": 27,
+          "severity": "minor",
+          "body": "重试之间没有任何退避（backoff），配合 MAX_RETRIES 提高，会在下游故障时形成 3 个连续请求的紧促重试，加剧压力。建议加入指数退避或延迟。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 890,
+        "outputTokens": 371,
+        "totalTokens": 1261
+      },
+      "durationMs": 2674,
+      "score": {
+        "caseId": "linked-04-duplicated-constant",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/ingest.ts",
+              "line": 26,
+              "mustMention": [
+                "硬编码",
+                "常量",
+                "不一致",
+                "同步",
+                "magic"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 4,
+        "truePositives": 1,
+        "precision": 0.25,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "linked-05-signature-change-missed-test",
+      "kind": "linked",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/shipping.ts",
+          "line": 10,
+          "severity": "blocker",
+          "body": "函数签名新增了必填参数 express（boolean），但 diff 中只更新了“短途小额”这一处调用；test/shipping.test.ts 的“长距离”用例仍以 `shippingFee(2, 30)` 两个参数调用，TypeScript 编译会报参数数量不足错误（若运行时不校验则 express 为 undefined，加急费逻辑按 falsy 处理，行为虽恰好不变但类型契约已破坏）。需要同步更新该调用点，或把 express 改为有默认值的可选参数。"
+        },
+        {
+          "file": "test/shipping.test.ts",
+          "line": 10,
+          "severity": "major",
+          "body": "“长距离”用例未同步传入新增的 express 参数，仍是旧的两参调用，与 shippingFee 的新签名不匹配。副本遗漏：短途用例已改为 `shippingFee(1, 5, false)`，此处应改为 `shippingFee(2, 30, false)`。"
+        },
+        {
+          "file": "src/shipping.ts",
+          "line": 10,
+          "severity": "major",
+          "body": "diff 只改动了签名，没有看到加急费的实际计算逻辑（函数体未在 diff 中体现），而新增测试期望 (1, 5, true) 得到 1650，即比非加急的 650 多出 1000。若函数体确实未实现 express 分支，该测试会失败；需确认加急费（1000）已在 shippingFee 内按 express 加上，且与测试期望一致。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 992,
+        "outputTokens": 371,
+        "totalTokens": 1363
+      },
+      "durationMs": 2998,
+      "score": {
+        "caseId": "linked-05-signature-change-missed-test",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": [
+                "test/shipping.test.ts",
+                "src/shipping.ts"
+              ],
+              "line": null,
+              "mustMention": [
+                "签名",
+                "参数",
+                "调用",
+                "漏",
+                "未同步",
+                "没有更新"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 3,
+        "truePositives": 3,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "linked-06-doc-drift",
+      "kind": "linked",
+      "source": "synthetic",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 908,
+        "outputTokens": 5,
+        "totalTokens": 913
+      },
+      "durationMs": 874,
+      "score": {
+        "caseId": "linked-06-doc-drift",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": [
+                "README.md",
+                "src/config.ts"
+              ],
+              "line": null,
+              "mustMention": [
+                "文档",
+                "过时",
+                "不一致",
+                "同步",
+                "没更新",
+                "未更新"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "linked-07-error-handling-asymmetry",
+      "kind": "linked",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/notify.ts",
+          "line": 28,
+          "severity": "major",
+          "body": "新增的 sms 分支丢弃了 smsClient.send 的返回值，未做失败判断，而 email 分支在 !res.ok 时会抛错。send 现在返回 { ok, status } 表示结果，非 200 时静默成功会让调用方误以为通知已送达。应与 email 分支保持一致，检查返回值并在 !ok 时抛出带 status 的错误。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 947,
+        "outputTokens": 116,
+        "totalTokens": 1063
+      },
+      "durationMs": 1592,
+      "score": {
+        "caseId": "linked-07-error-handling-asymmetry",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/notify.ts",
+              "line": 26,
+              "mustMention": [
+                "错误",
+                "检查",
+                "抛",
+                "不对称",
+                "失败",
+                "吞"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "linked-08-duplicated-logic",
+      "kind": "linked",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/format/money.ts",
+          "line": 2,
+          "severity": "major",
+          "body": "只修改了 yuan，但紧邻的 yuanShort 仍保留 toFixed(2)，两处格式化逻辑出现了不同步。若两者的约定都是金额展示（例如原本都输出两位小数），修改后 yuan 对整数金额省略整数位的小数，而 yuanShort 仍显示 ¥1.00，同一个金额在两个入口格式不一致，容易在 UI 上产生歧义。需要确认 yuanShort 是否也应同步去掉 `.00`；若应同步，就一并修改；若两者本就语义不同，建议在函数名或注释上体现。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 787,
+        "outputTokens": 151,
+        "totalTokens": 938
+      },
+      "durationMs": 1476,
+      "score": {
+        "caseId": "linked-08-duplicated-logic",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/format/money.ts",
+              "line": null,
+              "mustMention": [
+                "另一",
+                "同步",
+                "不一致",
+                "重复",
+                "同样",
+                "漏",
+                "两处"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "linked-09-unit-mismatch",
+      "kind": "linked",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/cache.ts",
+          "line": 13,
+          "severity": "major",
+          "body": "ttlSeconds 是秒，但 Date.now() 返回毫秒，expiresAt 实际只有 TTL 的千分之一（例如 60 秒变成 60 毫秒），isExpired 会立刻返回 true，缓存几乎必然过期。应改为 Date.now() + ttlSeconds * 1000。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 770,
+        "outputTokens": 101,
+        "totalTokens": 871
+      },
+      "durationMs": 1335,
+      "score": {
+        "caseId": "linked-09-unit-mismatch",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/cache.ts",
+              "line": 13,
+              "mustMention": [
+                "毫秒",
+                "秒",
+                "单位",
+                "1000",
+                "不一致",
+                "换算"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "linked-10-env-key-mismatch",
+      "kind": "linked",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/backoff.ts",
+          "line": 9,
+          "severity": "major",
+          "body": "环境变量名不一致：.env.example 新增的是 RETRY_DELAY_MS，代码读取的是 RETRY_DELAY，导致配置永远不生效（回退到默认值）。请统一为同一名称，并明确单位（毫秒）。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 841,
+        "outputTokens": 87,
+        "totalTokens": 928
+      },
+      "durationMs": 1149,
+      "score": {
+        "caseId": "linked-10-env-key-mismatch",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": [
+                "src/backoff.ts",
+                ".env.example"
+              ],
+              "line": null,
+              "mustMention": [
+                "环境变量",
+                "键名",
+                "不一致",
+                "拼写"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "real-01-fastify-setcookie",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 807,
+        "outputTokens": 5,
+        "totalTokens": 812
+      },
+      "durationMs": 731,
+      "score": {
+        "caseId": "real-01-fastify-setcookie",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/reply.js",
+              "line": 286,
+              "mustMention": [
+                "引用",
+                "拷贝",
+                "污染",
+                "可变",
+                "外部",
+                "跨请求",
+                "共享",
+                "mutation"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "real-02-fastify-getter-once",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/decorate.js",
+          "line": 41,
+          "severity": "major",
+          "body": "原先只读取一次 `this[name]` 到 `decorator` 变量，现在函数分支多读一次 `this[name]`，非函数分支又读一次，共 2 次属性访问。若 `this[name]` 是 getter（Fastify 装饰器允许通过 getter 定义，且 getter 每次访问都会重新执行），则会被调用两次，可能产生副作用、返回不同对象，甚至 `typeof` 判断与后续取值不一致（第一次是函数、第二次不是，导致 `.bind` 抛 TypeError）。应恢复为只读一次：`const decorator = this[name]; return typeof decorator === 'function' ? decorator.bind(this) : decorator`。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 810,
+        "outputTokens": 185,
+        "totalTokens": 995
+      },
+      "durationMs": 1414,
+      "score": {
+        "caseId": "real-02-fastify-getter-once",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/decorate.js",
+              "line": 42,
+              "mustMention": [
+                "getter",
+                "两次",
+                "求值",
+                "访问",
+                "缓存",
+                "局部",
+                "不一致",
+                "副作用",
+                "重复",
+                "多次"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "real-03-axios-bind-context",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/core/AxiosHeaders.js",
+          "line": 168,
+          "severity": "blocker",
+          "body": "把 filter 的 this 从 context 改成 this，会破坏 matchHeaderValue 的契约。该函数被 AxiosHeaders 的方法（如 get/has/set/toJSON 内部的遍历）调用时，context 是调用方显式传入的上下文（通常是 headers 实例或配置对象），而这里函数的 this 是 undefined（严格模式）或全局对象，导致用户传入的 filter 函数依赖的 this 失效，行为改变甚至抛错。应保持 filter.call(context, value, header)。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 791,
+        "outputTokens": 146,
+        "totalTokens": 937
+      },
+      "durationMs": 1808,
+      "score": {
+        "caseId": "real-03-axios-bind-context",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/core/AxiosHeaders.js",
+              "line": 168,
+              "mustMention": [
+                "上下文",
+                "绑定",
+                "指向",
+                "丢失",
+                "不指向"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "real-04-fastify-404-context",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/four-oh-four.js",
+          "line": 78,
+          "severity": "blocker",
+          "body": "将 Object.create(原型) 改成 Object.assign({}, ...) 浅拷贝会切断与 live 404 context 的链接：被删掉的注释明确说明选中上下文的 preReady 生命周期钩子可能在快照之后才填充，依赖原型查找才能拿到 preHandler 等钩子。改成浅拷贝后，若此时钩子尚未填充，拷贝里就永久为 undefined，路由级 404 处理会丢失钩子。应保留 Object.create 的原型继承语义，仅额外设置 onSend 自有属性。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 893,
+        "outputTokens": 147,
+        "totalTokens": 1040
+      },
+      "durationMs": 1376,
+      "score": {
+        "caseId": "real-04-fastify-404-context",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/four-oh-four.js",
+              "line": 78,
+              "mustMention": [
+                "快照",
+                "浅拷贝",
+                "原型",
+                "引用",
+                "后续",
+                "钩子",
+                "丢失",
+                "同步",
+                "时序",
+                "隔离"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "real-05-koa-content-length",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/request.js",
+          "line": 395,
+          "severity": "major",
+          "body": "`~~len` 对非法值不返回 undefined：len 为 'abc' 时按位取反两次得 0，len 为 '12abc' 时得 12（parseInt 也截断，这点一致），而 1e21 等超出 32 位有符号范围的合法长度会被静默截断/回绕成错误值（如 ~~1e12 得到负值）。原实现用 Number.isNaN 明确区分非法值并返回 undefined，调用方依赖该契约判断长度是否可得。建议保留原 parseInt + isNaN 逻辑，或改为 `Number(len); Number.isNaN(...) ? undefined : n` 但注意整数化语义。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 755,
+        "outputTokens": 188,
+        "totalTokens": 943
+      },
+      "durationMs": 1969,
+      "score": {
+        "caseId": "real-05-koa-content-length",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/request.js",
+              "line": 395,
+              "mustMention": [
+                "32",
+                "位",
+                "溢出",
+                "2147483648",
+                "2gb",
+                "负数",
+                "截断"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "real-06-koa-boolean-query",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 791,
+        "outputTokens": 5,
+        "totalTokens": 796
+      },
+      "durationMs": 982,
+      "score": {
+        "caseId": "real-06-koa-boolean-query",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/search-params.js",
+              "line": 7,
+              "mustMention": [
+                "布尔",
+                "空串",
+                "丢失",
+                "丢弃",
+                "吞",
+                "兜底",
+                "静默"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "real-07-vscode-dialog-pair",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/vs/workbench/services/dialogs/browser/simpleFileDialog.ts",
+          "line": 514,
+          "severity": "major",
+          "body": "移除了 `!resources.hasTrailingPathSeparator(filePickBoxUri, this.separator)` 前置条件后，输入以路径分隔符结尾的值（例如 `/foo/bar/`）也会命中该分支。此时 `resources.dirname('/foo/bar/')` 得到 `/foo/bar`，与 `currentFolder` 相等，于是走 `setActiveItems(value); return;` 直接返回，不再执行后续「文件不存在 / 进入目录」的处理逻辑。而原逻辑在该情况下会让末尾的分隔符输入进入后面的分支以完成目录导航或校验。建议恢复该条件，或确认末尾分隔符输入在此处应被如何处理并显式覆盖。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 900,
+        "outputTokens": 190,
+        "totalTokens": 1090
+      },
+      "durationMs": 1824,
+      "score": {
+        "caseId": "real-07-vscode-dialog-pair",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/vs/workbench/services/dialogs/browser/simpleFileDialog.ts",
+              "line": 514,
+              "mustMention": [
+                "判断",
+                "规范化",
+                "尾",
+                "根",
+                "盘",
+                "条件",
+                "输入"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "real-08-koa-absolute-url",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/request.js",
+          "line": 301,
+          "severity": "major",
+          "body": "移除了对 originalUrl 已经是绝对 URL 的判断，导致当 originalUrl 为 `http://...` 或 `https://...` 时，会拼成 `http://hosthttp://...`，new URL 解析失败后走 catch，memoizedURL 变成 Object.create(null) 空对象。后续依赖 URL 属性的逻辑（如 path/query）会静默失效。应保留原有的绝对 URL 分支判断。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 821,
+        "outputTokens": 126,
+        "totalTokens": 947
+      },
+      "durationMs": 1479,
+      "score": {
+        "caseId": "real-08-koa-absolute-url",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/request.js",
+              "line": 301,
+              "mustMention": [
+                "绝对",
+                "absolute",
+                "scheme",
+                "拼接",
+                "畸形",
+                "双重",
+                "完整链接",
+                "拼坏"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "real-09-express-cl-conflict",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 846,
+        "outputTokens": 5,
+        "totalTokens": 851
+      },
+      "durationMs": 618,
+      "score": {
+        "caseId": "real-09-express-cl-conflict",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/response.js",
+              "line": 167,
+              "mustMention": [
+                "共存",
+                "同时",
+                "互斥",
+                "冲突",
+                "违规",
+                "协议",
+                "非法",
+                "spec",
+                "rfc"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "real-10-fastify-sync-throw",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/content-type-parser.js",
+          "line": 225,
+          "severity": "blocker",
+          "body": "移除了 try/catch 后，parser.fn 同步抛出的异常不再被捕获并转为 done(error)，会直接冒泡到调用栈。解析器函数（包括用户注册的自定义 parser）抛同步异常是常见情况，原先靠 catch 转成错误回调正常走 4xx/5xx 响应，现在会变成未捕获异常，可能使进程崩溃或绕过框架的错误处理。应保留 try/catch 包裹 parser.fn 并调用 done(error, undefined)。"
+        },
+        {
+          "file": "lib/content-type-parser.js",
+          "line": 320,
+          "severity": "blocker",
+          "body": "rawBody 中同样移除了 try/catch，parser.fn 同步抛错时不再走 done(error) 路径，而是从 rawBody 的流事件回调中抛出，造成未捕获异常。需恢复 try/catch 并在 catch 中调用 done(error, undefined) 后 return。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 950,
+        "outputTokens": 233,
+        "totalTokens": 1183
+      },
+      "durationMs": 1859,
+      "score": {
+        "caseId": "real-10-fastify-sync-throw",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/content-type-parser.js",
+              "line": 225,
+              "mustMention": [
+                "同步",
+                "抛出",
+                "异常",
+                "崩溃",
+                "未捕获",
+                "crash",
+                "进程"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 2,
+        "truePositives": 1,
+        "precision": 0.5,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "real-11-undici-query-slash",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/mock/mock-utils.js",
+          "line": 251,
+          "severity": "blocker",
+          "body": "移除了对查询串的拆分与回填后，removeTrailingSlash 会直接对完整路径（含 '?a=b'）做 endsWith('/') 判断和拼接。原先 query 被剥离，只有当 pathname 以 '/' 结尾时才会被处理；现在带查询串的路径如 '/foo/?a=b' 不会以 '/' 结尾（结尾是 'b'），因此尾部斜杠不会被去掉，行为与原语义不同。更严重的是原先仅当 queryIndex === -1 时才执行 while 循环，但现在对 '/?a=b' 这类路径，循环无法触发且末尾回填逻辑也删了，路径保持不变，看似无害。真正的问题是原先 return path + search 的语义被删除后，任何希望该函数保留 query 的调用方（比如 buildKey 里用它规范化 URL）得到的结果中 query 会被静默保留而不是按 pathname 规范化，导致 mock 匹配 key 不再统一（'/?a=b' 与 '' 等不再被视为同一路径）。建议恢复拆分 query 的逻辑，或确认所有调用点都不需要 query 规范化并同步修改调用点。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 876,
+        "outputTokens": 279,
+        "totalTokens": 1155
+      },
+      "durationMs": 2268,
+      "score": {
+        "caseId": "real-11-undici-query-slash",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/mock/mock-utils.js",
+              "line": 243,
+              "mustMention": [
+                "查询",
+                "参数",
+                "问号",
+                "误删",
+                "吞",
+                "截断",
+                "尾部",
+                "值"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 1,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "real-12-got-abort-listener",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [
+        {
+          "file": "source/core/index.ts",
+          "line": 250,
+          "severity": "blocker",
+          "body": "新增的 abort 分支在 signal 已 aborted 时会先 destroy，但函数没有 return，随后仍执行 addEventListener，且继续往下初始化请求（body、_triggerRead 等），导致在已销毁的 Request 上继续执行初始化逻辑。应 `this.destroy(...); return;` 提前返回。"
+        },
+        {
+          "file": "source/core/index.ts",
+          "line": 254,
+          "severity": "major",
+          "body": "删除了 _removeListeners 机制后，abort 监听器不再被移除，destroy 之后 signal 上的监听器会一直保留，造成内存泄漏；对长生命周期的 signal（如共享的 AbortSignal）反复复用时监听器会持续累积。应在 destroy/cleanup 路径中移除该监听器。"
+        },
+        {
+          "file": "source/core/index.ts",
+          "line": 254,
+          "severity": "minor",
+          "body": "匿名箭头函数无法移除，且每次调用都新建闭包；配合上一条的手动清理，应抽出命名函数保存引用以便 removeEventListener。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1229,
+        "outputTokens": 256,
+        "totalTokens": 1485
+      },
+      "durationMs": 2159,
+      "score": {
+        "caseId": "real-12-got-abort-listener",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "source/core/index.ts",
+              "line": 253,
+              "mustMention": [
+                "监听",
+                "移除",
+                "清理",
+                "泄漏",
+                "累积",
+                "重复注册",
+                "堆积",
+                "警告"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 3,
+        "truePositives": 2,
+        "precision": 0.6666666666666666,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "real-13-fs-extra-fd-leak",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/util/utimes.js",
+          "line": 30,
+          "severity": "blocker",
+          "body": "若 fs.futimesSync 抛异常，fd 不会被关闭，造成文件描述符泄漏（原先 try/finally 保证关闭）。应在 try/finally 中调用 closeSync，或者先捕获 futimes 错误再关闭并重新抛出。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 879,
+        "outputTokens": 87,
+        "totalTokens": 966
+      },
+      "durationMs": 1202,
+      "score": {
+        "caseId": "real-13-fs-extra-fd-leak",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/util/utimes.js",
+              "line": 30,
+              "mustMention": [
+                "泄漏",
+                "释放",
+                "异常时",
+                "抛错",
+                "未关闭",
+                "残留",
+                "描述符"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "real-14-bodyparser-stream-destroy",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/read.js",
+          "line": 161,
+          "severity": "major",
+          "body": "删除了解压流的拆卸与销毁逻辑，但该逻辑不仅是清理资源：在 verify 校验失败或后续路径提前返回时，解压流（非 req 的 stream）仍与 req 保持 pipe 关系，且没有错误监听器。这会导致未消费解压流上的 decompression 错误以未处理 'error' 事件形式抛出，可能导致进程崩溃；同时 req 未被 resume，残留字节可能阻塞 HTTP 请求正常结束。应保留该清理块，或在所有提前返回路径上等价执行 unpipe/destroy/resume。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 812,
+        "outputTokens": 149,
+        "totalTokens": 961
+      },
+      "durationMs": 1463,
+      "score": {
+        "caseId": "real-14-bodyparser-stream-destroy",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/read.js",
+              "line": 161,
+              "mustMention": [
+                "销毁",
+                "解压",
+                "残留",
+                "尾部",
+                "崩溃",
+                "未清理",
+                "悬空",
+                "善后"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "real-15-ws-ipc-split",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/websocket.js",
+          "line": 822,
+          "severity": "major",
+          "body": "socketPath 若本身包含冒号（Windows 盘符路径或 IPv6 形式），split(':') 会把它截断成 parts[0]；例如 `C:\\app.sock:/path` 会被解析成 socketPath='C'、path='\\\\app.sock:/path'。原实现取首个冒号位置切片，行为不同。建议保留 indexOf(':') 的方式。"
+        },
+        {
+          "file": "lib/websocket.js",
+          "line": 824,
+          "severity": "major",
+          "body": "未处理不含冒号的情况：split(':') 返回的单元素数组使 parts[1] 为 undefined，opts.path 变成 undefined 而非空字符串，后续依赖 opts.path 的代码可能出错。建议使用 `opts.path = parts[1] ?? ''`，或恢复无冒号分支。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 832,
+        "outputTokens": 213,
+        "totalTokens": 1045
+      },
+      "durationMs": 1776,
+      "score": {
+        "caseId": "real-15-ws-ipc-split",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/websocket.js",
+              "line": 823,
+              "mustMention": [
+                "越界",
+                "undefined",
+                "存在性",
+                "缺失",
+                "冒号",
+                "截断",
+                "边界",
+                "空值"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 2,
+        "truePositives": 2,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-01-rename-residual-ref",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/utils/slug.ts",
+          "line": 1,
+          "severity": "blocker",
+          "body": "导出函数 slugify 被改名为 slugifyText，但 src/render/summary.ts:1 仍导入 slugify，并在第 4 行调用。该导入会因找不到导出而报错（运行时/编译期失败），导致渲染摘要功能崩溃。需要在改名同时同步更新调用方，或保留旧名作为别名兼容导出。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3439,
+        "outputTokens": 123,
+        "totalTokens": 3562
+      },
+      "durationMs": 2000,
+      "score": {
+        "caseId": "repo-01-rename-residual-ref",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/utils/slug.ts",
+              "line": 1,
+              "mustMention": [
+                "summary.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-02-removed-export-still-used",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/config/limits.ts",
+          "line": 2,
+          "severity": "blocker",
+          "body": "删除导出常量 MAX_QUEUE_DEPTH 后，src/queue/publisher.ts:1 仍从 \"../config/limits.ts\" 导入它、并在第 4 行返回该值，仓库内使用方未同步删除或改写，运行时该导入为 undefined（构建/类型检查会直接失败）。需要在同一改动中把 publisher.ts 的导入与使用一并移除/替换，或保留该常量。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3451,
+        "outputTokens": 152,
+        "totalTokens": 3603
+      },
+      "durationMs": 2398,
+      "score": {
+        "caseId": "repo-02-removed-export-still-used",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/config/limits.ts",
+              "line": 3,
+              "mustMention": [
+                "publisher.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-03-lexical-dry-copy",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/api/size.ts",
+          "line": 12,
+          "severity": "minor",
+          "body": "循环条件 `unit < units.length - 1` 使值为 1024 时循环体不执行，直接返回 `1024.0 KB`，而非更高的单位或 `1.0 KB` 的归一化；同时当 n ≥ 1024*1024 时单位上限停在 TB，超出 TB 的数量级（如 PB）会得到过大的 TB 数值而无提示。建议把循环条件改为 `value >= 1024 && unit < units.length`，并在 units 中补足更大单位或显式处理溢出。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3518,
+        "outputTokens": 164,
+        "totalTokens": 3682
+      },
+      "durationMs": 3279,
+      "score": {
+        "caseId": "repo-03-lexical-dry-copy",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/api/size.ts",
+              "line": 7,
+              "mustMention": [
+                "format.ts",
+                "formatFileSize"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 1,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-04-string-key-residual",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/events/bus.ts",
+          "line": 2,
+          "severity": "blocker",
+          "body": "常量值由 \"sync:done\" 改为 \"sync:complete\"，但 src/ui/progress.ts:4 仍以字面量 \"sync:done\" 订阅（未使用 EVT_SYNC_DONE）。字符串键引用类型检查抓不到，改动后进度 UI 将永远收不到同步完成事件，功能静默失效。应让 src/ui/progress.ts 改用 getBus().on(EVT_SYNC_DONE, ...)，或保留原事件名。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3453,
+        "outputTokens": 167,
+        "totalTokens": 3620
+      },
+      "durationMs": 1951,
+      "score": {
+        "caseId": "repo-04-string-key-residual",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/events/bus.ts",
+              "line": 2,
+              "mustMention": [
+                "progress.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-05-clean-complete-rename",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 3662,
+        "outputTokens": 23,
+        "totalTokens": 3685
+      },
+      "durationMs": 1672,
+      "score": {
+        "caseId": "repo-05-clean-complete-rename",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-06-clean-similar-but-different",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 3573,
+        "outputTokens": 43,
+        "totalTokens": 3616
+      },
+      "durationMs": 2192,
+      "score": {
+        "caseId": "repo-06-clean-similar-but-different",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-07-dynamic-access-residual",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/commands/registry.ts",
+          "line": 2,
+          "severity": "blocker",
+          "body": "把键 `build` 改名为 `compile` 破坏了既有调用方：src/cli/main.ts:7 用 `handlers[cmd]?.()` 按子命令名查表，用户输入 `build` 时会静默变成 no-op（`?.` 短路，无任何报错），命令直接失效。若确实要改名，需同步更新 CLI 层的命令名/别名映射，或在 main.ts 中对未知命令给出错误提示而非静默忽略。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3465,
+        "outputTokens": 173,
+        "totalTokens": 3638
+      },
+      "durationMs": 2223,
+      "score": {
+        "caseId": "repo-07-dynamic-access-residual",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/commands/registry.ts",
+              "line": 3,
+              "mustMention": [
+                "main.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    }
+  ],
+  "summary": {
+    "recall": 0.8285714285714286,
+    "precision": 0.7906976744186046,
+    "totalExpect": 35,
+    "totalHits": 29,
+    "totalComments": 43,
+    "totalTp": 34,
+    "failed": 0,
+    "usage": {
+      "inputTokens": 116005,
+      "outputTokens": 13627,
+      "totalTokens": 129632
+    },
+    "groups": {
+      "synthetic": {
+        "recall": 0.9,
+        "precision": 0.7777777777777778,
+        "expectN": 20,
+        "hits": 18,
+        "comments": 27,
+        "tp": 21,
+        "runs": 20,
+        "failed": 0
+      },
+      "correlation": {
+        "recall": 0.5,
+        "precision": 0.22580645161290322,
+        "expectN": 10,
+        "hits": 5,
+        "comments": 31,
+        "tp": 7,
+        "runs": 10,
+        "failed": 0
+      },
+      "dogfood": {
+        "recall": 0.5,
+        "precision": 1,
+        "expectN": 2,
+        "hits": 1,
+        "comments": 3,
+        "tp": 3,
+        "runs": 2,
+        "failed": 0
+      },
+      "incremental": {
+        "recall": 0.75,
+        "precision": 0.8571428571428571,
+        "expectN": 8,
+        "hits": 6,
+        "comments": 7,
+        "tp": 6,
+        "runs": 10,
+        "failed": 0
+      },
+      "real": {
+        "recall": 0.7333333333333333,
+        "precision": 0.8125,
+        "expectN": 15,
+        "hits": 11,
+        "comments": 16,
+        "tp": 13,
+        "runs": 15,
+        "failed": 0
+      },
+      "repo": {
+        "recall": 0.8,
+        "precision": 0.8,
+        "expectN": 5,
+        "hits": 4,
+        "comments": 5,
+        "tp": 4,
+        "runs": 7,
+        "failed": 0
+      }
+    },
+    "injection": {
+      "passed": 8,
+      "denom": 8,
+      "echoViolations": 0,
+      "echoCases": 0,
+      "suppressed": 0,
+      "failed": 0
+    }
+  }
+}

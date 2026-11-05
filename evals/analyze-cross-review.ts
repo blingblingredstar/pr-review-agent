@@ -297,9 +297,28 @@ const metas = new Map<string, CaseMeta>(cases.map((c) => [c.id, { source: source
 
 const GLM_FILES = ["2026-11-04T15-22-44-glm-5.3.json", "2026-11-04T15-38-18-glm-5.3.json", "2026-11-04T15-49-04-glm-5.3.json"];
 const DS_HIGH_FILE = "2026-11-04T17-42-24-deepseek-flash.json";
+// D036 触发 run（2026-11-06 夜补数据）：DeepSeek@low 全量新鲜 run，意见 body 完整——主对（GLM@low × DS@low）消融解锁。
+// promptHash 7be33f4d6fbc 与三档实验同口径（LLM_JSON_MODE 适配）；extraBody = enabled + reasoning_effort:low（低思考档）
+const DS_LOW_FRESH_FILE = "2026-11-05T15-52-26-deepseek-flash-7be33f4d6fbc-690926.json";
+// cheap-pair（用户提案：glm-flash + deepseek-flash，2026-11-06 夜）：两侧均便宜档、均旧 prompt 时代
+//（GLM flash cd5353f4688c 无 json-mode / DS disabled 7be33f4d6fbc 有 json-mode 适配——混杂因素同 §混杂），
+// 各 3 轮（GLM flash: 16-22/16-36/16-48；DS disabled: 16-16/16-36/16-48——r2 同秒启动不同模型名不互覆）
+const GLM_FLASH_FILES = [
+  "2026-11-05T16-22-50-glm-5.3-flash-cd5353f4688c-b5870a.json",
+  "2026-11-05T16-36-46-glm-5.3-flash-cd5353f4688c-b5870a.json",
+  "2026-11-05T16-48-23-glm-5.3-flash-cd5353f4688c-b5870a.json",
+];
+const DS_DISABLED_FILES = [
+  "2026-11-05T16-16-46-deepseek-flash-7be33f4d6fbc-b5870a.json",
+  "2026-11-05T16-36-46-deepseek-flash-7be33f4d6fbc-b5870a.json",
+  "2026-11-05T16-48-23-deepseek-flash-7be33f4d6fbc-b5870a.json",
+];
 
 const glmRuns = GLM_FILES.map((f) => loadRun(`runs/${f}`));
 const dsHigh = loadRun(`runs/${DS_HIGH_FILE}`);
+const dsLowFresh = loadRun(`runs/${DS_LOW_FRESH_FILE}`);
+const glmFlashRounds = GLM_FLASH_FILES.map((f) => loadRun(`runs/${f}`));
+const dsDisabledRounds = DS_DISABLED_FILES.map((f) => loadRun(`runs/${f}`));
 
 // 用例集一致性：存档 run 落盘时点（2026-11-04）早于当前用例目录（D035 inj-08 后 72 例）——
 // 口径 = 存档交集（71 例），缺的用例点名（回放者可复核差异来源）
@@ -463,6 +482,46 @@ const approaches: Approach[] = [
     rounds: glmRuns.map((runs) => {
       const out: Round = new Map();
       for (const id of caseIds) out.set(id, scoreCase(byId.get(id)!, mergeConservative(runs.get(id)!.comments, dsHigh.get(id)!.comments)));
+      return out;
+    }),
+  },
+  {
+    key: "course4-low",
+    label: "交叉合并·课程四步（GLM@low × DS@low 触发run）",
+    rounds: glmRuns.map((runs) => {
+      const out: Round = new Map();
+      for (const id of caseIds) out.set(id, scoreCase(byId.get(id)!, mergeCourse4(runs.get(id)!.comments, dsLowFresh.get(id)!.comments)));
+      return out;
+    }),
+  },
+  {
+    key: "conservative-low",
+    label: "交叉合并·保守 pr-agent 口径（GLM@low × DS@low 触发run）",
+    rounds: glmRuns.map((runs) => {
+      const out: Round = new Map();
+      for (const id of caseIds) out.set(id, scoreCase(byId.get(id)!, mergeConservative(runs.get(id)!.comments, dsLowFresh.get(id)!.comments)));
+      return out;
+    }),
+  },
+  { key: "glm-flash", label: "glm-flash@disabled 单模型（cheap-pair 前半，3 轮池化）", rounds: glmFlashRounds.map(scoreStored) },
+  { key: "ds-disabled", label: "DS@disabled 单模型（cheap-pair 后半，3 轮池化）", rounds: dsDisabledRounds.map(scoreStored) },
+  {
+    key: "course4-cheappair",
+    label: "交叉合并·课程四步（glm-flash × DS@disabled，按轮配对池化）",
+    rounds: glmFlashRounds.map((runs, i) => {
+      const out: Round = new Map();
+      const ds = dsDisabledRounds[i]!;
+      for (const id of caseIds) out.set(id, scoreCase(byId.get(id)!, mergeCourse4(runs.get(id)!.comments, ds.get(id)!.comments)));
+      return out;
+    }),
+  },
+  {
+    key: "conservative-cheappair",
+    label: "交叉合并·保守 pr-agent 口径（glm-flash × DS@disabled，按轮配对池化）",
+    rounds: glmFlashRounds.map((runs, i) => {
+      const out: Round = new Map();
+      const ds = dsDisabledRounds[i]!;
+      for (const id of caseIds) out.set(id, scoreCase(byId.get(id)!, mergeConservative(runs.get(id)!.comments, ds.get(id)!.comments)));
       return out;
     }),
   },

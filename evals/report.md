@@ -530,13 +530,22 @@ R4 的 synthetic 0.75（-10pp）与 dogfood/corr 的轮间翻转是既有轮转�
 3. **生产化证据不足（D036 ③）**：预算可行的配对（DS@low，26 分钟/run）因覆盖事故无意见数据；现读数依赖 DS@high（out ×29、单例 max 220.3s，D033 已裁 high 档出局）——合作伙伴本身不可部署，+15.5pp 是「不可部署配对」的读数。union 上界显示 DS@low 配对天花板 +10.9pp，补 1 次 run 即可裁决，见上节成本。
 4. **离线消融方法论可用**：全流程零 LLM 调用、判据与 eval 同源（重算 = 内嵌 score 逐例一致）、stdout 解析三方校验全绿（流式行 × markdown 表 × README 报告级数字 × high 档 JSON 71/71 逐例对账）——同类「先跑对照、后补分析」的实验可复用此路径。
 
-### cheap-pair（glm-flash + deepseek-flash）——占位（主会话补新鲜 run 后填数）
+### cheap-pair（glm-flash + deepseek-flash）——已填数（2026-11-06 夜，两侧各 3 轮新鲜全量 run 池化）
 
-> 口径：与上表完全同法（两合并策略 × 仓库判据重打分 × 池化微平均），配对档位取两.flash 模型的 budget 档（预期能力 recall/precision 见各自基线行），数据源 = 新鲜全量 run JSON（意见 body 完整），脚本同 `evals/analyze-cross-review.ts` 换数据源列表。
+> 口径：与主表同法（两合并策略 × 仓库判据重打分），glm-flash@disabled ×3（16-22/16-36/16-48，prompt `cd5353f4688c`）× DS@disabled ×3（16-16/16-36/16-48，prompt `7be33f4d6fbc`），按轮配对合并后池化。glm-flash 与 GLM-5.3@low 同 GLM 存量轮的 prompt 基线一致（cd5353f4688c）；DS 侧仍带 json-mode 适配混杂（同上节）。
 
 | approach | 全量 recall | 全量 precision | 能力 recall | 能力 precision | 意见总数 |
 |---|---|---|---|---|---|
-| glm-flash 单模型（基线） | — | — | — | — | — |
-| deepseek-flash 单模型（对照） | — | — | — | — | — |
-| 交叉合并·课程四步 | — | — | — | — | — |
-| 交叉合并·保守 pr-agent 口径 | — | — | — | — | — |
+| glm-flash@disabled 单模型（3 轮池化） | 75.6% | 71.4% | **91.4%** | 86.6% | 224 |
+| DS@disabled 单模型（3 轮池化） | 72.6% | 61.5% | 79.0% | 79.1% | 270 |
+| 交叉合并·课程四步 | 79.1% | 84.0% | **91.4%** | **89.8%** | 287 |
+| 交叉合并·保守 pr-agent 口径 | 86.6% | 64.8% | **98.1%** | 82.4% | 474 |
+
+读数（vs 生产基线 glm-5.3@low 85.7/86.4，能力口径）：
+
+1. **glm-flash 单模型已双超生产基线**（91.4/86.6 vs 85.7/86.4）且配额系数 1×（旗舰 3×）——与 D033 时代 flash@disabled 加固后 real 0.84 相比明显走强（今晚 real 91.1% 三轮池化）。**疑似端点侧模型演进或噪声**，本轮未做新旧同期对照，不构成 D033 翻案依据；记生产选型观察项（若复现，生产主评审换 flash 的成本收益需重算）
+2. **cheap-pair 课程四步 = 双指标超基线的合并形态**（91.4/89.8，precision 较 flash 单模型 +3.2pp）——召回取 flash 之长、precision 取合并去重之利，且总成本低于生产旗舰（flash 1× + DS 用户侧 API）
+3. **保守合并 recall 天花板 98.1%**（105 期望命中 103）但 precision 82.4% + 意见数 ×2.1——噪音抑制（severity floor + 去重）与召回兜底的张力再次实证，课程四步是两者平衡点
+4. **corr 仍是两便宜模型共同短板**（flash 23.3% / DS 43.3% / 合并未突破）——跨文件关联是思考量敏感能力（D033/三档对照一致结论），便宜档不因为「两个」就变强
+5. injection：两侧 pooled 95.2%/90.5%，echo 违规 0（合并后复核亦 0）——便宜档抗性可用
+6. **混杂与方差**：DS 侧 json-mode prompt 适配（同上节）；DS@disabled R3 单轮回落（29/29/25）；全部读数基于本轮 3+3 轮采样
