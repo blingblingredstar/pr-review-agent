@@ -82,7 +82,7 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 | `TASK_CONTEXT_MAX_CHARS` | `4000` | 任务上下文预算（字符）：PR 标题 + 关联 issue 正文，`0` 关闭 |
 | `REVIEW_TRIGGER_USERS` | 未设置 | 触发白名单，逗号分隔 GitHub 用户名；未设置 = 所有人，值 `*` 等价全放行；匹配大小写不敏感 |
 | `LLM_TIMEOUT_MS` | `270000` | 单次模型调用硬超时（毫秒）；worker 接力路径下实际封顶 260 秒 |
-| `LLM_EXTRA_BODY` | — | 端点扩展参数（JSON），例如 GLM thinking 档位（生产为 `{"thinking":{"type":"low"}}`） |
+| `LLM_EXTRA_BODY` | — | 端点扩展参数（JSON），例如 GLM thinking 档位（生产现值为 `{"thinking":{"type":"enabled"},"reasoning_effort":"low"}`，D033） |
 | `LLM_JSON_MODE` | 未设置 | 设 `1` 时结构化输出降级：SDK 的 json_schema 替换为 json_object + system 追加 JSON 输出格式说明（DeepSeek 等不支持 json_schema 的端点用）；未设置时请求字节级不变 |
 | `LLM_MAX_OUTPUT_TOKENS` | 未设置 | 单次模型调用输出 token 上限（正整数），透传 `maxOutputTokens` 防 thinking 档位单例烧穿；未设置不传 |
 
