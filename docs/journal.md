@@ -678,3 +678,18 @@
   1. 增量审查生产观察：下一个多 push PR 看「增量决策」日志行与折叠段实际形态；认领困难则启用回退分支（恢复 minor/nit 行内）
   2. Step 4 门槛：勤跑 `npm run prodlogs`，≥10 run 后回看预处理提案；DECISION_MODEL 换 deepseek-flash 候选待单独验证
   3. Step 7 多模型对比 infra 已摊薄（JSON 模式 + 台账 + 采集脚本 + EVAL_ONLY）
+
+## 2026-11-05 · 会话 40：README 路线图与配置文档同步（夜间批量三号的文档还账）
+
+- **目标**：用户指出 README 路线图过期——夜间批量三号把第 5 项（增量审查）做完、第 6 项（多模型对比）做了评测侧，README 还停在实现前状态。
+- **完成**（PR：docs/readme-roadmap-sync）：
+  - README §路线图：第 5 项标记已上线生产（base 推导 / block 继承 / 报告门槛折叠一并列明），第 6 项拆「评测侧已完成 / 生产侧候选待验证」如实表述；第 2 项补台账工具（`npm run prodlogs`，11 次入账 0 超时）与门槛口径；第 4 项补 search_file 生产首证（#53）
+  - 顺带修正同文件其他过期点：评测集 48→71（三处 + incremental 组入列）、单测 173→204（实测核对）、决策导航 D001–D031→D033、环境变量表补 `LLM_JSON_MODE` / `LLM_MAX_OUTPUT_TOKENS`、核心设计补 D018 新建文件截断例外
+  - `.env.example`：`LLM_MAX_OUTPUT_TOKENS` 从「EXTRA_BODY 注释下无注释孤行」拆出独立块，补 `LLM_JSON_MODE` 条目（#53 落地时漏更）
+  - `roadmap-execution.md` Step 4/6/7 状态按「随 PR 滚动更新」约定同步
+- **发现 / 坑**：
+  - 文档还账模式实锤：夜间批量 9 个 PR 每个都带了随行文档，但**横向的 README/roadmap-execution 汇总面没人管**——逐 PR 文档纪律覆盖不了「跨 PR 的汇总文档」。用户一眼看出，agent 系统性漏掉
+  - `LLM_JSON_MODE` 在 #53 只更新了代码注释与 report，.env.example / README 环境变量表都漏了——「文档随行」清单执行时按 PR 视角走，缺一张「用户可见面 checklist」（.env.example / README env 表是其中两项）
+- **下一步**：
+  1. 等 bot 自审意见闭环后合并本 PR（docs-only，预期意见面小）
+  2. 观察项不变（会话 39 遗留）：增量折叠段 UX、Step 4 门槛数据、DECISION_MODEL 换 deepseek-flash 候选验证
