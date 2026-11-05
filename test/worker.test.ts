@@ -63,15 +63,17 @@ const boomChain = async (): Promise<void> => {
 
 // 假 Octokit：记录 status / review / comment / label 调用，paginate 可注入已有 review 列表（hasReviewed 按标记判定）。
 // D029 任务上下文：prTitle/prBody 进 meta（fetchPr 随手带回），issues 可注入 issue 正文（含 Error 注入失败、
-// { pr: true } 注入 PR 形响应）；缺省 meta 无 title/body、issues.get 未命中即 404
+// { pr: true } 注入 PR 形响应）；缺省 meta 无 title/body、issues.get 未命中即 404。
+// D035 v2：reviewThreads 注入 GraphQL reviewThreads.nodes（dismissed 取数 mock，缺省空线程集）
 function fakeClient(
-  reviews?: { body: string; sha?: string; id?: number; submitted_at?: string }[],
+  reviews?: { body: string; sha?: string; id?: number; submitted_at?: string; user?: { login: string } }[],
   opts?: {
     prTitle?: string;
     prBody?: string;
     issues?: Record<number, { title: string; body: string } | Error | { pr: true }>;
     reviewComments?: unknown[];
     compareFiles?: unknown[];
+    reviewThreads?: unknown[];
   },
 ) {
   const calls = {
@@ -82,8 +84,19 @@ function fakeClient(
     issueGets: [] as number[],
     commentReviewIds: [] as number[],
     paginateCalls: 0,
+    graphqlQueries: 0,
   };
   const client = {
+    graphql: async () => {
+      calls.graphqlQueries++;
+      return {
+        repository: {
+          pullRequest: {
+            reviewThreads: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: opts?.reviewThreads ?? [] },
+          },
+        },
+      };
+    },
     paginate: async (fn: unknown, args?: { review_id?: number }) => {
       calls.paginateCalls++;
       const name = (fn as { name?: string } | undefined)?.name ?? "";
@@ -968,6 +981,7 @@ test("worker prepare 编排：block 继承全量重审 → 上一轮意见进信
         id: 7,
         sha: OLD_SHA,
         submitted_at: "2026-11-04T00:00:00Z",
+        user: { login: "pr-review-agent[bot]" },
         body: `🤖 pr-review-agent 审查意见（共 1 条：blocker×1）\n<!-- pr-review-agent sha:${OLD_SHA} -->`,
       },
     ],
@@ -1020,6 +1034,81 @@ test("worker prepare 编排：delta 路径绝不注入上一轮意见（锚点�
   assert.ok(String(state.diff).includes("+const b = 2;"), "diff 已替换为区间 diff");
   assert.deepEqual(calls.commentReviewIds, [], "delta 不拉上一轮意见");
   assert.equal(state.previousFindings, null, "老意见留在旧线程，不进增量审查");
+});
+
+test("worker prepare 编排：full 路径取 dismissed 线程并随块注入（D035 v2，#93）", async () => {
+  const { client, calls } = fakeClient(
+    [
+      {
+        id: 7,
+        sha: OLD_SHA,
+        submitted_at: "2026-11-04T00:00:00Z",
+        user: { login: "pr-review-agent[bot]" },
+        body: `🤖 pr-review-agent 审查意见（共 1 条：blocker×1）\n<!-- pr-review-agent sha:${OLD_SHA} -->`,
+      },
+    ],
+    {
+      prTitle: "t",
+      prBody: "b",
+      reviewComments: [{ path: "src/demo.ts", line: 2, original_line: null, body: "**[blocker]** 老意见：a.missing 未判空" }],
+      reviewThreads: [
+        {
+          isResolved: true,
+          comments: {
+            nodes: [
+              { path: "src/demo.ts", line: 2, originalLine: 2, body: "**[major]** 老意见：超时未设", author: { login: "pr-review-agent[bot]" } },
+              { path: "src/demo.ts", line: 2, originalLine: 2, body: "设计如此，不改了", author: { login: "maintainer" } },
+            ],
+          },
+        },
+        {
+          isResolved: false,
+          comments: {
+            nodes: [{ path: "src/other.ts", line: 3, originalLine: 3, body: "**[blocker]** 未 resolve 不注入", author: { login: "pr-review-agent[bot]" } }],
+          },
+        },
+      ],
+    },
+  );
+  const chained: WorkerEnvelope[] = [];
+  await runStage(fullDeps({ client: () => client, chain: async (e) => void chained.push(e) }), prepareEnvelope(REF));
+  assert.equal(calls.graphqlQueries, 1, "full 路径恰好一次 GraphQL dismissed 取数");
+  const state = chained[0]!.state as { previousFindings?: string | null };
+  assert.ok(typeof state.previousFindings === "string", "意见块随信封传递");
+  assert.ok(state.previousFindings!.includes("4. 人工裁定不修复"), "规则 4 随块注入");
+  assert.ok(state.previousFindings!.includes("@maintainer 回复「设计如此，不改了」"), "裁定回复进块");
+  assert.ok(!state.previousFindings!.includes("未 resolve 不注入"), "未 resolve 线程不进块");
+});
+
+test("worker prepare 编排：delta 路径不取 dismissed（GraphQL 零调用，D035 v2，#93）", async () => {
+  const { client, calls } = fakeClient(
+    [
+      {
+        id: 7,
+        sha: OLD_SHA,
+        submitted_at: "2026-11-04T00:00:00Z",
+        body: `🤖 pr-review-agent 审查意见（共 0 条）\n<!-- pr-review-agent sha:${OLD_SHA} -->`,
+      },
+    ],
+    {
+      prTitle: "t",
+      prBody: "b",
+      compareFiles: [{ filename: "src/demo.ts", status: "modified", additions: 1, deletions: 0, patch: "@@ -1,3 +1,4 @@\n const a = 1;\n+const b = 2;\n const c = 3;" }],
+      reviewThreads: [
+        {
+          isResolved: true,
+          comments: {
+            nodes: [{ path: "src/demo.ts", line: 2, originalLine: 2, body: "**[major]** 已裁定不修复", author: { login: "pr-review-agent[bot]" } }],
+          },
+        },
+      ],
+    },
+  );
+  const chained: WorkerEnvelope[] = [];
+  await runStage(fullDeps({ client: () => client, chain: async (e) => void chained.push(e) }), prepareEnvelope(REF));
+  const state = chained[0]!.state as { previousFindings?: string | null };
+  assert.equal(state.previousFindings, null, "delta 不注入上一轮意见");
+  assert.equal(calls.graphqlQueries, 0, "delta 不发起 dismissed 取数");
 });
 
 test("worker prepare 编排：TASK_CONTEXT_MAX_CHARS=0 → kill switch 零 issues API 调用，state.taskContext null", async () => {

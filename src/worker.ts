@@ -11,7 +11,7 @@ import { verifySignature, header, type WebhookHeaders, type Dispatch } from "./w
 import { fetchPr, getOctokit, postReview, postTimeoutNotice, setReviewStatus, type PrRef } from "./github.ts";
 import { hasReviewed } from "./dedupe.ts";
 import { decideIncrement, fetchDeltaDiff, latestValidReview, listBotReviews, listCommitShas } from "./incremental.ts";
-import { buildPrevFindingsForPr } from "./findings.ts";
+import { buildPrevFindingsForPr, fetchDismissedFindings, prevFindingsMaxChars } from "./findings.ts";
 import { buildRepoContext, fileReaderFromEntries, makeSnapshot, searcherFromEntries, snapshotTree } from "./context.ts";
 import { buildTaskContextForPr } from "./task.ts";
 import {
@@ -236,7 +236,17 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
           // 与增量决策共用同一次 listBotReviews/listCommitShas（latestValidReview 同源推导），零额外列表调用
           if (decision.mode === "full") {
             const latest = latestValidReview(reviews, commitShas);
-            if (latest) previousFindings = await buildPrevFindingsForPr(client, ref, latest, fullDiff);
+            if (latest) {
+              // dismissed（D035 v2 #93，best-effort）：已 resolve 裁定不修复的线程随块注入（规则 4 不重报）。
+              // 取数显式在编排层（不进 buildPrevFindingsForPr——测试好 mock），kill switch 下跳过（零 API 调用
+              // 同口径）；fetchDismissedFindings 内部失败兜底 []，不连垮。delta 路径不取（同上述 delta 不注入口径）。
+              // bot 身份 = latest review 的提交者（bot major 自审 #95：dismissed 判据只看 body 前缀会被
+              // 作者伪造的假意见 + resolve 借规则 4 抑制任意位置发现——身份不符的线程一律不进）。
+              // latest 即 parseBotReviews 输出、自带 user，无需按 id 反查
+              const botLogin = latest.user;
+              const dismissed = prevFindingsMaxChars() > 0 ? await fetchDismissedFindings(client, ref, botLogin) : [];
+              previousFindings = await buildPrevFindingsForPr(client, ref, latest, fullDiff, dismissed);
+            }
           }
         }
       } catch (err) {
