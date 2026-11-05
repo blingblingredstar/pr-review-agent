@@ -235,18 +235,19 @@ type ReviewThreadsData = {
 };
 
 // 单线程 → dismissed 意见：只收 isResolved 且线程内带 blocker/major 前缀评论的线程。
-// 意见本体判据与 v1 的 parseInlineComment 同口径——行内评论不带 sha 标记、author 对比在测试环境
-// 不可靠，「body 以 **[blocker]** / **[major]** 开头」即认作本 bot 意见（pre-D032 的 minor/nit
-// 行内评论天然出局）。线程无回复时 reply / dismissedBy 缺省（裸「已裁定不修复」形态）
-function dismissedFromThread(thread: ReviewThreadNode | null): DismissedFinding | null {
+// 意见本体判据与 v1 的 parseInlineComment 同口径（body 前缀），**但必须叠加作者身份校验**（bot major
+// 自审 #95：前缀可被 PR 作者伪造——在自己 PR 发一条假意见并 resolve，即可借规则 4 抑制任意位置发现；
+// D024 抑制通道）。botLogin 由调用方自 latest review 提交者传入；缺失 = 无法校验 = fail-closed 返回 null。
+// 裁定回复 = 最后一条「非 bot」评论（bot 自回复不算裁定）；无回复时 reply / dismissedBy 缺省
+function dismissedFromThread(thread: ReviewThreadNode | null, botLogin: string | undefined): DismissedFinding | null {
   if (thread?.isResolved !== true) return null;
+  if (!botLogin) return null;
   const comments = (thread.comments?.nodes ?? []).filter((c): c is ThreadCommentNode => c !== null);
-  const finding = comments.find((c) => parseInlineComment(c.body ?? "") !== null);
+  const finding = comments.find((c) => parseInlineComment(c.body ?? "") !== null && c.author?.login === botLogin);
   if (!finding) return null;
   const parsed = parseInlineComment(finding.body ?? "")!;
-  const authorLogin = finding.author?.login ?? undefined;
-  // 裁定回复：线程中最后一条「非该意见作者」的评论；折叠全部空白保单行格式（格式伪造防线，见 dismissedLine）
-  const lastReply = comments.filter((c) => (c.author?.login ?? undefined) !== authorLogin).pop();
+  // 裁定回复：线程中最后一条「非 bot」的评论；折叠全部空白保单行格式（格式伪造防线，见 dismissedLine）
+  const lastReply = comments.filter((c) => (c.author?.login ?? undefined) !== botLogin).pop();
   const replyFlat = (lastReply?.body ?? "").replace(/\s+/g, " ").trim();
   const hasReply = lastReply !== undefined && replyFlat.length > 0;
   return {
@@ -261,8 +262,14 @@ function dismissedFromThread(thread: ReviewThreadNode | null): DismissedFinding 
 
 // 已 resolve 裁定不修复的上一轮意见（D035 v2，best-effort）：任何失败（网络 / 404 / 超时）返回 []，
 // 调用方按「无 dismissed」处理、active 段照常——绝不连垮主流程。取数不进 buildPrevFindingsForPr，
-// 由 worker prepare 显式调用再传入（测试好 mock；delta 路径天然不取）
-export async function fetchDismissedFindings(client: Octokit, { owner, repo, pullNumber }: PrRef): Promise<DismissedFinding[]> {
+// 由 worker prepare 显式调用再传入（测试好 mock；delta 路径天然不取）。
+// botLogin（#95 自审 major）：意见作者身份校验的比对基准——缺失 = fail-closed 返回 []（无法校验身份
+// 时宁可丢弃全部 dismissed，不给伪造抑制留通道）
+export async function fetchDismissedFindings(client: Octokit, { owner, repo, pullNumber }: PrRef, botLogin?: string): Promise<DismissedFinding[]> {
+  if (!botLogin) {
+    console.log(`[findings] dismissed 跳过：无 bot 身份可校验（fail-closed，按无 dismissed 处理）`);
+    return [];
+  }
   try {
     const signal = AbortSignal.timeout(DISMISSED_FETCH_TIMEOUT_MS);
     const out: DismissedFinding[] = [];
@@ -279,7 +286,7 @@ export async function fetchDismissedFindings(client: Octokit, { owner, repo, pul
       });
       const threads = data.repository?.pullRequest?.reviewThreads;
       for (const t of threads?.nodes ?? []) {
-        const finding = dismissedFromThread(t);
+        const finding = dismissedFromThread(t, botLogin);
         if (finding) out.push(finding);
       }
       if (!threads?.pageInfo?.hasNextPage) break;

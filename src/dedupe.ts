@@ -22,16 +22,17 @@ export type BotReview = {
   base: string | null;
   submittedAt: string;
   body: string;
+  user?: string; // review 提交者 login（D038 dismissed 身份校验的比对基准；parseBotReviews 原样携带）
 };
 
 // 从 review 列表抽取本 agent 的标记。人工 review / 第三方 bot 无此标记天然不参与；
 // 一条 review 只写一个标记（summaryBody），解析容忍多条（各产出独立条目，历史手拼 body 不炸）
-export function parseBotReviews(reviews: { id: number; body: unknown; submitted_at?: string | null }[]): BotReview[] {
+export function parseBotReviews(reviews: { id: number; body: unknown; submitted_at?: string | null; user?: { login?: string | null } | null }[]): BotReview[] {
   const out: BotReview[] = [];
   for (const r of reviews) {
     if (typeof r.body !== "string") continue;
     for (const m of r.body.matchAll(MARKER_RE)) {
-      out.push({ id: r.id, sha: m[1]!, base: m[2] ?? null, submittedAt: r.submitted_at ?? "", body: r.body });
+      out.push({ id: r.id, sha: m[1]!, base: m[2] ?? null, submittedAt: r.submitted_at ?? "", body: r.body, user: r.user?.login ?? undefined });
     }
   }
   return out;

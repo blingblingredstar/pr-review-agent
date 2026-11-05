@@ -66,7 +66,7 @@ const boomChain = async (): Promise<void> => {
 // { pr: true } 注入 PR 形响应）；缺省 meta 无 title/body、issues.get 未命中即 404。
 // D035 v2：reviewThreads 注入 GraphQL reviewThreads.nodes（dismissed 取数 mock，缺省空线程集）
 function fakeClient(
-  reviews?: { body: string; sha?: string; id?: number; submitted_at?: string }[],
+  reviews?: { body: string; sha?: string; id?: number; submitted_at?: string; user?: { login: string } }[],
   opts?: {
     prTitle?: string;
     prBody?: string;
@@ -981,6 +981,7 @@ test("worker prepare 编排：block 继承全量重审 → 上一轮意见进信
         id: 7,
         sha: OLD_SHA,
         submitted_at: "2026-11-04T00:00:00Z",
+        user: { login: "pr-review-agent[bot]" },
         body: `🤖 pr-review-agent 审查意见（共 1 条：blocker×1）\n<!-- pr-review-agent sha:${OLD_SHA} -->`,
       },
     ],
@@ -1042,6 +1043,7 @@ test("worker prepare 编排：full 路径取 dismissed 线程并随块注入（D
         id: 7,
         sha: OLD_SHA,
         submitted_at: "2026-11-04T00:00:00Z",
+        user: { login: "pr-review-agent[bot]" },
         body: `🤖 pr-review-agent 审查意见（共 1 条：blocker×1）\n<!-- pr-review-agent sha:${OLD_SHA} -->`,
       },
     ],

@@ -375,3 +375,4 @@
 - 数据源 GraphQL `reviewThreads`（resolved 状态仅 GraphQL 可得，D035 备选的「不扩 GraphQL」约束就此解禁）；单一 AbortSignal 贯穿分页 5s 总预算、失败返回空（best-effort）；回复文字空白折叠 + 截断 120 字符（防伪造单行混入块格式）
 - 注入面缓解同 D029/D035：威胁模型重申覆盖作者回复、预算/计数共用既有池（active 优先）、kill switch 零 GraphQL 调用；canary **inj-09**（载荷藏于回复文字）；eval 用例 72 → 73、injection 组 8 → 9
 - 单测 227 → 238；D038 落档
+- 生产 bot 自审 major 补入：dismissed 判据加意见作者身份校验（body 前缀可被 PR 作者伪造 + resolve 借规则 4 抑制任意位置发现——D024 抑制通道封堵）；botLogin 取自上一轮 review 提交者，缺失 fail-closed（零 GraphQL 调用）
