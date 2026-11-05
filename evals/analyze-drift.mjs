@@ -27,15 +27,8 @@ const PRE_RUNS = [
 
 const load = (f) => JSON.parse(readFileSync(join(RUNS_DIR, f), "utf8"));
 
-// ---------- 打分契约的纯 JS 复刻（evals/score.ts matchesExpectation 同规则） ----------
+// ---------- 打分契约的纯 JS 复刻（规则对齐 evals/score.ts 匹配判据：file 同名 + 行号 ±3 + mustMention） ----------
 const normalizePath = (f) => f.replace(/^a\//, "").replace(/^b\//, "");
-function matchesExpectation(exp, comment) {
-  const candidates = Array.isArray(exp.file) ? exp.file : [exp.file];
-  if (!candidates.some((f) => normalizePath(f) === normalizePath(comment.file))) return false;
-  if (exp.line !== null && Math.abs(comment.line - exp.line) > 3) return false;
-  const body = comment.body.toLowerCase();
-  return exp.mustMention.some((k) => body.includes(k.toLowerCase()));
-}
 // miss 分类（意见在场的 miss 归因到判分伪影 vs 真沉默）：
 //   沉默 = 0 意见；行号锚点噪音 = 有意见同文件、关键词过、行号超 ±3；
 //   词表未覆盖 = 有意见同文件、行号过、关键词全 miss；同文件未命中 = 同文件但行号+关键词都不过；异文件 = 连文件都不对
@@ -106,7 +99,6 @@ const micro = (runs) => {
   return { hit, exp, recall: exp ? hit / exp : 1 };
 };
 const pct = (x) => (x * 100).toFixed(1) + "%";
-const bar = (n, width = 10) => "█".repeat(Math.round(n * width)) + "·".repeat(width - Math.round(n * width));
 
 // ---------- 1. 4 轮 × 组 recall 矩阵 ----------
 const GROUPS = ["synthetic", "real", "dogfood", "incremental", "correlation", "repo"];
