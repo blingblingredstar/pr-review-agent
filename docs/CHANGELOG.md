@@ -326,3 +326,11 @@
 ### Changed（D018/D032 决策状态同步，2026-11-05 夜）
 
 - D032 状态「仅立项未实现」→「已实现（#59/#60）」；D018 状态补缺口修复记录（新建文件 hunk 级部分保留，#58）
+
+### Changed（README 路线图与配置文档同步，2026-11-05）
+
+- README §路线图状态同步：增量审查（第 5 项）/ 多模型对比评测侧（第 6 项）标记完成（夜间批量三号成果），路由消融（第 2 项）补台账工具与门槛口径，search_file（第 4 项）补生产首证（#53 跨文件 major）
+- 过期计数修正：评测集 48→71（三处，incremental 组入列）、单测 173→204、文档导航决策范围 D001–D031→D001–D033
+- 环境变量表补 `LLM_JSON_MODE` / `LLM_MAX_OUTPUT_TOKENS` 两行（#55/#58 落地时漏更）；核心设计「按整文件丢」段补 D018 新建文件部分保留例外
+- `.env.example`：`LLM_MAX_OUTPUT_TOKENS` 原夹在 EXTRA_BODY 注释与变量之间无注释，拆出独立注释块；补 `LLM_JSON_MODE` 条目；thinking 示例更新为生产现值（low）
+- `docs/plans/roadmap-execution.md` Step 4/6/7 状态按其「随 PR 滚动更新」约定同步（台账 11 次 / #59/#60 完成 / DeepSeek 评测侧完成）

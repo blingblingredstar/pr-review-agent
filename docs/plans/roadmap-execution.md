@@ -21,10 +21,10 @@
 | 1 | review.ts 机械拆分（D030） | —（D029 先行件） | 本计划合并后即可动工 | 已完成（PR #40） |
 | 2 | 任务上下文注入（D029） | 第 3 项 | Step 1 合并 | 已完成（PR #41） |
 | 3 | 代码搜索工具 search_files（D031）+ repo fixture eval 组 | 第 4 项 | Step 2 合并 | 已完成（PR #42） |
-| 4 | 生产数据积累 + 消融对照 | 第 2 项 | Step 2 上线后开始积累；对照分析等数据门槛 | 等待/并行 |
-| 5 | 对抗性关联 fixture 扩充（5 例） | 第 1 项 | Step 2 合并后的**专注会话**（D015 教训：赶工出低质 fixture 污染 eval 集） | 已完成（PR #44） |
-| 6 | 增量审查 + 报告门槛细化 | 第 5 项 | Step 4/5 收尾后 | spec 已留档（PR #43），实现待触发 |
-| 7 | 多模型对比 | 第 6 项 | 机会型：拿到第二家端点 key 随时可插队（纯 eval 侧，不动生产） | 待做 |
+| 4 | 生产数据积累 + 消融对照 | 第 2 项 | Step 2 上线后开始积累；对照分析等数据门槛 | 进行中——台账工具已上线（`npm run prodlogs`，PR #58），ledger 已入账 11 次审查 0 超时（PR #62）；带 `[router]` run 门槛与 diff 规模覆盖待核 |
+| 5 | 对抗性关联 fixture 扩充（5 例） | 第 1 项 | Step 2 合并后的**专注会话**（D015 教训：赶工出低质 fixture 污染 eval 集） | 已完成（PR #44，后随 eval 扩容再 +5 至 10 例） |
+| 6 | 增量审查 + 报告门槛细化 | 第 5 项 | Step 4/5 收尾后 | 已完成（PR #59/#60，2026-11-05 上线生产，dogfood 增量首跑已入台账） |
+| 7 | 多模型对比 | 第 6 项 | 机会型：拿到第二家端点 key 随时可插队（纯 eval 侧，不动生产） | 评测侧已完成（DeepSeek 三档对照，2026-11-05）；生产侧候选验证待做 |
 | 8 | 多仓产品化 | 第 7 项 | 前述全部稳定 + 出现多仓真实需求 | 远期 |
 
 **排序说明**（为什么不按 README 顺序做）：
@@ -93,7 +93,7 @@ Spec 见 `docs/plans/search-files.md`（已合并），本节只列执行序：
 
 ## Step 6：增量审查 + 报告门槛细化（第 5 项，spec 先行）
 
-> 状态：**spec 已留档（PR #43），实现待触发**——`docs/plans/incremental-review.md`（D032）已回答本节全部设计点（base 取法 / dedupe 键扩展 / D019 翻案 / block 继承 / compare 拉取 / 报告门槛 / eval 红线）；实现 + 测试 + eval 回归等 Step 4/5 收尾后按本节执行序动工。
+> 状态：**已实现并上线生产（PR #59/#60，2026-11-05）**——`docs/plans/incremental-review.md`（D032）全部设计点落地（base 推导 / block 继承 / compare 拉取 / 报告门槛 minor/nit 折叠）；eval 红线由构造保证兑现（worker 编排层 + 发布层实现，evals 直调 reviewDiff 零接触）；dogfood 增量首跑已入台账（`增量区间 e62589c..1d2dafe`）。下列执行序为历史记录；生产观察（多 push PR 的折叠段 UX）与回退分支预注册见 journal 会话 39。
 
 1. **先写 spec**（`docs/plans/incremental-review.md`，不审批只留档）——**已完成（PR #43，D032）**，下列设计点已全部落进 spec（实现会话直接按 spec §二动工，不再重写 spec）：
    - base 选择：上次已审 SHA 从哪取（review 内嵌标记已存 SHA，D010 语义扩展）；
@@ -104,6 +104,8 @@ Spec 见 `docs/plans/search-files.md`（已合并），本节只列执行序：
 3. PR（`feat:`）→ 全流程闭环 → 生产 dogfood（本仓库自己推多 commit 的 PR 即实验场）。
 
 ## Step 7：多模型对比（第 6 项，机会型插队）
+
+> 状态：**评测侧已完成（2026-11-05）**——DeepSeek 三档（disabled/low/high）71 例 ×3 全量对照落 `evals/report.md`（第 2 条模型名记录 ✓、第 3 条对比表 ✓）；顺带摊薄基建：`LLM_JSON_MODE`（无 json_schema 端点的结构化输出降级）+ run 文件名防碰撞。**未竟**：第 4 条的「主备模型策略 decision」待生产侧验证后兑现（deepseek-flash 为 DECISION_MODEL 候选，便宜档 router 验证成本低，未启动）。
 
 1. 前置：第二家 OpenAI 兼容端点的 key（用户侧动作；`.env` 不入库，跑分时环境变量覆盖 `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`）。
 2. 实现核对项：run 落盘元数据是否已记录模型名（未记则 run.ts 补一行），保证 compare.ts 聚合时按模型分组不混淆。
