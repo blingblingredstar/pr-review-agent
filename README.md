@@ -89,6 +89,7 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 | `LLM_JSON_MODE` | 未设置 | 设 `1` 时结构化输出降级：SDK 的 json_schema 替换为 json_object + system 追加 JSON 输出格式说明（DeepSeek 等不支持 json_schema 的端点用）；未设置时请求字节级不变 |
 | `LLM_MAX_OUTPUT_TOKENS` | 未设置 | 单次模型调用输出 token 上限（正整数），透传 `maxOutputTokens` 防 thinking 档位单例烧穿；未设置不传 |
 | `DECISION_BASE_URL` / `DECISION_API_KEY` / `DECISION_EXTRA_BODY` / `DECISION_JSON_MODE` | 未设置 | 决策模型（`DECISION_MODEL`，D028）独立端点四件套：未设置逐项回退 `LLM_*`（与主评审共用端点，现状语义不变）；设置后 router 走独立端点（跨厂商便宜档路由，如 deepseek-flash 候选）。`DECISION_JSON_MODE` 独立于 `LLM_JSON_MODE`（全局 json 模式会波及主评审的 json_schema 路径）；空白 = 未设置，显式 `0` = 覆盖为关 |
+| `LEDGER_GITHUB_REPO` | `blingblingredstar/pr-review-agent` | 台账 outcome 派生（#89/D037）的目标仓库：`npm run prodlogs` 在 merge 后按 runKey 调 GitHub API 以 bot review 真实意见数覆盖日志口径（日志「完成」行系统性缺失），凭证沿用 `GITHUB_TOKEN`；`--skip-derive` 跳过派生 |
 
 ## eval
 

@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-11-05T17:26:40.155Z",
+  "fetchedAt": "2026-11-05T18:13:08.814Z",
   "runs": {
     "5b54d-1793814736038-33f8a89f2211": {
       "startedAt": "2026-11-04T17:52:17.107Z",
@@ -19,7 +19,9 @@
       "warnings": [],
       "outcome": {
         "inline": 0,
-        "degraded": 0
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
       },
       "timeout": false,
       "deploymentId": "dpl_78dbFvZzRBhoHTNEpffKwQHD3soU",
@@ -51,7 +53,12 @@
       "context": null,
       "truncation": null,
       "warnings": [],
-      "outcome": null,
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
       "timeout": false,
       "deploymentId": "dpl_78dbFvZzRBhoHTNEpffKwQHD3soU",
       "environment": "production"
@@ -97,7 +104,9 @@
       ],
       "outcome": {
         "inline": 0,
-        "degraded": 1
+        "degraded": 1,
+        "folded": 0,
+        "source": "github"
       },
       "timeout": false,
       "deploymentId": "dpl_78dbFvZzRBhoHTNEpffKwQHD3soU",
@@ -140,7 +149,12 @@
       "context": null,
       "truncation": null,
       "warnings": [],
-      "outcome": null,
+      "outcome": {
+        "inline": 0,
+        "degraded": 1,
+        "folded": 0,
+        "source": "github"
+      },
       "timeout": false,
       "deploymentId": "dpl_78dbFvZzRBhoHTNEpffKwQHD3soU",
       "environment": "production"
@@ -184,7 +198,9 @@
       "warnings": [],
       "outcome": {
         "inline": 0,
-        "degraded": 0
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
       },
       "timeout": false,
       "deploymentId": "dpl_HRscwgRKnp1JGYxaVMqchh79DBEp",
@@ -213,7 +229,12 @@
       "context": null,
       "truncation": "预算 300000 字符：50 个文件块保留 44 个、省略 6 个",
       "warnings": [],
-      "outcome": null,
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
       "timeout": false,
       "deploymentId": "dpl_HRscwgRKnp1JGYxaVMqchh79DBEp",
       "environment": "production"
@@ -259,7 +280,9 @@
       ],
       "outcome": {
         "inline": 3,
-        "degraded": 0
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
       },
       "timeout": false,
       "deploymentId": "dpl_AmvS6FZmW7eSMrgmEpsArPxYSzma",
@@ -291,7 +314,12 @@
       "context": null,
       "truncation": null,
       "warnings": [],
-      "outcome": null,
+      "outcome": {
+        "inline": 3,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
       "timeout": false,
       "deploymentId": "dpl_AmvS6FZmW7eSMrgmEpsArPxYSzma",
       "environment": "production"
@@ -335,7 +363,9 @@
       "warnings": [],
       "outcome": {
         "inline": 0,
-        "degraded": 0
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
       },
       "timeout": false,
       "deploymentId": "dpl_CBMCGeiUsDpWdkHvcPbPQyHaLEuP",
@@ -367,7 +397,12 @@
       "context": null,
       "truncation": null,
       "warnings": [],
-      "outcome": null,
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
       "timeout": false,
       "deploymentId": "dpl_CBMCGeiUsDpWdkHvcPbPQyHaLEuP",
       "environment": "production"
@@ -411,7 +446,9 @@
       "warnings": [],
       "outcome": {
         "inline": 0,
-        "degraded": 0
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
       },
       "timeout": false,
       "deploymentId": "dpl_5PEpBdW4QdEXrmRKR9PR7AUVCzB9",
@@ -443,7 +480,12 @@
       "context": null,
       "truncation": null,
       "warnings": [],
-      "outcome": null,
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
       "timeout": false,
       "deploymentId": "dpl_5PEpBdW4QdEXrmRKR9PR7AUVCzB9",
       "environment": "production"
@@ -464,7 +506,12 @@
       "context": "上下文注入：触及 1 个文件 / 快照 308 个文件 / 50427 字符（预算 100000）",
       "truncation": null,
       "warnings": [],
-      "outcome": null,
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
       "timeout": false,
       "deploymentId": "dpl_5PEpBdW4QdEXrmRKR9PR7AUVCzB9",
       "environment": "production"
@@ -487,7 +534,9 @@
       "warnings": [],
       "outcome": {
         "inline": 0,
-        "degraded": 0
+        "degraded": 0,
+        "folded": 1,
+        "source": "github"
       },
       "timeout": false,
       "deploymentId": "dpl_5PEpBdW4QdEXrmRKR9PR7AUVCzB9",
@@ -519,7 +568,12 @@
       "context": null,
       "truncation": null,
       "warnings": [],
-      "outcome": null,
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 1,
+        "source": "github"
+      },
       "timeout": false,
       "deploymentId": "dpl_5PEpBdW4QdEXrmRKR9PR7AUVCzB9",
       "environment": "production"
@@ -540,7 +594,12 @@
       "context": "上下文注入：触及 3 个文件 / 快照 308 个文件 / 77559 字符（预算 100000）",
       "truncation": null,
       "warnings": [],
-      "outcome": null,
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 1,
+        "source": "github"
+      },
       "timeout": false,
       "deploymentId": "dpl_5PEpBdW4QdEXrmRKR9PR7AUVCzB9",
       "environment": "production"
@@ -563,7 +622,9 @@
       "warnings": [],
       "outcome": {
         "inline": 0,
-        "degraded": 0
+        "degraded": 0,
+        "folded": 1,
+        "source": "github"
       },
       "timeout": false,
       "deploymentId": "dpl_8esV2jNsnmr9QPjERLbB9KKhRtzf",
@@ -595,7 +656,12 @@
       "context": null,
       "truncation": null,
       "warnings": [],
-      "outcome": null,
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 1,
+        "source": "github"
+      },
       "timeout": false,
       "deploymentId": "dpl_8esV2jNsnmr9QPjERLbB9KKhRtzf",
       "environment": "production"
@@ -616,7 +682,12 @@
       "context": "上下文注入：触及 3 个文件 / 快照 308 个文件 / 25462 字符（预算 100000）",
       "truncation": null,
       "warnings": [],
-      "outcome": null,
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 1,
+        "source": "github"
+      },
       "timeout": false,
       "deploymentId": "dpl_8esV2jNsnmr9QPjERLbB9KKhRtzf",
       "environment": "production"
@@ -641,7 +712,9 @@
       ],
       "outcome": {
         "inline": 1,
-        "degraded": 0
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
       },
       "timeout": false,
       "deploymentId": "dpl_8esV2jNsnmr9QPjERLbB9KKhRtzf",
@@ -684,7 +757,12 @@
       "context": null,
       "truncation": null,
       "warnings": [],
-      "outcome": null,
+      "outcome": {
+        "inline": 1,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
       "timeout": false,
       "deploymentId": "dpl_8esV2jNsnmr9QPjERLbB9KKhRtzf",
       "environment": "production"
@@ -705,7 +783,12 @@
       "context": "上下文注入：触及 2 个文件 / 快照 308 个文件 / 21817 字符（预算 100000）",
       "truncation": null,
       "warnings": [],
-      "outcome": null,
+      "outcome": {
+        "inline": 1,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
       "timeout": false,
       "deploymentId": "dpl_8esV2jNsnmr9QPjERLbB9KKhRtzf",
       "environment": "production"
@@ -728,7 +811,9 @@
       "warnings": [],
       "outcome": {
         "inline": 0,
-        "degraded": 0
+        "degraded": 0,
+        "folded": 1,
+        "source": "github"
       },
       "timeout": false,
       "deploymentId": "dpl_8esV2jNsnmr9QPjERLbB9KKhRtzf",
@@ -771,7 +856,12 @@
       "context": null,
       "truncation": null,
       "warnings": [],
-      "outcome": null,
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 1,
+        "source": "github"
+      },
       "timeout": false,
       "deploymentId": "dpl_8esV2jNsnmr9QPjERLbB9KKhRtzf",
       "environment": "production"
@@ -792,7 +882,12 @@
       "context": "上下文注入：触及 3 个文件 / 快照 308 个文件 / 25393 字符（预算 100000）",
       "truncation": null,
       "warnings": [],
-      "outcome": null,
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 1,
+        "source": "github"
+      },
       "timeout": false,
       "deploymentId": "dpl_8esV2jNsnmr9QPjERLbB9KKhRtzf",
       "environment": "production"
@@ -817,7 +912,9 @@
       ],
       "outcome": {
         "inline": 0,
-        "degraded": 1
+        "degraded": 1,
+        "folded": 0,
+        "source": "github"
       },
       "timeout": false,
       "deploymentId": "dpl_F2KxtFDkh4hRZ8xNNwZDs36Tufz6",
@@ -846,7 +943,12 @@
       "context": null,
       "truncation": null,
       "warnings": [],
-      "outcome": null,
+      "outcome": {
+        "inline": 0,
+        "degraded": 1,
+        "folded": 0,
+        "source": "github"
+      },
       "timeout": false,
       "deploymentId": "dpl_F2KxtFDkh4hRZ8xNNwZDs36Tufz6",
       "environment": "production"
@@ -890,7 +992,9 @@
       "warnings": [],
       "outcome": {
         "inline": 0,
-        "degraded": 0
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
       },
       "timeout": false,
       "deploymentId": "dpl_CuuVVLzT2ikyQZPpweAeEGYxRqU3",
@@ -922,7 +1026,12 @@
       "context": null,
       "truncation": null,
       "warnings": [],
-      "outcome": null,
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
       "timeout": false,
       "deploymentId": "dpl_CuuVVLzT2ikyQZPpweAeEGYxRqU3",
       "environment": "production"
@@ -943,7 +1052,12 @@
       "context": "上下文注入：触及 1 个文件 / 快照 315 个文件 / 14283 字符（预算 100000）",
       "truncation": null,
       "warnings": [],
-      "outcome": null,
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
       "timeout": false,
       "deploymentId": "dpl_CuuVVLzT2ikyQZPpweAeEGYxRqU3",
       "environment": "production"
@@ -966,7 +1080,9 @@
       "warnings": [],
       "outcome": {
         "inline": 0,
-        "degraded": 0
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
       },
       "timeout": false,
       "deploymentId": "dpl_3a9aV8ZwefYfJmCSG6oTj7pymq96",
@@ -998,7 +1114,12 @@
       "context": null,
       "truncation": null,
       "warnings": [],
-      "outcome": null,
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
       "timeout": false,
       "deploymentId": "dpl_3a9aV8ZwefYfJmCSG6oTj7pymq96",
       "environment": "production"
@@ -1019,7 +1140,12 @@
       "context": "上下文注入：触及 1 个文件 / 快照 322 个文件 / 80367 字符（预算 100000）",
       "truncation": null,
       "warnings": [],
-      "outcome": null,
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
       "timeout": false,
       "deploymentId": "dpl_3a9aV8ZwefYfJmCSG6oTj7pymq96",
       "environment": "production"
@@ -1044,7 +1170,9 @@
       ],
       "outcome": {
         "inline": 1,
-        "degraded": 0
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
       },
       "timeout": false,
       "deploymentId": "dpl_BGauhBrXu56jSi1tZbMSw2my5XX7",
@@ -1073,7 +1201,12 @@
       "context": null,
       "truncation": "预算 300000 字符：18 个文件块保留 13 个、省略 5 个",
       "warnings": [],
-      "outcome": null,
+      "outcome": {
+        "inline": 1,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
       "timeout": false,
       "deploymentId": "dpl_BGauhBrXu56jSi1tZbMSw2my5XX7",
       "environment": "production"
@@ -1096,7 +1229,9 @@
       "warnings": [],
       "outcome": {
         "inline": 0,
-        "degraded": 0
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
       },
       "timeout": false,
       "deploymentId": "dpl_BGauhBrXu56jSi1tZbMSw2my5XX7",
@@ -1128,7 +1263,12 @@
       "context": null,
       "truncation": null,
       "warnings": [],
-      "outcome": null,
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
       "timeout": false,
       "deploymentId": "dpl_BGauhBrXu56jSi1tZbMSw2my5XX7",
       "environment": "production"
@@ -1149,7 +1289,12 @@
       "context": "上下文注入：触及 1 个文件 / 快照 337 个文件 / 41466 字符（预算 100000）",
       "truncation": null,
       "warnings": [],
-      "outcome": null,
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
       "timeout": false,
       "deploymentId": "dpl_BGauhBrXu56jSi1tZbMSw2my5XX7",
       "environment": "production"
@@ -1172,7 +1317,9 @@
       "warnings": [],
       "outcome": {
         "inline": 0,
-        "degraded": 0
+        "degraded": 0,
+        "folded": 2,
+        "source": "github"
       },
       "timeout": false,
       "deploymentId": "dpl_BGauhBrXu56jSi1tZbMSw2my5XX7",
@@ -1201,7 +1348,12 @@
       "context": null,
       "truncation": "预算 300000 字符：18 个文件块保留 13 个、省略 5 个",
       "warnings": [],
-      "outcome": null,
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 2,
+        "source": "github"
+      },
       "timeout": false,
       "deploymentId": "dpl_BGauhBrXu56jSi1tZbMSw2my5XX7",
       "environment": "production"
@@ -1222,7 +1374,12 @@
       "context": "上下文注入：触及 18 个文件 / 快照 337 个文件 / 99994 字符（预算 100000）",
       "truncation": null,
       "warnings": [],
-      "outcome": null,
+      "outcome": {
+        "inline": 1,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
       "timeout": false,
       "deploymentId": "dpl_BGauhBrXu56jSi1tZbMSw2my5XX7",
       "environment": "production"
@@ -1243,7 +1400,12 @@
       "context": "上下文注入：触及 18 个文件 / 快照 337 个文件 / 99994 字符（预算 100000）",
       "truncation": null,
       "warnings": [],
-      "outcome": null,
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 2,
+        "source": "github"
+      },
       "timeout": false,
       "deploymentId": "dpl_BGauhBrXu56jSi1tZbMSw2my5XX7",
       "environment": "production"
@@ -1266,7 +1428,9 @@
       "warnings": [],
       "outcome": {
         "inline": 0,
-        "degraded": 0
+        "degraded": 0,
+        "folded": 2,
+        "source": "github"
       },
       "timeout": false,
       "deploymentId": "dpl_HAw7ijzHDGwHi4UuFGkdaJ4kCrZT",
@@ -1295,7 +1459,12 @@
       "context": null,
       "truncation": "预算 300000 字符：18 个文件块保留 13 个、省略 5 个",
       "warnings": [],
-      "outcome": null,
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 2,
+        "source": "github"
+      },
       "timeout": false,
       "deploymentId": "dpl_HAw7ijzHDGwHi4UuFGkdaJ4kCrZT",
       "environment": "production"
@@ -1316,9 +1485,155 @@
       "context": "上下文注入：触及 18 个文件 / 快照 331 个文件 / 99950 字符（预算 100000）",
       "truncation": null,
       "warnings": [],
-      "outcome": null,
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 2,
+        "source": "github"
+      },
       "timeout": false,
       "deploymentId": "dpl_HAw7ijzHDGwHi4UuFGkdaJ4kCrZT",
+      "environment": "production"
+    },
+    "zd4wp-1793902370445-8e2c83eadbea": {
+      "startedAt": "2026-11-05T18:12:51.168Z",
+      "finishedAt": "2026-11-05T18:12:51.168Z",
+      "durationMs": 0,
+      "pr": 94,
+      "headSha": "cefd056",
+      "runKey": "#94@cefd056",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [],
+      "outcome": null,
+      "timeout": false,
+      "deploymentId": "dpl_6XEtAwtUn3HcjGmM1hQc9TPyTCLF",
+      "environment": "production"
+    },
+    "d6q5c-1793902365724-81729b857995": {
+      "startedAt": "2026-11-05T18:12:49.369Z",
+      "finishedAt": "2026-11-05T18:12:50.421Z",
+      "durationMs": 1052,
+      "pr": 94,
+      "headSha": "cefd056",
+      "runKey": "#94@cefd056",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": "任务块注入：关联 1 个 issue（#89） / 1138 字符（预算 4000）",
+      "context": "上下文注入：触及 9 个文件 / 快照 340 个文件 / 99953 字符（预算 100000）",
+      "truncation": null,
+      "warnings": [],
+      "outcome": null,
+      "timeout": false,
+      "deploymentId": "dpl_6XEtAwtUn3HcjGmM1hQc9TPyTCLF",
+      "environment": "production"
+    },
+    "t42nm-1793900709658-47d740ecf055": {
+      "startedAt": "2026-11-05T17:45:10.659Z",
+      "finishedAt": "2026-11-05T17:45:10.659Z",
+      "durationMs": 0,
+      "pr": 92,
+      "headSha": "34def91",
+      "runKey": "#92@34def91",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_EE2HX4by668rZJpwEhHyaRqNYgPK",
+      "environment": "production"
+    },
+    "42vgf-1793900695147-6a9e7a3f7505": {
+      "startedAt": "2026-11-05T17:44:55.722Z",
+      "finishedAt": "2026-11-05T17:45:09.644Z",
+      "durationMs": 13922,
+      "pr": 92,
+      "headSha": "34def91",
+      "runKey": "#92@34def91",
+      "routerTokens": {
+        "in": 6931,
+        "out": 258
+      },
+      "probeTokens": {
+        "in": 9813,
+        "out": 62
+      },
+      "reviewTokens": {
+        "in": 22631,
+        "out": 292,
+        "total": 22923
+      },
+      "toolRequests": "search 无 / read ×2（src/router.ts | evals/cases/repo-02-removed-export-still-used.ts）（预算 2）",
+      "toolCalls": [
+        {
+          "step": 2,
+          "kind": "read",
+          "detail": "evals/cases/repo-02-removed-export-still-used.ts (1274 chars)"
+        },
+        {
+          "step": 1,
+          "kind": "read",
+          "detail": "src/router.ts (7088 chars)"
+        }
+      ],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_EE2HX4by668rZJpwEhHyaRqNYgPK",
+      "environment": "production"
+    },
+    "lss6m-1793900692046-5a3da25be3fb": {
+      "startedAt": "2026-11-05T17:44:54.426Z",
+      "finishedAt": "2026-11-05T17:44:55.104Z",
+      "durationMs": 678,
+      "pr": 92,
+      "headSha": "34def91",
+      "runKey": "#92@34def91",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": "无关联 issue（closing keywords 未命中），不注入任务块",
+      "context": "上下文注入：触及 1 个文件 / 快照 338 个文件 / 15980 字符（预算 100000）",
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_EE2HX4by668rZJpwEhHyaRqNYgPK",
       "environment": "production"
     }
   }
