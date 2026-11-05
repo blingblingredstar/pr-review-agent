@@ -437,3 +437,16 @@
   - 按 ② 永久关闭——判 ② 需要预算可行配对的实测负结果，现状只有上界推演；关闭成本（丢 corr 组唯一有效抓手）大于补数据成本（1 次 run）。否决。
   - 用 DS@high 读数直接外推 DS@low——档位语义跨厂商不同（D033 实测），thinking 量改变发现分布，外推无依据。否决。
 - **后果**：路线图多模型审查维持不进（D028 不变）；本消融的全部数字与数据缺口落档 `evals/report.md`，分析脚本可回放（确定性双跑 diff 一致）；补数据成本明确（1 次 DS@low 全量 run ≈ 26 分钟 ≈ 29.5 万 output tokens，GLM 侧 3 轮存档复用）；合并规则与中文判据适配（重叠系数 + CJK bigram）随脚本入库，cheap-pair 占位表等主会话补新鲜 run；原计划主对不可计算的事实本身入档（覆盖事故的第二笔代价，第一笔见 recovery README）。
+
+## D037 — 台账 outcome 改 GitHub 侧派生（issue #89）：日志「完成」行系统性缺失，GitHub 为事实源、日志解析降级 fallback
+
+- **状态**：已接受（2026-11-06，issue #89 实现）。
+- **背景**：台账 outcome 依赖日志「完成：N 条行内…」行（`src/prodlogs.ts` 完成行 regex），该行在 Vercel 日志捕获中系统性缺失——#89 两批实证：11-05 的 12 个 reviewed run 全部 `{inline:0, degraded:0}`、11-06 新抓 #87 四连审（线程可查真实行内 major）outcome 全 null，而同 run 更早的 tokens 行都在；疑因 waitUntil 生命周期尾部日志在函数冻结边界丢失。outcome 是 #65 沉默率/意见量指标的数据出口，不可靠即指标不可算。
+- **决策**：
+  1. **GitHub 侧派生**：harvest（merge 后、写台账前）按 runKey（pr + headSha）查该 commit 的 bot review——body 内 sha 标记匹配（dedupe.ts 同一解析，台账 7 位短 sha 与标记全量 sha 按前缀比对），行内评论数（API）+ body 降级单行数（`parseDegradedLines` 同一 regex）+ 折叠段 minor/nit 行数（新 regex 与 DEGRADED_LINE_RE 同构）→ `{inline, degraded, folded, source: "github"}`。新模块 `src/prod-runs-derived.ts`（derive / apply 分离，纯函数可单测）。
+  2. **派生值覆盖日志值**（验收闸门 2 的二选一取「覆盖」）：GitHub 是事实源，旧 0/0 脏值一并纠正；不标 dirty——ledger 是活工具不是历史档案，旧值在派生值与日志行两侧可追溯，标 dirty 只给 summarize 加永久分支。合并语义自洽：`mergeRuns` 字段级 `a ?? b` 下 prev 的派生值天然赢过后续新抓的日志值。覆盖落 runKey 的**全部**记录（publish 段脏 0/0 常在、reviewTokens 为 null 不参与派生——只改参与记录会让 summarize 捞到脏值）。
+  3. **失败保留日志值**：派生失败（网络/权限）或无匹配 review（超时 run / review 未发出）→ 该 runKey 不覆盖、不清 null——「取不到事实」时日志值是唯一在手证据；逐 runKey 失败隔离，绝不挡台账落盘。
+  4. **节流**：去重后 runKey 量级 ~17，串行 + 每 API 调用前 100ms；同 PR 多 runKey（#87 四连审）共享一次 listReviews。
+  5. **降级开关**：`--skip-derive` 纯日志模式；仓库 `LEDGER_GITHUB_REPO`（默认本仓库）；凭证沿用 `GITHUB_TOKEN`。
+- **备选**：日志侧根治（waitUntil 收尾改为 await / 改 emit 时机）——治标依赖 Vercel 运行时行为，无法保证完成行必达，且窗口外历史数据无法回补；派生值标 dirty 保留标注——见上，活工具不需要历史档案语义。均否决。
+- **后果**：`ProdRun.outcome` 扩 optional `folded`/`source`（向后兼容，老记录无此二字段照读）；summarize 口径不变（outcome 值域扩格不影响计数）；单测 227 → 240；#65 沉默率/意见量改派生口径后可复算（验收闸门 3）——重跑 `npm run prodlogs` 即对台账既有 17 个 runKey 全量纠偏；生产观察项：下次 harvest 后核对 #87 四 runKey outcome 与线程实际数一致（验收闸门 1，需 Vercel 凭证走主会话）。

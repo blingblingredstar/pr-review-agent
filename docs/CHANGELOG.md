@@ -362,3 +362,9 @@
 - `DECISION_BASE_URL` / `DECISION_API_KEY` / `DECISION_EXTRA_BODY` / `DECISION_JSON_MODE`：DECISION_MODEL 的端点此前与主评审强制共用（`LLM_*`），跨厂商便宜档路由（deepseek-flash 候选）无落地路径；四件套未设置时逐项回退 `LLM_*`（现状语义字节级不变），设置后 router 走独立端点
 - `DECISION_JSON_MODE` 独立开关：全局 `LLM_JSON_MODE` 会同时波及主评审（GLM 走 json_schema 不需要降级且 promptHash 会变）；空白 = 未设置（回退），显式 `0` = 覆盖为关
 - 单测 222 → 227（decisionEndpoint 回退/覆盖/非法 JSON、scoped json 开关两端 helper）；`.env.example` / README / architecture.md 环境变量表同步
+
+### Changed（台账 outcome 改 GitHub 侧派生，#89 / D037，2026-11-06）
+
+- `npm run prodlogs` 在 merge 后、写台账前按 runKey 调 GitHub API 派生 outcome（行内评论数 + body 降级单行 + 折叠段 minor/nit 行数，`source: "github"` 标记）并覆盖日志值——日志「完成」行在 Vercel 捕获中系统性缺失（#89 两批实证 null/0 脏值），GitHub 侧派生根治；派生失败或无匹配 review 保留日志值不覆盖
+- 台账既有 17 个 runKey 的 0/0 脏值重跑即纠偏；`ProdRun.outcome` 扩 optional `folded`/`source` 两格（向后兼容）；新模块 `src/prod-runs-derived.ts` + 单测（227 → 240）
+- `--skip-derive` 跳过派生走纯日志口径；`LEDGER_GITHUB_REPO` 指定派生目标仓库（默认本仓库，.env.example 已记）

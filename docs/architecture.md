@@ -89,6 +89,7 @@ schema 变更属于破坏性改动：必须同步改 `evals/run.ts` 的打分逻
 | `PREV_FINDINGS_MAX_CHARS` | 上一轮意见预算（字符）（D035） | 默认 6000；全量重审（block 继承）时上一轮 blocker/major 意见块的独立预算，`0` 显式关闭（零 API 调用、prompt 与旧版一致）；非法值告警回退默认 |
 | `WORKER_BASE_URL` | worker 续链公开入口（生产必配） | VERCEL_URL 是部署专属 URL（Standard Protection 会挡），续链目标须为公开可达域名（webhook 同款 URL 即可）；不含任何请求头派生值（D026 生产修正 + 自审二轮回退记录） |
 | `REVIEW_TRIGGER_USERS` | 触发白名单 | 逗号分隔 GitHub 用户名，仅名单内 PR 作者触发审查；未设置 = 所有人，`*` = 显式全放行（D021） |
+| `LEDGER_GITHUB_REPO` | 台账 outcome 派生的目标仓库（#89，`npm run prodlogs` 用） | `owner/repo` 形态，未设置 = 默认 `blingblingredstar/pr-review-agent`；凭证沿用 `GITHUB_TOKEN`；`--skip-derive` 走纯日志口径 |
 
 ## 待定问题
 

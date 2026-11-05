@@ -16,6 +16,18 @@ export type VercelLogLine = {
 
 export type ToolCall = { step: number; kind: "search" | "read"; detail: string };
 
+// run 的意见落点计数。folded（#89）：D032 起 minor/nit 折叠进 review body `<details>` 段，
+// 日志「完成」行不带这一格，只有 GitHub 派生口径能补齐；老记录无此字段（optional 向后兼容）。
+// source：值来源标记——缺省 = 日志「完成」行解析（fallback：该行在 Vercel 日志捕获中系统性缺失，
+// #89 实证两批 run outcome null/0 而线程里有真实意见）；"github" = GitHub 侧派生（事实源），
+// harvest 派生值覆盖日志值，合并时 prev 的派生值天然赢过新抓的日志值（mergeRuns 字段级 a ?? b）
+export type RunOutcome = {
+  inline: number;
+  degraded: number;
+  folded?: number;
+  source?: "github";
+};
+
 export type ProdRun = {
   startedAt: string;
   finishedAt: string;
@@ -34,7 +46,7 @@ export type ProdRun = {
   context: string | null;
   truncation: string | null;
   warnings: string[];
-  outcome: { inline: number; degraded: number } | null;
+  outcome: RunOutcome | null;
   timeout: boolean;
   deploymentId: string | null;
   environment: string | null;
