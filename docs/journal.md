@@ -693,3 +693,18 @@
 - **下一步**：
   1. 等 bot 自审意见闭环后合并本 PR（docs-only，预期意见面小）
   2. 观察项不变（会话 39 遗留）：增量折叠段 UX、Step 4 门槛数据、DECISION_MODEL 换 deepseek-flash 候选验证
+
+## 2026-11-05 · 会话 41：pr-agent 精读落库 + 活任务管理迁移 GitHub Issues（D034）
+
+- **目标**：用户要求精读最直接对标 The-PR-Agent/pr-agent（prompt 组织 / 规则引擎 / CI 集成）找借鉴点并差异化 → 分析落库；随后用户提议路线图改用 GitHub Issues ticket 式管理 → 迁移设计与执行（D034）。
+- **完成**：
+  - **PR #64**（docs，bot 零意见三绿合并）：`docs/plans/pr-agent-analysis.md` 归档（上游 main @ `a8c6047` 精读）。关键发现：① best_practices「规则引擎」上游已整体移除，被「活组织上下文」取代（`repo_context_files=["AGENTS.md"]` + default-branch-only trust + SKILL.md 注入）——静态规则库维护不动的教训；② 跨 run finding 状态机（HTML 注释存态 + 逐字复报保真 +「没审到的文件 ≠ 已修复」）正中本项目 flip-flop / D032 痛点；③ reflect 二次评分 pass（硬 rubric + 验证器挂了宁可少发）；④ **eval 短板实证**：上游 406 单测全 mock + e2e 冒烟，零质量评测——「每条 prompt 改动有 71 例前后对比」的回路是本项目差异化事实。借鉴清单 P0×3（#71/#72 + excluded-files 联动并入 #71）/ P1×3（#73/#74 + diff 呈现格式留 #74 附注）/ P2×2（#75 + 多平台项并入 #76）
+  - **D034**（本 PR）：活任务管理迁移 GitHub Issues——单源原则（issues 为活任务唯一源）/ harness 留痕纪律不变 / issue 模板四段式 / closing keywords 关闭 / 不补建已完成项；建 label `roadmap` + 首批 12 个 issue（#65-#76，curl + keychain PAT，零 PR 成本）
+  - AGENTS.md 会话开始加第 5 步（curl 查 roadmap issues）+ 工程约定改「specs 归档 docs/plans/，任务追踪走 issues」；README 路线图执行追踪句改指 issues；roadmap-execution.md 状态列停止维护（头部注记，append-only：内容不动只标停维）
+- **发现 / 坑**：
+  - **并行会话撞车预防生效**（D023 双占教训的纪律兑现）：开工前核对发现另一会话的 #63 已占 journal 会话 40，本会话顺延 41；decisions.md 未被 #63 触碰、D034 保住；共享工作目录已被 #63 同步，计划期读到的 roadmap/README 就是最新版，零返工
+  - pr-agent 的「规则引擎」叙事已过时——网上资料仍大量引用 best_practices.toml，当前 main 只剩空占位字符串；**外部对标必须钉住 commit 精读**，二手资料会指错方向
+  - issue 化的意外红利：PR 带 `Closes #N` → 生产 bot 经 D029 自动注入 issue 正文任务上下文——任务注入的生产使用率自然提升，issue 正文「按事实性标准写」的约束随之生效（正文进 LLM 输入面）
+- **下一步**：
+  1. 本 PR 闭环合并后，最近的两个实现项：#72（P0-2 不确定性标注，prompt 迭代三轮微平均）与 #71（P0-1 复报保真，实现时开 D 编号）
+  2. Step 4 台账勤回收（#65）：每合并约 5 个 PR 跑一次 `npm run prodlogs`

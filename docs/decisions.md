@@ -390,3 +390,16 @@
   - 任一 high 档——270s（eval 实测）/ 600s（放宽实测）内都跑不完硬 case。否决。
   - glm-5.3@disabled——依赖未文档化的端点静默行为（随时可能收紧）；显式 `enabled+low` 行为等价且命名诚实。否决。
 - **后果**：生产单审配额 ×3；D024 canary 体系首次实战捕获真裂缝（glm 特有回显）并在切换前闭环——canary 有效性首次实证；inj-06 沉默（全配置通病）与 inj-01 行号噪音（±3 定位）为既有观察项，不随切换恶化，留生产 dogfood 观测；flash 基线 run 全部保留可随时回滚（env 两行）。
+
+## D034 — 活任务管理迁移 GitHub Issues（单源原则）；pr-agent 分析借鉴项立项
+
+- **状态**：已接受（2026-11-05，会话 41；同日 pr-agent 源码分析归档 PR #64 → `docs/plans/pr-agent-analysis.md`）。
+- **背景**：活任务状态（待办 / 进行中 / 观察项 / 触发条件）散落四处——roadmap-execution.md 状态列、README 路线图、journal「下一步」——每次状态更新都要走 PR 过双硬闸门，bookkeeping 成本高；且横向汇总面靠人工还账（#63 教训：逐 PR 文档纪律覆盖不了跨 PR 的汇总文档）。
+- **决策**：
+  1. **单源原则**：GitHub Issues（label `roadmap`）为活任务唯一源，文档不再并行维护任务状态列。首批评 12 个（#65-#76）：Step 4 数据门槛 / Step 7 生产侧候选 / D032 生产观察 / repo 漂移 / corr 迭代 / D033 观察项 / pr-agent 借鉴 P0×2 + P1×2 + P2×1 / Step 8 远期。
+  2. **职责切分**：harness 留痕不变——decisions（D 编号）/ journal / CHANGELOG / specs 归档 `docs/plans/` 仍走 PR（历史必须进库）；issues 只管活任务态，创建/更新零 PR 成本。
+  3. **issue 模板**：目标 / 背景与关联（D 编号 + spec 链接）/ 触发条件 / 验收闸门；正文按事实性标准写——issue 正文会经 D029 链路进生产审查 prompt（PR 描述带 closing keywords 即注入任务上下文），属作者可控内容，D029 既有威胁模型缓解（块内重申 + 预算 + canary）覆盖。
+  4. **关闭机制**：任务完成随实现 PR 用 closing keywords 关闭；已完成项不补建 closed issues（留痕在 CHANGELOG/journal，补建纯属噪音）。
+  5. 会话开始协议加第 5 步：查 open roadmap issues（AGENTS.md 内置 curl 一行命令；无 gh CLI，PAT 走 keychain——API 操作 curl 是既定路径）。
+- **备选**：GitHub Projects board（否决——label 足够，多维视图是过度设计）；`docs/TODO.md` 入库（否决——回到「状态更新走 PR」老路）；继续维护 roadmap-execution.md 状态列（否决——双源必漂移）。
+- **后果**：roadmap-execution.md 状态列停止维护（头部注记）、README 路线图执行追踪句改指 issues；journal「下一步」一节从此只写「下一个会话马上要做的事」，中长期任务全在 issues；dogfood 红利——自家 PR 引用 issue 后 D029 任务注入的生产使用率自然提升。
