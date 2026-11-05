@@ -329,6 +329,14 @@ for (const [gi, r] of glmRuns.entries()) {
   if (r.size !== caseIds.length) throw new Error(`GLM 轮 ${GLM_FILES[gi]} 用例数 ${r.size} != 交集 ${caseIds.length}`);
 }
 if (dsHigh.size !== caseIds.length) throw new Error(`DS high 用例数 ${dsHigh.size} != 交集 ${caseIds.length}`);
+// 触发兑现轮新增数据源同型校验（bot minor：缺例时 runs.get(id)! 会在 .comments 处抛裸 TypeError 难定位）
+if (dsLowFresh.size !== caseIds.length) throw new Error(`DS low 触发 run 用例数 ${dsLowFresh.size} != 交集 ${caseIds.length}`);
+for (const [gi, r] of glmFlashRounds.entries()) {
+  if (r.size !== caseIds.length) throw new Error(`GLM flash 轮 ${GLM_FLASH_FILES[gi]} 用例数 ${r.size} != 交集 ${caseIds.length}`);
+}
+for (const [ti, r] of dsDisabledRounds.entries()) {
+  if (r.size !== caseIds.length) throw new Error(`DS disabled 轮 ${DS_DISABLED_FILES[ti]} 用例数 ${r.size} != 交集 ${caseIds.length}`);
+}
 if (missing.length > 0) console.log(`> 用例集：存档 run 71 例（当前用例目录 ${cases.length} 例，不在存档内的：${missing.join("、")}——口径取交集）`);
 else console.log(`> 用例集：${caseIds.length} 例全对齐`);
 
@@ -422,7 +430,8 @@ for (const [tier, cfg] of Object.entries(README_TIERS)) {
         const B = tokens(b.body);
         let inter = 0;
         for (const w of A) if (B.has(w)) inter++;
-        const jac = A.size + B.size ? inter / (A.size + B.size - inter) : 1;
+        // bot nit：双侧 token 集皆空时无相似度可言，取 0（不计入「>0.4 同发现」）而非 1（全然误配）
+        const jac = A.size + B.size ? inter / (A.size + B.size - inter) : 0;
         if (jac > 0.4) sameFinding ? posJ++ : negJ++;
         if (sameFinding) posJaccard.push(jac);
       }
