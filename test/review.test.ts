@@ -12,6 +12,7 @@ import {
   reviewDiff,
   sumUsage,
   withExtraBody,
+  withJsonSuffixFor,
   type ToolRequests,
 } from "../src/review.ts";
 import { buildPlanBlock, type ReviewPlan } from "../src/router.ts";
@@ -732,4 +733,33 @@ test("LLM_MAX_OUTPUT_TOKENS：设置 → 请求体带 max_tokens；未设置/非
   } finally {
     await fake.close();
   }
+});
+
+// ============ scoped json 模式开关（决策端点 plumbing，#66 前置）============
+
+test("withJsonSuffixFor：显式 enabled 优先于全局 jsonMode()（缺省保持现状语义）", async () => {
+  await withEnv({ LLM_JSON_MODE: undefined }, () => {
+    assert.ok(withJsonSuffixFor("BASE", "SUFFIX", true).endsWith("SUFFIX"), "显式 true：全局未开也追加");
+    assert.equal(withJsonSuffixFor("BASE", "SUFFIX", false), "BASE", "显式 false：不追加");
+    assert.equal(withJsonSuffixFor("BASE", "SUFFIX"), "BASE", "缺省：跟随全局（未开）——现状语义");
+  });
+  await withEnv({ LLM_JSON_MODE: "1" }, () => {
+    assert.equal(withJsonSuffixFor("BASE", "SUFFIX", false), "BASE", "全局开着但显式 false：不追加（跨端点隔离）");
+    assert.ok(withJsonSuffixFor("BASE", "SUFFIX").endsWith("SUFFIX"), "缺省：跟随全局（开）");
+  });
+});
+
+test("withExtraBody：scoped 开关控制 json_schema→json_object 替换（extra.response_format 显式配置仍优先）", async () => {
+  const fetchBody = async (input: unknown, init?: RequestInit) => new Response(init?.body as string);
+  const schemaBody = JSON.stringify({ response_format: { type: "json_schema" } });
+  await withEnv({ LLM_JSON_MODE: undefined, LLM_EXTRA_BODY: undefined }, async () => {
+    const swapped = JSON.parse(await (await withExtraBody(fetchBody as typeof fetch, {}, true)("https://x", { method: "POST", body: schemaBody })).text());
+    assert.deepEqual(swapped.response_format, { type: "json_object" }, "全局关但显式开：仍替换（决策端点独立开 json 模式）");
+    const intact = JSON.parse(await (await withExtraBody(fetchBody as typeof fetch, {}, false)("https://x", { method: "POST", body: schemaBody })).text());
+    assert.deepEqual(intact.response_format, { type: "json_schema" }, "显式 false：不替换");
+  });
+  await withEnv({ LLM_JSON_MODE: "1", LLM_EXTRA_BODY: undefined }, async () => {
+    const kept = JSON.parse(await (await withExtraBody(fetchBody as typeof fetch, { response_format: { type: "json_object" } }, true)("https://x", { method: "POST", body: schemaBody })).text());
+    assert.deepEqual(kept.response_format, { type: "json_object" }, "extra 显式带 response_format：不覆盖（显式配置优先语义不变）");
+  });
 });

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
-import { buildPlanBlock, decisionModel, diffSkeleton, reviewPlanSchema, runReviewRouter, type ReviewPlan } from "../src/router.ts";
+import { buildPlanBlock, decisionEndpoint, decisionModel, diffSkeleton, reviewPlanSchema, runReviewRouter, type ReviewPlan } from "../src/router.ts";
 import { messagesOf, startFakeLLM, withEnv } from "./helpers.ts";
 
 // ============ 决策模型路由（D028）============
@@ -159,4 +159,58 @@ test("JSON 模式（LLM_JSON_MODE=1）：router system 追加 plan 形状文件 
   } finally {
     await fake.close();
   }
+});
+
+// ============ 决策端点 plumbing（#66 前置，会话 44）============
+
+test("decisionEndpoint：DECISION_* 未设置逐项回退 LLM_*（现状语义字节级不变）", async () => {
+  await withEnv(
+    {
+      DECISION_BASE_URL: undefined, DECISION_API_KEY: undefined, DECISION_EXTRA_BODY: undefined, DECISION_JSON_MODE: undefined,
+      LLM_BASE_URL: "https://glm.example/v4", LLM_API_KEY: "k-main", LLM_EXTRA_BODY: '{"thinking":{"type":"disabled"}}', LLM_JSON_MODE: undefined,
+    },
+    () => {
+      const ep = decisionEndpoint();
+      assert.deepEqual(ep, {
+        baseUrl: "https://glm.example/v4",
+        apiKey: "k-main",
+        extraBody: { thinking: { type: "disabled" } },
+        jsonMode: false,
+      });
+    },
+  );
+});
+
+test("decisionEndpoint：DECISION_* 设置后独立生效（跨厂商端点路由的落地路径）", async () => {
+  await withEnv(
+    {
+      DECISION_BASE_URL: "https://api.deepseek.com", DECISION_API_KEY: "k-ds",
+      DECISION_EXTRA_BODY: '{"thinking":{"type":"enabled"}}', DECISION_JSON_MODE: "1",
+      LLM_BASE_URL: "https://glm.example/v4", LLM_API_KEY: "k-main", LLM_EXTRA_BODY: '{"thinking":{"type":"disabled"}}', LLM_JSON_MODE: undefined,
+    },
+    () => {
+      const ep = decisionEndpoint();
+      assert.deepEqual(ep, {
+        baseUrl: "https://api.deepseek.com",
+        apiKey: "k-ds",
+        extraBody: { thinking: { type: "enabled" } },
+        jsonMode: true,
+      }, "决策端点四项全部独立取值，不波及主评审配置");
+    },
+  );
+  await withEnv({ DECISION_EXTRA_BODY: "[1,2]", LLM_EXTRA_BODY: undefined }, () => {
+    assert.throws(() => decisionEndpoint(), /DECISION_EXTRA_BODY 必须是 JSON 对象/);
+  });
+});
+
+test("decisionEndpoint：主评审 JSON 模式开启时决策端点不被动跟随（DECISION_JSON_MODE 未设置才回退）", async () => {
+  await withEnv({ DECISION_JSON_MODE: undefined, LLM_JSON_MODE: "1", DECISION_EXTRA_BODY: undefined, LLM_EXTRA_BODY: undefined }, () => {
+    assert.equal(decisionEndpoint().jsonMode, true, "未设置 DECISION_JSON_MODE → 回退 LLM_JSON_MODE（同端点时语义正确）");
+  });
+  await withEnv({ DECISION_JSON_MODE: "", LLM_JSON_MODE: "1" }, () => {
+    assert.equal(decisionEndpoint().jsonMode, true, "DECISION_JSON_MODE 空白 = 未设置（仓库惯例）→ 回退 LLM_JSON_MODE");
+  });
+  await withEnv({ DECISION_JSON_MODE: "0", LLM_JSON_MODE: "1" }, () => {
+    assert.equal(decisionEndpoint().jsonMode, false, "DECISION_JSON_MODE 显式 0 = 覆盖回退（主评审开 json 模式而 router 关的场景可表达）");
+  });
 });
