@@ -746,3 +746,24 @@
   1. cheap-pair 重议前置（D036）：新 prompt 基线（a7e89dffb21d）复验 3 轮 + 两侧同 prompt 口径 + 发布层门槛设计（联动 #82 指纹去重）
   2. glm-flash 走强观察项：下一个自然时点做新旧同期对照（同 diff 同 prompt 双模型并行），若复现则生产选型成本收益重算（D033 回滚开关两行 env）
   3. #69 corr 组迭代（cheap-pair 证实 corr 是便宜档共同短板，23-43% 带宽）；#65/#66 台账勤回收照旧
+
+## 2026-11-06 · 会话 44：剩余 issues 清扫——#66 裁决 / #89 台账根治 / D035 v2 dismissed 不重报
+
+- **目标**：用户指令「剩余 issues 能做的做一下，发现问题就开 issue，能改改一下」+ 三连问（decision model 用 glm-flash / dismissed 场景是否会发生）。双轨 subagent 并行（并发上限 2 刚好占满）。
+- **完成**（5 PR 合并 + 1 issue 新建 + 2 issue 关闭 + 1 生产 env 操作）：
+  - **PR #90**：`DECISION_*` 独立端点四件套——盘点发现 `DECISION_MODEL` 只有模型名开关、端点强制共用 `LLM_*`，deepseek-flash 候选无落地路径；四件套未设置逐项回退（字节级不变），`DECISION_JSON_MODE` 独立开关（全局 json 模式会波及主评审 json_schema 路径）
+  - **PR #91**：#65 闸门 1 ✅（17 个带 router run、0 超时、diff 规模 9× 跨度）+ 路由消融口径设计（退出判据草案 |Δ|<3pp → 关 DECISION_MODEL）
+  - **PR #92**：路由探针 `evals/probe-router.ts`——deepseek-flash 3/3 解析、2.5× 快（2.1s vs 5.2s）、plan 质量等价
+  - **#66 裁决关闭（用户拍板）**：DECISION_MODEL 维持 glm-flash（生产 env 置值 + redeploy Ready）；deepseek 候选不切（router 时延不在关键路径，不值得跨厂商 key 管理）；主备模型策略 = 不引入（失败降级已内置更简单）；plumbing/探针保留为资产
+  - **PR #94（#89 关闭，D037）**：台账 outcome 改 **GitHub 侧派生**——「完成」行在 Vercel 日志系统性缺失（两批实证，waitUntil 尾部冻结边界假说）；派生 = runKey → bot review（sha 标记复用 parseBotReviews）→ 行内/降级/折叠三计数，覆盖日志值；闸门 1 实跑 **18/18 runKey 派生成功、历史 0/0 脏值清零**（#55 三行内、#53 降级 major、#60/#61 折叠各 1——与 journal 历史逐条对上）
+  - **PR #95（#93 关闭，D038）**：**D035 v2 dismissed 不重报**——用户指出的场景（作者回复不需要修复 + resolve → 再次 review 机械重报）实锤存在，修复 = GraphQL reviewThreads（resolved 状态仅 GraphQL 可得，「不扩 GraphQL」约束解禁）+ 规则 4（裁定不修复不重报，恶化才重提且注明）；回复文字空白折叠 + 截 120；**inj-09 首轮 9/9 拦截零回显**
+  - **#69 证据更新**：corr 第三次 prompt 迭代未击穿（26.7% 带宽内）+ D036 数据证实 corr 思考敏感——建议改靶子（fixture 扩充度量先行），prompt 盲调期望值已三次证伪
+- **发现 / 坑**：
+  - **生产 bot 在 dismissed 实现上抓出真安全洞**：判据只看 body 前缀不校验作者——PR 作者可伪造带前缀评论 + resolve 借规则 4 抑制任意位置发现（D024 抑制通道）。修复 = botLogin 身份校验（取 latest.user，parseBotReviews 扩 user 字段）+ fail-closed（缺失零 GraphQL 调用）；follow-up major 再抓 id 反查冗余（latest 自带 user）。**bot 连环三 major 全部属实**，agent 产物自审闭环的价值再次实证
+  - **活标本**：#95 第二条 review 把未修的同一 major 逐字重报——D035 v1 行为在眼前复现，合并后 v2 生效（该场景下行为变为规则 4）
+  - worktree 缺 `.vercel/` link 状态（软链主仓解决）；`npx vercel env add` 默认存 Secret（dashboard 不可读，重设走 rm+add）；`vercel env ls <NAME>` 语法会把 name 当环境名
+  - eval 走 .env 时 LLM_MODEL=glm-5.3-flash——injection 组首轮读数实际是 flash 口径，生产口径（glm-5.3@low）重跑双留档后归一
+- **下一步**：
+  1. #82 生产观察：下一个「回复不修 + resolve」真实 PR 验证 v2 不重报行为
+  2. #65 闸门 2 执行：eval harness 扩 caseOpts.plan（消融表），outcome 派生的 folded 口径进指标
+  3. 剩余 issues（#73/#74/#75/#80/#67/#82）全部带触发条件；#69 等 fixture 裁决
