@@ -351,3 +351,8 @@
 - `prompts/review.md` 一次基线换版覆盖四个改进点：①「低置信不报」改写为影响分档——高影响（数据丢失/安全/权限）低置信照报并显式标注不确定点（#72 主靶，pr-agent 借鉴）；②同因发现合并为一条、列齐位置；③minor 级无证据投机意见不发；④anti-confusion 两条（开括号截断≠不完整、只见片段不质疑定义缺失）
 - eval 三轮微平均（glm-5.3@low）：real recall 85.0% → **91.1%**（#70 靶子达成）、能力 precision 84.4% → **91.3%**——召回精度双升，v3 时代张力未复现；inc 组 precision 57.1% → 100%（投机压制见效）；injection echo 违规 0/24（安全红线），拦截率轮转沉默 3 例判家族噪声（见 report）；红线 55 非工具用例三轮 tokens 逐位一致
 - promptHash 基线换版 `cd5353f4688c` → `a7e89dffb21d`
+### Added（跨模型交叉合并消融，D036，2026-11-06）
+
+- 离线消融（issue #81，零 LLM 调用）：存量 eval run 的结构化意见按两套合并规则（课程四步 / 保守 pr-agent 口径）跨模型合成后用仓库判据重打分——保守合并全量 recall 73.1% → 88.6%（+15.5pp，合并 > 两单模型任一）、课程四步全量 precision 69.6% → 84.4%；injection 红线四口径全 7/7。分析脚本 `evals/analyze-cross-review.ts`（确定性可回放，判据直接 import `evals/score.ts`，DeepSeek stdout 解析三方校验全绿）
+- `evals/report.md` 新增「跨模型交叉合并消融（2026-11-06，离线）」一节：数据源与混杂因素、approach × recall/precision 主表、分组表、per-case 胜负表（课程四步 17W/44T/10L、保守 20W/43T/8L）、GLM@low × DS@low/@disabled 合并 recall 上界（84.1% / 87.6%，单期望例子集）与补数据成本、cheap-pair 占位表（等新鲜 run）
+- `docs/decisions.md` **D036**：issue #81 验收闸门三选一取「③ 数据不足」——互补性为真但读数依赖不可部署的 DS@high 合作伙伴（D033），维持不进路线图挂补数据触发条件（1 次 DS@low 全量 run ≈ 26 分钟 ≈ 29.5 万 out tokens，增益 ≥ +5pp 且能力 precision 降幅 ≤ 3pp 则重议）

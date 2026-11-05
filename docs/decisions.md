@@ -416,3 +416,20 @@
   5. **eval 红线靠参数**：`opts.previousFindings` 只有 worker 编排注入；能力组裸路径 promptHash `cd5353f4688c` 与逐用例 tokens 逐位不变由构造保证。
 - **备选**：上游完整状态机（HTML 注释存 ACTIVE/RESOLVED + 保守 resolve + excluded_files 联动判 resolve）——正确但重，先验证「注入 + 规则」能否解决 80% 痛点，dogfood 证明不够再议（记 #71 后续观察）；publish 侧双指纹去重（防止复报与旧线程视觉重复）——同上留后续；dismissed（人工 resolve 未修不重报）——需 GraphQL 线程状态，v1 非目标。
 - **后果**：新增 `src/findings.ts`（task.ts 同构：纯函数块构造 + best-effort 编排入口 + `[findings]` 日志）；`latestValidReview` 自 incremental.ts 抽出（base 推导与意见注入必须同源）；review.ts opts 扩 `previousFindings`；worker 信封 state 扩字段（delta / 无历史 / 失败 = null 传递）；单测 204 → 221；eval 注入组 7 → 8（inj-08）；生产观察项：下一个 block 继承全量重审的 PR 回收 `[findings]` 日志与复报措辞稳定性。
+
+## D036 — 跨模型交叉合并消融（issue #81）：互补性为真但预算可行配对无数据，维持「不进路线图」挂触发条件
+
+- **状态**：已接受（2026-11-06，issue #81 验收闸门三选一；离线实验 `evals/analyze-cross-review.ts`，报告 `evals/report.md`「跨模型交叉合并消融」节，零 LLM 调用）。
+- **背景**：D028 / 课程调研（`ai-code-review-course.md` §四）裁定「多 agent ensemble 不进路线图」——F1 增益机制已拆解为噪音抑制，可移植部分走 prompt。issue #81 要求用存量 eval run 做离线交叉合并消融，把「跨模型互补」从口径争论变成数字：同用例把 GLM-5.3@low（3 轮，promptHash `cd5353f4688c`）与 DeepSeek 的结构化意见按两套合并规则合成，用仓库判据（`evals/score.ts` 直接 import，重算 = 内嵌 score 逐例一致）重打分。
+- **数据缺口（裁决前提）**：DeepSeek 三档覆盖事故（`recovery-20261105-deepseek-tiers/`）后，disabled/low 档意见 body 不可恢复——**原计划主对 GLM@low × DS@low 意见级合并不可计算**；可计算对只剩 GLM@low × **DS@high**（幸存 JSON，token 总量核对确认档位）。stdout 解析三方校验全绿（流式行 × markdown 表 × README 报告级数字 × high 档 JSON 71/71 逐例对账），聚合计数层面 low/disabled 仍可算 recall 上界（单期望例 67/71）：GLM@low × DS@low 并集上界 84.1%（+10.9pp）、× DS@disabled 87.6%（+14.4pp）。次要混杂：两模型 promptHash 不同（`7be33f4d6fbc` = LLM_JSON_MODE 适配）、DS 侧仅 1 run、课程 Jaccard 判据不迁移中文意见对（同发现对 median 0.15，0% 达 0.4 阈值；度量换重叠系数后阈值保持 0.4/0.5 可用）。
+- **实验读数**（71 例，GLM 3 轮池化微平均；per-case 胜负与分组表见报告节）：
+  - **保守合并（pr-agent 口径）**：全量 recall **73.1% → 88.6%（+15.5pp）**、能力 85.7% → 94.3%（+8.6pp）；precision 69.6% → 66.7%（−2.9pp）/能力 −5.8pp；意见总数 ×2.1。合并 > 两单模型任一（DS@high 单模型 83.6%）——增益是互补性而非换强模型；corr 30→63.3（prompt 迭代两轮未动的短板组）。轮间稳定（3 轮各自算排序不变）。
+  - **课程四步**：全量 precision **69.6% → 84.4%（+14.8pp）**、recall +7.0pp；但能力口径 precision 基本持平（−0.8pp），且 dogfood 66.7% → 16.7% 塌陷（minor 级正确发现被 severity floor 误伤）——precision 增益大头来自 floor，单模型 prompt 可移植，不构成多模型的独立理由。
+  - **红线无恙**：injection 拦截四口径全 7/7、零回显零抑制。
+- **决策**：**三选一取 ③ 数据不足，维持 D028「多 agent 分发不进路线图」不改，挂补数据触发条件**。①翻案生产化不成立：+15.5pp 读数依赖 DS@high 合作伙伴（out ×29、单例 max 220.3s，D033 已裁 high 档在预算体系内不存在）——「不可部署配对」的增益不能立项生产化，且 2× 审查调用成本的 precision 代价（保守口径 −2.9pp、意见量 ×2.1）未经发布层门槛设计验证。②「维持不做永久关闭」也不成立：互补性信号为真且轮间稳定，预算可行配对（DS@low，26 分钟 ≈ 29.5 万 out tokens/run）从未被测过，union 上界 +10.9pp 表明补数据有信息增量——把真信号误关会丢掉 corr 短板组唯一被证明有效的抓手。
+- **触发条件（重开闸门）**：补 1 次 DeepSeek@low 全量 run（意见 body 完整）+ 重放 `analyze-cross-review.ts`（数据源列表加一行）。若 GLM@low × DS@low 合并 recall 增益 ≥ +5pp 且 capability precision 降幅 ≤ 3pp → 重议生产化（先过发布层门槛设计：blocker/major 进线程、minor/nit 走 D032 折叠段）；若增益 < +5pp → 数据点落档，按 ② 永久关闭。cheap-pair（glm-flash + deepseek-flash）读数（报告节占位表）落地后同闸门适用。
+- **备选**：
+  - 直接按 ① 生产化双模型审查——伙伴模型档位不可部署（D033）+ 成本 ×2 未经门槛设计对冲。否决。
+  - 按 ② 永久关闭——判 ② 需要预算可行配对的实测负结果，现状只有上界推演；关闭成本（丢 corr 组唯一有效抓手）大于补数据成本（1 次 run）。否决。
+  - 用 DS@high 读数直接外推 DS@low——档位语义跨厂商不同（D033 实测），thinking 量改变发现分布，外推无依据。否决。
+- **后果**：路线图多模型审查维持不进（D028 不变）；本消融的全部数字与数据缺口落档 `evals/report.md`，分析脚本可回放（确定性双跑 diff 一致）；补数据成本明确（1 次 DS@low 全量 run ≈ 26 分钟 ≈ 29.5 万 output tokens，GLM 侧 3 轮存档复用）；合并规则与中文判据适配（重叠系数 + CJK bigram）随脚本入库，cheap-pair 占位表等主会话补新鲜 run；原计划主对不可计算的事实本身入档（覆盖事故的第二笔代价，第一笔见 recovery README）。
