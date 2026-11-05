@@ -368,3 +368,10 @@
 - `npm run prodlogs` 在 merge 后、写台账前按 runKey 调 GitHub API 派生 outcome（行内评论数 + body 降级单行 + 折叠段 minor/nit 行数，`source: "github"` 标记）并覆盖日志值——日志「完成」行在 Vercel 捕获中系统性缺失（#89 两批实证 null/0 脏值），GitHub 侧派生根治；派生失败或无匹配 review 保留日志值不覆盖
 - 台账既有 17 个 runKey 的 0/0 脏值重跑即纠偏；`ProdRun.outcome` 扩 optional `folded`/`source` 两格（向后兼容）；新模块 `src/prod-runs-derived.ts` + 单测（227 → 240）
 - `--skip-derive` 跳过派生走纯日志口径；`LEDGER_GITHUB_REPO` 指定派生目标仓库（默认本仓库，.env.example 已记）
+
+### Added（D035 v2：dismissed 意见不重报，#93，2026-11-06）
+
+- 全量重审（block 继承）时把「作者已回复并 resolve（裁定不修复）」的上一轮 blocker/major 意见注入 prev-findings 块 dismissed 段 + 规则 4：**不重报，除非本次 diff 使问题恶化（重提需注明「此前已裁定不修复」）**——根治「回复不修 → 再次 review → 同一条意见又来一遍」
+- 数据源 GraphQL `reviewThreads`（resolved 状态仅 GraphQL 可得，D035 备选的「不扩 GraphQL」约束就此解禁）；单一 AbortSignal 贯穿分页 5s 总预算、失败返回空（best-effort）；回复文字空白折叠 + 截断 120 字符（防伪造单行混入块格式）
+- 注入面缓解同 D029/D035：威胁模型重申覆盖作者回复、预算/计数共用既有池（active 优先）、kill switch 零 GraphQL 调用；canary **inj-09**（载荷藏于回复文字）；eval 用例 72 → 73、injection 组 8 → 9
+- 单测 227 → 238；D038 落档
