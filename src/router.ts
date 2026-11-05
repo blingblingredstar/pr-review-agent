@@ -69,6 +69,20 @@ export function decisionModel(): string | undefined {
 // （树 20k 封顶 + diff 骨架），正常耗时远低于此；超时按 router 失败降级（无计划继续）
 export const ROUTER_TIMEOUT_MS = 60_000;
 
+// 决策模型端点（#66 前置 plumbing，会话 44）：DECISION_* 未设置时逐项回退 LLM_*（= 与主评审共用端点，
+// D028 现状语义字节级不变）；设置后 router 走独立端点——跨厂商便宜档路由（deepseek-flash 候选）才有落地路径。
+// DECISION_JSON_MODE 必须独立于 LLM_JSON_MODE：全局 json 模式会同时波及主评审（GLM 支持 json_schema 不需要
+// 降级，且 promptHash 会变），而 DeepSeek 全系需要 json_object——两开关天然要分开
+export function decisionEndpoint(): { baseUrl: string; apiKey: string; extraBody: Record<string, unknown>; jsonMode: boolean } {
+  const baseUrl = process.env.DECISION_BASE_URL?.trim() || process.env.LLM_BASE_URL || "";
+  const apiKey = process.env.DECISION_API_KEY?.trim() || process.env.LLM_API_KEY || "";
+  const extraRaw = process.env.DECISION_EXTRA_BODY?.trim() || process.env.LLM_EXTRA_BODY || "";
+  // 空白 = 未设置（仓库惯例）；非空白显式值即覆盖回退——含 "0"（主评审开 json 模式而 router 关的场景可表达）
+  const jsonModeRaw = process.env.DECISION_JSON_MODE?.trim();
+  const jsonMode = jsonModeRaw ? jsonModeRaw === "1" : process.env.LLM_JSON_MODE === "1";
+  return { baseUrl, apiKey, extraBody: extraBody(extraRaw, "DECISION_EXTRA_BODY"), jsonMode };
+}
+
 function loadRouterPrompt(): string {
   return readFileSync(new URL("../prompts/review-router.md", import.meta.url), "utf8");
 }
@@ -111,20 +125,21 @@ export function diffSkeleton(diff: string, maxFiles = 200): string {
 // 成功落一行 [router] tokens 用量（成本可观测，后续消融表的数据出口）。主评审 usage 契约不变：
 // ReviewOutcome.usage 仍为主调用自身，router 用量只进日志
 export async function runReviewRouter(args: { tree: string; skeleton: string }): Promise<ReviewPlan> {
-  const { LLM_API_KEY, LLM_BASE_URL } = process.env;
   const model = decisionModel();
   if (!model) throw new Error("DECISION_MODEL 未设置（router 关闭）");
-  if (!LLM_API_KEY || !LLM_BASE_URL) {
-    throw new Error("缺少环境变量 LLM_BASE_URL / LLM_API_KEY（router 与主评审共用端点配置）");
+  const ep = decisionEndpoint();
+  if (!ep.apiKey || !ep.baseUrl) {
+    throw new Error("缺少端点配置（DECISION_BASE_URL / DECISION_API_KEY，未设置时回退 LLM_BASE_URL / LLM_API_KEY）");
   }
-  const llm = createOpenAI({ apiKey: LLM_API_KEY, baseURL: LLM_BASE_URL, fetch: withExtraBody(fetch, extraBody()) });
+  const llm = createOpenAI({ apiKey: ep.apiKey, baseURL: ep.baseUrl, fetch: withExtraBody(fetch, ep.extraBody, ep.jsonMode) });
   const { output, usage } = await generateText({
     maxOutputTokens: llmMaxOutputTokens(),
     model: llm.chat(model),
     output: Output.object({ schema: reviewPlanSchema, name: "ReviewPlan" }),
     // JSON 模式（D002）：端点不支持 json_schema 时（DeepSeek 全系）system 追加 plan 形状文件——
-    // withExtraBody 会把本调用的 json_schema 换成 json_object（无 schema 强制，形状靠此文件 + zod 兜底）
-    system: withJsonSuffixFor(loadRouterPrompt(), loadRouterJsonPrompt()),
+    // withExtraBody 会把本调用的 json_schema 换成 json_object（无 schema 强制，形状靠此文件 + zod 兜底）；
+    // 开关取决策端点 scoped 值（DECISION_JSON_MODE ?? LLM_JSON_MODE），不波及主评审
+    system: withJsonSuffixFor(loadRouterPrompt(), loadRouterJsonPrompt(), ep.jsonMode),
     prompt: `[仓库文件树]\n${args.tree}\n\n[diff 概要]\n${args.skeleton}`,
     abortSignal: AbortSignal.timeout(ROUTER_TIMEOUT_MS),
   });

@@ -83,7 +83,8 @@ schema 变更属于破坏性改动：必须同步改 `evals/run.ts` 的打分逻
 | `DIFF_MAX_CHARS` | diff 截断预算（字符） | 默认 300000；超预算按整文件块丢弃，生成物前置排除、其余小文件优先（D018/D020）；非法值告警回退默认 |
 | `CONTEXT_MAX_CHARS` | 仓库上下文预算（字符） | 默认 100000；触及文件全文 + 文件树的独立预算，`0` 显式关闭上下文注入（D023）；非法值告警回退默认 |
 | `FILE_TOOL_MAX_STEPS` | 工具循环步预算（D031 起 = 工具步：search_file 与 read_file 共享计步，search 先分配） | 默认 2；数值 `0` 显式关闭工具循环（生产 kill switch，D027/D031）；非法值告警回退默认 |
-| `DECISION_MODEL` | 决策模型（便宜档）模型名，决策路由开关（D028） | 默认未设置 = 关闭（零额外调用、零行为差异）；设置后 review 阶段先跑 router 产出评审计划（与 `LLM_BASE_URL` 同端点，可与 `LLM_MODEL` 同名也可配便宜档）；router 60s 硬超时、失败无计划继续 |
+| `DECISION_MODEL` | 决策模型（便宜档）模型名，决策路由开关（D028） | 默认未设置 = 关闭（零额外调用、零行为差异）；设置后 review 阶段先跑 router 产出评审计划（端点见下行 DECISION_* 四件套，可与 `LLM_MODEL` 同名也可配便宜档）；router 60s 硬超时、失败无计划继续 |
+| `DECISION_BASE_URL` / `DECISION_API_KEY` / `DECISION_EXTRA_BODY` / `DECISION_JSON_MODE` | 决策模型独立端点四件套（D028 扩展，#66 前置） | 未设置逐项回退 `LLM_*`（与主评审共用端点，现状语义字节级不变）；设置后 router 走独立端点（跨厂商便宜档路由）。`DECISION_JSON_MODE` 独立于 `LLM_JSON_MODE`；空白 = 未设置（回退），显式 `0` = 覆盖为关 |
 | `TASK_CONTEXT_MAX_CHARS` | 任务上下文预算（字符）（D029） | 默认 4000；PR 标题 + 关联 issue 正文任务块的独立预算，`0` 显式关闭（零 issues API 调用、prompt 与旧版一致）；非法值告警回退默认 |
 | `PREV_FINDINGS_MAX_CHARS` | 上一轮意见预算（字符）（D035） | 默认 6000；全量重审（block 继承）时上一轮 blocker/major 意见块的独立预算，`0` 显式关闭（零 API 调用、prompt 与旧版一致）；非法值告警回退默认 |
 | `WORKER_BASE_URL` | worker 续链公开入口（生产必配） | VERCEL_URL 是部署专属 URL（Standard Protection 会挡），续链目标须为公开可达域名（webhook 同款 URL 即可）；不含任何请求头派生值（D026 生产修正 + 自审二轮回退记录） |

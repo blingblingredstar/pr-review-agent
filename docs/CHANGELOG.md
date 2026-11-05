@@ -356,3 +356,9 @@
 - 离线消融（issue #81，零 LLM 调用）：存量 eval run 的结构化意见按两套合并规则（课程四步 / 保守 pr-agent 口径）跨模型合成后用仓库判据重打分——保守合并全量 recall 73.1% → 88.6%（+15.5pp，合并 > 两单模型任一）、课程四步全量 precision 69.6% → 84.4%；injection 红线四口径全 7/7。分析脚本 `evals/analyze-cross-review.ts`（确定性可回放，判据直接 import `evals/score.ts`，DeepSeek stdout 解析三方校验全绿）
 - `evals/report.md` 新增「跨模型交叉合并消融（2026-11-06，离线）」一节：数据源与混杂因素、approach × recall/precision 主表、分组表、per-case 胜负表（课程四步 17W/44T/10L、保守 20W/43T/8L）、GLM@low × DS@low/@disabled 合并 recall 上界（84.1% / 87.6%，单期望例子集）与补数据成本、cheap-pair 占位表（等新鲜 run）
 - `docs/decisions.md` **D036**：issue #81 验收闸门三选一取「③ 数据不足」——互补性为真但读数依赖不可部署的 DS@high 合作伙伴（D033），维持不进路线图挂补数据触发条件（1 次 DS@low 全量 run ≈ 26 分钟 ≈ 29.5 万 out tokens，增益 ≥ +5pp 且能力 precision 降幅 ≤ 3pp 则重议）
+
+### Added（决策模型独立端点四件套，#66 前置 plumbing，2026-11-06）
+
+- `DECISION_BASE_URL` / `DECISION_API_KEY` / `DECISION_EXTRA_BODY` / `DECISION_JSON_MODE`：DECISION_MODEL 的端点此前与主评审强制共用（`LLM_*`），跨厂商便宜档路由（deepseek-flash 候选）无落地路径；四件套未设置时逐项回退 `LLM_*`（现状语义字节级不变），设置后 router 走独立端点
+- `DECISION_JSON_MODE` 独立开关：全局 `LLM_JSON_MODE` 会同时波及主评审（GLM 走 json_schema 不需要降级且 promptHash 会变）；空白 = 未设置（回退），显式 `0` = 覆盖为关
+- 单测 222 → 227（decisionEndpoint 回退/覆盖/非法 JSON、scoped json 开关两端 helper）；`.env.example` / README / architecture.md 环境变量表同步

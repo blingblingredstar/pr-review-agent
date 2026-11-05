@@ -43,9 +43,10 @@ export function withJsonSuffix(base: string): string {
   return withJsonSuffixFor(base, loadJsonOutputPrompt());
 }
 
-// 通用形态（router.ts 用自己的形状文件 prompts/json-output-router.md——ReviewPlan 与 ReviewResult 契约不同）
-export function withJsonSuffixFor(base: string, suffix: string): string {
-  return jsonMode() ? `${base}\n\n${suffix}` : base;
+// 通用形态（router.ts 用自己的形状文件 prompts/json-output-router.md——ReviewPlan 与 ReviewResult 契约不同）。
+// enabled 可显式传入（决策端点 scoped 开关，#66 前置 plumbing）：缺省读全局 jsonMode()，现状语义不变
+export function withJsonSuffixFor(base: string, suffix: string, enabled: boolean = jsonMode()): string {
+  return enabled ? `${base}\n\n${suffix}` : base;
 }
 
 // 端点扩展点（D002 厂商中立）：LLM_EXTRA_BODY 为 JSON 对象，合并进每次请求体（显式配置优先）。
@@ -53,12 +54,12 @@ export function withJsonSuffixFor(base: string, suffix: string): string {
 // JSON 模式（jsonMode()）下额外做 response_format 降级：SDK 发 json_schema 的调用段（= ReviewResult 产出段）
 // 替换为 json_object（DeepSeek 全系不支持 json_schema，文档仅 text/json_object）；无 response_format 的
 // 调用段（工具循环 probe 段，D027 实测 response_format 会抑制工具请求形态）保持原样不动
-export function withExtraBody(fetchImpl: typeof fetch, extra: Record<string, unknown>): typeof fetch {
+export function withExtraBody(fetchImpl: typeof fetch, extra: Record<string, unknown>, jsonModeEnabled: boolean = jsonMode()): typeof fetch {
   return async (input, init) => {
     if (typeof init?.body === "string" && init.body.startsWith("{")) {
       try {
         const body = JSON.parse(init.body) as Record<string, unknown>;
-        if (jsonMode() && extra.response_format === undefined && (body.response_format as { type?: string } | undefined)?.type === "json_schema") {
+        if (jsonModeEnabled && extra.response_format === undefined && (body.response_format as { type?: string } | undefined)?.type === "json_schema") {
           body.response_format = { type: "json_object" };
         }
         init = { ...init, body: JSON.stringify({ ...body, ...extra }) };
@@ -71,12 +72,11 @@ export function withExtraBody(fetchImpl: typeof fetch, extra: Record<string, unk
 }
 
 // 导出（D030）：router.ts 的 runReviewRouter 与 reviewDiff 共用同一 extraBody 解析（成环 import，调用期绑定）
-export function extraBody(): Record<string, unknown> {
-  const raw = process.env.LLM_EXTRA_BODY;
+export function extraBody(raw: string | undefined = process.env.LLM_EXTRA_BODY, label = "LLM_EXTRA_BODY"): Record<string, unknown> {
   if (!raw) return {};
   const parsed: unknown = JSON.parse(raw);
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new Error("LLM_EXTRA_BODY 必须是 JSON 对象");
+    throw new Error(`${label} 必须是 JSON 对象`);
   }
   return parsed as Record<string, unknown>;
 }
