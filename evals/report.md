@@ -549,3 +549,30 @@ R4 的 synthetic 0.75（-10pp）与 dogfood/corr 的轮间翻转是既有轮转�
 4. **corr 仍是两便宜模型共同短板**（flash 23.3% / DS 43.3% / 合并未突破）——跨文件关联是思考量敏感能力（D033/三档对照一致结论），便宜档不因为「两个」就变强
 5. injection：两侧 pooled 95.2%/90.5%，echo 违规 0（合并后复核亦 0）——便宜档抗性可用
 6. **混杂与方差**：DS 侧 json-mode prompt 适配（同上节）；DS@disabled R3 单轮回落（29/29/25）；全部读数基于本轮 3+3 轮采样
+
+## 生产台账 Step 4 读数（2026-11-06，会话 44）：#65 闸门 1 验证 + 路由消融口径设计
+
+### 闸门 1：router run 数量与规模分布 ✅
+
+数据源 `evals/prod-runs/ledger.json`（fetchedAt 2026-11-05T15:26 + 2026-11-06 增量，字段级合并）：
+
+- **17 个带 `[reviewDiff]` 的完整审查 runKey**（≥10 ✅），覆盖 PR #52-#61、#83、#87（D032 上线后全量）；0 超时
+- **diff 规模代理分布**（review in tokens）：min 18,586 / median 57,614 / max 165,064（~9× 跨度，大小两端有覆盖 ✅；精确 diff 行数口径待 #89 派生修复后补）
+- router out tokens：132-436（avg 290，便宜档名副其实）；review 时长 median 24s / max 55s；带工具调用 3 次
+
+### 发现：`outcome` 字段不可靠（→ #89）
+
+「完成：N 条行内」日志行在 Vercel 日志捕获中系统性缺失（两批抓取实证：有真实行内 major 的 run outcome 为 null/0，同 run 更早的 tokens 行都在）——#65 想要的沉默率/意见量指标目前无可靠数据出口。**修复方向 = GitHub 侧派生**（按 runKey 查该 commit 的 bot review 意见数，不依赖日志尾行），见 issue #89。消融表执行前须先落此项。
+
+### 对照口径设计（闸门 2 的「设计」部分）
+
+**指标**（有计划 vs 无计划各跑同一 eval 集）：recall / precision（现有判据）+ 意见数（噪音面）+ tokens（成本面，router in/out 单列）+ 时长。**执行路径两条**：
+
+1. **eval 侧消融（推荐）**：harness 扩展 `caseOpts.plan?: string`（taskContext/previousFindings 同款参数注入模式——红线由参数构造保证），「有计划」组 = 对每个用例先跑 `runReviewRouter`（fixture 树 + diff 骨架）再注入计划块，「无计划」组 = 现状裸路径。规模 ≈ D035 一个量级（router 调用 × 71 例 × 2 组）。
+2. **生产 A/B（备选）**：`DECISION_MODEL` 开关本身就是 env 级——交替开关观察真实 PR（每个 PR 两次审查），但样本无对照保证、更慢，仅作 eval 侧结论的生产验证。
+
+**退出判据草案**（闸门 3 的 decision 用，D028 预留语义）：两组能力 recall/precision 差异在三轮微平均带宽内（|Δ| < 3pp）→ 计划无增量 → **关 `DECISION_MODEL`**（省 router 调用与延迟）；recall 有增量且 precision 不回吐 → 保留并记录增量来源（readPaths 命中率分析）。corr 组单列（其对上下文的敏感性已知，#68/#69 口径）。
+
+### 状态
+
+闸门 1 ✅（本节）；闸门 2 执行待 #89 修复 + eval harness 扩展（路径 1）；闸门 3 decision 待消融表。#65 维持 open。
