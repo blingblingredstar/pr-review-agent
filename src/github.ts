@@ -288,6 +288,36 @@ export async function postTimeoutNotice(
 //（CONTEXT_TIMEOUT_MS 10s 同思路；逐个拉取、通常 0-1 个，5s 足够 GitHub API 正常往返）
 export const ISSUE_FETCH_TIMEOUT_MS = 5_000;
 
+// 上一轮意见的行内评论拉取（D035，best-effort）：listCommentsForReview 只含该 review 提交的
+// 行内评论（本 agent 自己的产物，量级有限）。任何失败返回 []——调用方降级为只解析 review body 的
+// 降级单行，绝不连垮主流程；后续 push 会让旧行内评论失去锚点（line 置空、original_line 保留原定位）
+export const REVIEW_COMMENTS_FETCH_TIMEOUT_MS = 5_000;
+
+export async function fetchReviewComments(
+  client: Octokit,
+  { owner, repo, pullNumber }: PrRef,
+  reviewId: number,
+): Promise<{ path: string; line: number | null; original_line: number | null; body: string }[]> {
+  try {
+    const comments = await client.paginate(client.rest.pulls.listCommentsForReview, {
+      owner,
+      repo,
+      pull_number: pullNumber,
+      review_id: reviewId,
+      request: { signal: AbortSignal.timeout(REVIEW_COMMENTS_FETCH_TIMEOUT_MS) },
+    });
+    return comments.map((c) => ({
+      path: c.path ?? "",
+      line: c.line ?? null,
+      original_line: c.original_line ?? null,
+      body: c.body ?? "",
+    }));
+  } catch (err) {
+    console.warn(`[findings] review ${reviewId} 行内评论拉取失败（best-effort，降级为只解析 body 降级单行）`, err);
+    return [];
+  }
+}
+
 // 任务上下文的 issue 拉取（D029，best-effort）：只取标题与正文（评论噪音大，spec 非目标）。
 // 任何失败（网络 / 404 / 超时）返回 null 由编排层跳过该 issue——绝不连垮主流程；
 // 指向 PR 的引用（issues API 对 PR 同样返回，带 pull_request 键）不是 issue，跳过防把 PR 描述当需求注入

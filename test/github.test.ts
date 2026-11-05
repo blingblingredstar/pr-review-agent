@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Octokit } from "octokit";
-import { fetchIssue, fetchPr, fileToDiffBlock, severityLabels, splitByLocatable } from "../src/github.ts";
+import { fetchIssue, fetchPr, fetchReviewComments, fileToDiffBlock, severityLabels, splitByLocatable } from "../src/github.ts";
 import type { ReviewResult } from "../src/review.ts";
 import { diffCoveredLines, diffTouchedPaths } from "../src/diff.ts";
 
@@ -194,4 +194,45 @@ test("fetchIssue：取标题与正文（body null 归一空串）；PR 形响应
 
   const failing = issueClient({ 5: new Error("network down") });
   assert.equal(await fetchIssue(failing, { owner: "o", repo: "r", issueNumber: 5 }), null, "网络异常 → null 不抛出");
+});
+
+// ============ 上一轮意见行内评论拉取（D035）============
+
+function reviewCommentsClient(comments: unknown[] | Error): Octokit & { calledWith: () => number[] } {
+  const reviewIds: number[] = [];
+  return {
+    calledWith: () => reviewIds,
+    // rest.pulls.listCommentsForReview 必须存在（fetchReviewContents 以其实体引用作 paginate 首参）
+    rest: { pulls: { listCommentsForReview: () => undefined } },
+    paginate: async (_method: unknown, args?: { review_id?: number }) => {
+      if (args?.review_id !== undefined) reviewIds.push(args.review_id);
+      if (comments instanceof Error) throw comments;
+      return comments;
+    },
+  } as unknown as Octokit & { calledWith: () => number[] };
+}
+
+test("fetchReviewComments：字段映射（line 置空走 original_line、body/path 归一空串）；失败 → [] 不抛出（best-effort）", async () => {
+  const ok = reviewCommentsClient([
+    { path: "src/a.ts", line: 12, original_line: 12, body: "**[major]** x" },
+    { path: "src/b.ts", line: null, original_line: 40, body: "**[blocker]** 失锚" },
+    { path: undefined, line: undefined, original_line: undefined, body: undefined },
+  ]);
+  assert.deepEqual(await fetchReviewComments(ok, { owner: "o", repo: "r", pullNumber: 1 }, 7), [
+    { path: "src/a.ts", line: 12, original_line: 12, body: "**[major]** x" },
+    { path: "src/b.ts", line: null, original_line: 40, body: "**[blocker]** 失锚" },
+    { path: "", line: null, original_line: null, body: "" },
+  ]);
+  assert.deepEqual(ok.calledWith(), [7], "按 review id 拉取");
+
+  const failing = reviewCommentsClient(new Error("boom"));
+  const logs: string[] = [];
+  const origWarn = console.warn;
+  console.warn = (...args: unknown[]) => logs.push(args.join(" "));
+  try {
+    assert.deepEqual(await fetchReviewComments(failing, { owner: "o", repo: "r", pullNumber: 1 }, 9), []);
+  } finally {
+    console.warn = origWarn;
+  }
+  assert.ok(logs.some((l) => l.includes("行内评论拉取失败")), "失败留日志");
 });

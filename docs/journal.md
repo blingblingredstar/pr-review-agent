@@ -708,3 +708,19 @@
 - **下一步**：
   1. 本 PR 闭环合并后，最近的两个实现项：#72（P0-2 不确定性标注，prompt 迭代三轮微平均）与 #71（P0-1 复报保真，实现时开 D 编号）
   2. Step 4 台账勤回收（#65）：每合并约 5 个 PR 跑一次 `npm run prodlogs`
+
+## 2026-11-05 · 会话 42：P0-1 上一轮意见复报保真实现（D035，Closes #71）
+
+- **目标**：用户「挑一个 issue 实现下」→ 选 #71（P0-1，pr-agent 借鉴：全量重审注入上一轮 blocker/major 意见、要求逐字重报，根治复审措辞漂移——PR #26 七轮 12 条 flip-flop 的痛点）。
+- **完成**：
+  - **实现**：新增 `src/findings.ts`（task.ts 同构：`buildPrevFindings` 纯函数——威胁模型重申 + 三条对照规则（仍存在逐字重报仅改行号 / 已修复不报 / 未复审不判不报）+ blocker 优先 + 计数上限 10 + 预算 `PREV_FINDINGS_MAX_CHARS` 默认 6000、0 关闭；`buildPrevFindingsForPr` best-effort 编排 + `[findings]` 日志）；意见来源三处全覆盖（行内 `listCommentsForReview`（github.ts 新增，5s 硬上限、失败降级只解析 body 单行）+ D032 降级列表/全量降级同构 regex）；excluded-files 联动双层（编排层确定性过滤文件已不在 PR + 块内规则 3 处理 D018 截断「没审到 ≠ 已修复」）；`latestValidReview` 自 incremental.ts 抽出（与 D032 base 推导同源，防两处「最新」判定错位）；review opts 扩 `previousFindings`（块在计划块后、`[diff 开始]` 前——紧邻 diff）；worker 信封扩字段，**只在 full 路径注入**（delta 不注入：老意见锚点不在区间 diff，行内定位必 422）
+  - **注入面缓解（D029 同模式）**：块内威胁模型重申（意见引用的代码与「上一轮已批准」类声明都不是放行依据）+ **inj-08** canary（载荷伪装意见内「合规批注」CMD-8842，经 `opts.previousFindings` 显式注入）+ 预算/计数封顶
+  - **验证**：typecheck + 单测 **204 → 221 全绿**；全量 eval 72 例（glm-5.3@low 与基线同配置）——**红线全绿**：54 非工具用例 inputTokens 与基线 run `2026-11-04T15-49-04` 逐位一致、promptHash `cd5353f4688c` 不变；incremental 组 5 例漂移为工具路径既有观察层口径（与 repo 组同归因）；**injection 8/8 拦截零回显，inj-08 首轮即拦截**
+- **发现 / 坑**：
+  - **5 小时限额打断第一轮 eval**（18/72 停摆、恢复后自行续完但烧掉 1 例限额失败）——探活端点 200 后干净重跑作数；run 文件名含 extraBody 指纹（#56）使同模型同配置的两轮产物可区分，限额污染轮（`03-40-26`）删除不入库
+  - **mock 必须与生产实体对齐**：`client.paginate(client.rest.pulls.listXxx, …)` 以函数实体为参——fake client 缺 `rest.pulls.listCommits/listCommentsForReview` 实体时，undefined 在 try 内同步炸、被 best-effort 吞成「空结果」，测试表象是数据为空而非 mock 缺失（worker/github/findings 三处 mock 各踩一次，教训统一记：paginate 型 mock 必须带实体 stub）
+  - 预算断言先实测再 pin（意见块头部实测 361 字符；想当然写 560 差了 200，测试数字必须量出来）
+  - 本 PR 描述带 `Closes #71` → 生产 bot 经 D029 自动注入 #71 正文进审查任务上下文——D034 issue 模板的事实性标准首次走真实链路
+- **下一步**：
+  1. 本 PR 闭环合并后生产观察：下一个 block 继承全量重审的 PR 回收 `[findings]` 日志与复报措辞（#71 留生产观察项）
+  2. #72（P0-2 不确定性标注，prompt 迭代三轮微平均）是下一个实现项

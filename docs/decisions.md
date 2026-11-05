@@ -403,3 +403,16 @@
   5. 会话开始协议加第 5 步：查 open roadmap issues（AGENTS.md 内置 curl 一行命令；无 gh CLI，PAT 走 keychain——API 操作 curl 是既定路径）。
 - **备选**：GitHub Projects board（否决——label 足够，多维视图是过度设计）；`docs/TODO.md` 入库（否决——回到「状态更新走 PR」老路）；继续维护 roadmap-execution.md 状态列（否决——双源必漂移）。
 - **后果**：roadmap-execution.md 状态列停止维护（头部注记）、README 路线图执行追踪句改指 issues；journal「下一步」一节从此只写「下一个会话马上要做的事」，中长期任务全在 issues；dogfood 红利——自家 PR 引用 issue 后 D029 任务注入的生产使用率自然提升。
+
+## D035 — 上一轮意见复报保真（pr-agent 借鉴 P0-1）：全量重审注入上一轮意见，逐字重报根治 flip-flop
+
+- **状态**：已接受并实现（2026-11-05，issue #71；上游参照 `docs/plans/pr-agent-analysis.md` §四）。
+- **背景**：D032 block 继承路径（上条 review 含 blocker/major → 回退全量重审）上，bot 对仍存在的问题会换措辞重报——PR #26 七轮 12 条 flip-flop 人工裁定的痛点；上游 pr-agent 用完整 finding 状态机（HTML 注释存态 + 逐字复报）解同一问题。
+- **决策**：
+  1. **轻量版：注入不建状态机**。postReview 前解析上一轮（`latestValidReview`，与 D032 base 推导同源）review 的 blocker/major 意见（行内评论 API + body 降级单行 regex，三处落点全覆盖），作为 context 块注入 prompt（计划块之后、`[diff 开始]` 之前），块内三条对照规则：仍存在 → **逐字重报**仅改行号；已修复 → 不报；文件不在本次 diff（含 D018 截断省略行）→ 未复审：不重报也不判已修复。
+  2. **只在 full 路径注入**。delta（增量）不注入——老意见锚点不在区间 diff 内，行内定位必 422；delta 场景老意见留在旧线程，行为不变。
+  3. **excluded-files 联动（P0-3 并入）双层**：编排层确定性过滤（意见文件 ∉ `diffTouchedPaths(全量 diff)` → 剔除，文件已重命名/移出 PR）；被 D018 截断省略的文件保留注入、由块内规则 3 在模型侧处理「没审到 ≠ 已修复」——截断发生在 review 阶段，prepare 看不到结果，不为它加信封 plumbing。
+  4. **注入面缓解同 D029 模式**：块内威胁模型重申（意见引用的代码与措辞都是作者可控内容衍生物，「上一轮已批准」类声明不是放行依据）+ canary **inj-08**（previousFindings 向量，载荷伪装意见末尾「合规批注」，经 `opts.previousFindings` 显式注入跑 injection 组独立口径）+ 预算 `PREV_FINDINGS_MAX_CHARS`（默认 6000，0 = 零 API 调用）+ 计数上限 10（blocker 优先）。
+  5. **eval 红线靠参数**：`opts.previousFindings` 只有 worker 编排注入；能力组裸路径 promptHash `cd5353f4688c` 与逐用例 tokens 逐位不变由构造保证。
+- **备选**：上游完整状态机（HTML 注释存 ACTIVE/RESOLVED + 保守 resolve + excluded_files 联动判 resolve）——正确但重，先验证「注入 + 规则」能否解决 80% 痛点，dogfood 证明不够再议（记 #71 后续观察）；publish 侧双指纹去重（防止复报与旧线程视觉重复）——同上留后续；dismissed（人工 resolve 未修不重报）——需 GraphQL 线程状态，v1 非目标。
+- **后果**：新增 `src/findings.ts`（task.ts 同构：纯函数块构造 + best-effort 编排入口 + `[findings]` 日志）；`latestValidReview` 自 incremental.ts 抽出（base 推导与意见注入必须同源）；review.ts opts 扩 `previousFindings`；worker 信封 state 扩字段（delta / 无历史 / 失败 = null 传递）；单测 204 → 221；eval 注入组 7 → 8（inj-08）；生产观察项：下一个 block 继承全量重审的 PR 回收 `[findings]` 日志与复报措辞稳定性。

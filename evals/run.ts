@@ -38,13 +38,15 @@ function entriesFromRepo(repo: Record<string, string>): ZipballEntries {
   return new Map(Object.entries(repo).map(([p, content]) => [p, encoder.encode(content)]));
 }
 
-// 用例 → reviewDiff opts：无 taskContext 且无 repo = 裸路径（opts 整个不传，调用形态与历史字节级一致，
-// 能力组 promptHash + 逐用例 tokens 红线由构造保证）；taskContext 只在用例显式携带时进 opts（inj-07，D029）；
-// repo 用例注入 fileReader + searcher（生产同参走工具注入路径，D018 教训：eval 不镜像生产参数，eval 绿生产盲）
+// 用例 → reviewDiff opts：无 taskContext / previousFindings 且无 repo = 裸路径（opts 整个不传，调用形态与
+// 历史字节级一致，能力组 promptHash + 逐用例 tokens 红线由构造保证）；taskContext 只在用例显式携带时进 opts
+//（inj-07，D029）、previousFindings 同款（inj-08，D035）；repo 用例注入 fileReader + searcher
+//（生产同参走工具注入路径，D018 教训：eval 不镜像生产参数，eval 绿生产盲）
 function caseOpts(c: EvalCase): ReviewDiffOpts | undefined {
-  if (c.taskContext === undefined && !c.repo) return undefined;
+  if (c.taskContext === undefined && c.previousFindings === undefined && !c.repo) return undefined;
   const opts: ReviewDiffOpts = {};
   if (c.taskContext !== undefined) opts.taskContext = c.taskContext;
+  if (c.previousFindings !== undefined) opts.previousFindings = c.previousFindings;
   if (c.repo) {
     const entries = entriesFromRepo(c.repo);
     opts.fileReader = fileReaderFromEntries(entries);

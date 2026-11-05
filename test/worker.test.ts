@@ -65,8 +65,14 @@ const boomChain = async (): Promise<void> => {
 // D029 任务上下文：prTitle/prBody 进 meta（fetchPr 随手带回），issues 可注入 issue 正文（含 Error 注入失败、
 // { pr: true } 注入 PR 形响应）；缺省 meta 无 title/body、issues.get 未命中即 404
 function fakeClient(
-  reviews?: { body: string }[],
-  opts?: { prTitle?: string; prBody?: string; issues?: Record<number, { title: string; body: string } | Error | { pr: true }> },
+  reviews?: { body: string; sha?: string; id?: number; submitted_at?: string }[],
+  opts?: {
+    prTitle?: string;
+    prBody?: string;
+    issues?: Record<number, { title: string; body: string } | Error | { pr: true }>;
+    reviewComments?: unknown[];
+    compareFiles?: unknown[];
+  },
 ) {
   const calls = {
     statuses: [] as { sha: string; state: string; description: string }[],
@@ -74,11 +80,17 @@ function fakeClient(
     comments: [] as Record<string, unknown>[],
     labels: [] as Record<string, unknown>[],
     issueGets: [] as number[],
+    commentReviewIds: [] as number[],
     paginateCalls: 0,
   };
   const client = {
-    paginate: async () => {
+    paginate: async (fn: unknown, args?: { review_id?: number }) => {
       calls.paginateCalls++;
+      const name = (fn as { name?: string } | undefined)?.name ?? "";
+      if (name === "listCommentsForReview" || args?.review_id !== undefined) {
+        calls.commentReviewIds.push(args?.review_id ?? -1);
+        return opts?.reviewComments ?? [];
+      }
       return reviews ?? [];
     },
     rest: {
@@ -87,6 +99,7 @@ function fakeClient(
           calls.statuses.push(args);
           return { data: {} };
         },
+        compareCommits: async () => ({ data: { files: opts?.compareFiles ?? [] } }),
       },
       pulls: {
         get: async (args: { mediaType?: unknown }) =>
@@ -98,6 +111,8 @@ function fakeClient(
           return { data: {} };
         },
         listReviews: () => undefined,
+        listCommits: () => undefined,
+        listCommentsForReview: () => undefined,
       },
       issues: {
         get: async (args: { issue_number: number }) => {
@@ -940,6 +955,71 @@ test("worker prepare 编排：issue 拉取失败 → 该 issue 跳过，任务�
   assert.ok(typeof state.taskContext === "string", "拉到 1 个仍注入");
   assert.ok(state.taskContext!.includes("#2"), "可用 issue 正文在块内");
   assert.ok(!state.taskContext!.includes("#1："), "失败 issue 不在块内");
+});
+
+// ============ 上一轮意见注入（D035）============
+
+const OLD_SHA = "aaaa1111bbbb2222cccc3333dddd4444eeee5555";
+
+test("worker prepare 编排：block 继承全量重审 → 上一轮意见进信封 state（D035）", async () => {
+  const { client, calls } = fakeClient(
+    [
+      {
+        id: 7,
+        sha: OLD_SHA,
+        submitted_at: "2026-11-04T00:00:00Z",
+        body: `🤖 pr-review-agent 审查意见（共 1 条：blocker×1）\n<!-- pr-review-agent sha:${OLD_SHA} -->`,
+      },
+    ],
+    {
+      prTitle: "t",
+      prBody: "b",
+      reviewComments: [{ path: "src/demo.ts", line: 2, original_line: null, body: "**[blocker]** 老意见：a.missing 未判空" }],
+    },
+  );
+  const chained: WorkerEnvelope[] = [];
+  await runStage(fullDeps({ client: () => client, chain: async (e) => void chained.push(e) }), prepareEnvelope(REF));
+  assert.deepEqual(calls.commentReviewIds, [7], "只拉最新有效 review 的行内评论");
+  const state = chained[0]!.state as { previousFindings?: string | null; incrementalBase?: string | null };
+  assert.equal(state.incrementalBase, null, "全量路径无区间 base");
+  assert.ok(typeof state.previousFindings === "string", "意见块随信封传递");
+  assert.ok(state.previousFindings!.startsWith("[上一轮审查意见]"), "块为 buildPrevFindings 构造产物");
+  assert.ok(state.previousFindings!.includes(OLD_SHA.slice(0, 7)), "头部带上一轮短 SHA");
+  assert.ok(state.previousFindings!.includes("**[blocker]** 老意见：a.missing 未判空"), "行内意见进块");
+  assert.ok(state.previousFindings!.includes("逐字重报"), "对照规则内置");
+});
+
+test("worker prepare 编排：首审无历史 → previousFindings null 传递，零行内评论拉取（D035）", async () => {
+  const { client, calls } = fakeClient([], { prTitle: "t", prBody: "b" });
+  const chained: WorkerEnvelope[] = [];
+  await runStage(fullDeps({ client: () => client, chain: async (e) => void chained.push(e) }), prepareEnvelope(REF));
+  assert.deepEqual(calls.commentReviewIds, [], "latestValidReview 为 null 不发起拉取");
+  assert.equal((chained[0]!.state as { previousFindings?: unknown }).previousFindings, null, "null 传递（与 taskContext 失败语义同形）");
+});
+
+test("worker prepare 编排：delta 路径绝不注入上一轮意见（锚点不在区间 diff，D035）", async () => {
+  const { client, calls } = fakeClient(
+    [
+      {
+        id: 7,
+        sha: OLD_SHA,
+        submitted_at: "2026-11-04T00:00:00Z",
+        body: `🤖 pr-review-agent 审查意见（共 0 条）\n<!-- pr-review-agent sha:${OLD_SHA} -->`,
+      },
+    ],
+    {
+      prTitle: "t",
+      prBody: "b",
+      compareFiles: [{ filename: "src/demo.ts", status: "modified", additions: 1, deletions: 0, patch: "@@ -1,3 +1,4 @@\n const a = 1;\n+const b = 2;\n const c = 3;" }],
+    },
+  );
+  const chained: WorkerEnvelope[] = [];
+  await runStage(fullDeps({ client: () => client, chain: async (e) => void chained.push(e) }), prepareEnvelope(REF));
+  const state = chained[0]!.state as { previousFindings?: string | null; incrementalBase?: string | null; diff?: string };
+  assert.equal(state.incrementalBase, OLD_SHA, "delta 命中（compare mock 提供区间 diff）");
+  assert.ok(String(state.diff).includes("+const b = 2;"), "diff 已替换为区间 diff");
+  assert.deepEqual(calls.commentReviewIds, [], "delta 不拉上一轮意见");
+  assert.equal(state.previousFindings, null, "老意见留在旧线程，不进增量审查");
 });
 
 test("worker prepare 编排：TASK_CONTEXT_MAX_CHARS=0 → kill switch 零 issues API 调用，state.taskContext null", async () => {

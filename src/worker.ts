@@ -10,7 +10,8 @@ import type { Octokit } from "octokit";
 import { verifySignature, header, type WebhookHeaders, type Dispatch } from "./webhook.ts";
 import { fetchPr, getOctokit, postReview, postTimeoutNotice, setReviewStatus, type PrRef } from "./github.ts";
 import { hasReviewed } from "./dedupe.ts";
-import { decideIncrement, fetchDeltaDiff, listBotReviews, listCommitShas } from "./incremental.ts";
+import { decideIncrement, fetchDeltaDiff, latestValidReview, listBotReviews, listCommitShas } from "./incremental.ts";
+import { buildPrevFindingsForPr } from "./findings.ts";
 import { buildRepoContext, fileReaderFromEntries, makeSnapshot, searcherFromEntries, snapshotTree } from "./context.ts";
 import { buildTaskContextForPr } from "./task.ts";
 import {
@@ -218,6 +219,7 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
       // D029 任务块的输入，compare 路径不提供；全量 diff API 的成本相对 LLM 侧可忽略
       let diff = fullDiff;
       let incrementalBase: string | null = null;
+      let previousFindings: string | null = null;
       try {
         const reviews = await listBotReviews(client, ref);
         const commitShas = await listCommitShas(client, ref);
@@ -229,6 +231,13 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
           console.log(`[worker] ${key} 增量审查：区间 ${decision.base.slice(0, 7)}..${ref.headSha.slice(0, 7)}（${deltaDiff.length} 字符，全量 ${fullDiff.length} 字符）`);
         } else {
           console.log(`[worker] ${key} 增量决策：${decision.mode}（${decision.reason}）`);
+          // 上一轮意见复报保真（D035，best-effort）：只在 full 路径注入——block 继承全量重审是措辞漂移的
+          // 主场景；delta 不注入（老意见锚点不在区间 diff 内，行内定位必 422，老意见留在旧线程）。
+          // 与增量决策共用同一次 listBotReviews/listCommitShas（latestValidReview 同源推导），零额外列表调用
+          if (decision.mode === "full") {
+            const latest = latestValidReview(reviews, commitShas);
+            if (latest) previousFindings = await buildPrevFindingsForPr(client, ref, latest, fullDiff);
+          }
         }
       } catch (err) {
         console.log(`[worker] ${key} 增量决策失败，回退全量（D032 best-effort）`, err);
@@ -244,25 +253,33 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
         hop: envelope.hop + 1,
         ref,
         issuedAt: Date.now(),
-        state: { diff, context, taskContext, incrementalBase },
+        state: { diff, context, taskContext, incrementalBase, previousFindings },
       });
       return;
     }
     if (envelope.stage === "review") {
-      const state = (envelope.state ?? {}) as { diff?: string; context?: string | null; taskContext?: string | null };
+      const state = (envelope.state ?? {}) as {
+        diff?: string;
+        context?: string | null;
+        taskContext?: string | null;
+        previousFindings?: string | null;
+      };
       if (typeof state.diff !== "string") throw new Error("review 信封缺 state.diff");
       // taskContext（D029）：null 传递按无任务块审查（与 context 的 `?? undefined` 同形）
       const taskContext = typeof state.taskContext === "string" ? state.taskContext : undefined;
+      // previousFindings（D035）：同形——null 传递按无上一轮意见块审查
+      const previousFindings = typeof state.previousFindings === "string" ? state.previousFindings : undefined;
       // read_file 工具循环（D027）+ 决策路由（D028）共用的快照预判与获取。快照预判（自审 minor）：
       // 与 reviewDiff 的 TOOL_PROMPT_MAX_CHARS 规模闸同一阈值——大 prompt 场景工具循环必被跳过，
       // 先取快照白吃最多 25MB/10s 预算，且这正是最易撞阶段墙钟的超大 PR 路径。
       // 用 buildReviewPrompt（与 reviewDiff 同一构造函数，自审三轮：曾用 diff+context 估算出现 +14 偏移
       // 与 >=/> 比较符的边界分叉）——预判与闸吃同一字符串、同一比较符，永不矛盾。
       // 注：预判时 plan 尚不存在（router 在其后才跑），计划块 ~1k 字符的边界漂移属既有软约束口径，不为它加 plumbing；
-      // taskContext 已就绪（prepare 产物随信封到达），直接进预判不漂移
+      // taskContext 已就绪（prepare 产物随信封到达），直接进预判不漂移；previousFindings（D035）同批就绪
       const promptEstimate = buildReviewPrompt(state.diff, {
         context: typeof state.context === "string" ? state.context : undefined,
         taskContext,
+        previousFindings,
       }).length;
       const snapshotSkippedByGate = fileToolEnabled() && promptEstimate > TOOL_PROMPT_MAX_CHARS;
       // 需要快照的条件（D028 重构）：read_file 工具循环需要快照内容，决策路由需要快照文件树——
@@ -312,6 +329,7 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
         searcher,
         plan,
         taskContext,
+        previousFindings,
       });
       // state 累积传递：publish 的 postReview 仍需 diff 做行内预定位（splitByLocatable）
       await deps.chain({ v: 1, stage: "publish", hop: envelope.hop + 1, ref, issuedAt: Date.now(), state: { ...state, result } });
