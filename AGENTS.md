@@ -10,6 +10,8 @@
 2. `docs/architecture.md` — 当前架构（组件、数据流、输出 schema）
 3. `docs/decisions.md` — 已定决策（不要重新讨论已关闭的问题）
 4. `docs/journal.md` 末尾条目 — 上次会话做到哪、遗留什么
+5. GitHub Issues（label `roadmap`）— 活任务唯一源（D034）：待办 / 进行中 / 观察项 / 触发条件与验收闸门。一行命令：
+   `curl -s -H "Authorization: Bearer $(security find-generic-password -s github.com -w)" "https://api.github.com/repos/blingblingredstar/pr-review-agent/issues?labels=roadmap&state=open"`
 
 ## 改动追踪（必做）
 
@@ -29,7 +31,7 @@ Harness 的核心纪律：**每一步都可回放**。文档只追加、少改�
 - 项目级 skill 统一放 `.agents/skills/`（跨 harness 约定位，勿在 `.zcode/skills/` 放同名副本）；只装与现有体系互补的第三方 skill，升级用 shallow clone 覆盖复制；第三方来源与许可见 `.agents/skills/README.md`
 - 密钥只走环境变量，任何 key 不入库
 - LLM 接入按 OpenAI 兼容端点抽象（`LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`），代码与文档不绑定具体厂商
-- 阶段性计划与规格（specs）统一归档 `docs/plans/`，后续新计划也放这个目录
+- 阶段性计划与规格（specs）归档 `docs/plans/`，后续新计划也放这个目录；活任务追踪走 GitHub Issues（label `roadmap`，D034 单源原则——不在文档里并行维护任务状态列），任务完成随实现 PR 用 closing keywords（`Closes #N`）关闭；issue 正文会经 D029 链路进生产审查 prompt（PR 描述带 closing keywords 即注入），按事实性标准写
 - 对外表述按真实项目定位，不出现个人背景相关措辞
 - 开 PR 后先看 agent 自审意见，逐条处理（修复 / 回应不修的理由 / 标记误报），处理一条闭环一条：`npm run resolve:threads -- owner/repo#N --only <id> --reply <id>="回应文本"` 回复并 resolve（回应留痕在 PR 线程里，bot 复审翻旧账时结论可见）；全部处理完 `npm run resolve:threads -- owner/repo#N --yes` 收尾，`review-threads` 状态变绿后才合并（D013；红灯走 commit status 而非 workflow 失败，避免失败邮件轰炸）
 - 拉自审意见必须同时看三处：行内线程（`GET /pulls/N/comments`，可 resolve）、review body 的「行号不在 diff 内」降级列表、以及 minor/nit 折叠段（`<details>`，D032 发布门槛——minor/nit 不进线程，逐条一行与降级列表同构、机器可解析）——降级与折叠意见都没有线程、resolve 脚本对它们不可见，须同标准逐条核对留痕（PR #8 曾带着两条未处理降级意见合并）；行内定位已改为逐条判定，降级只剩真定位不了的意见，仍须人工核对处理

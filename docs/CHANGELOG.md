@@ -334,3 +334,9 @@
 - 环境变量表补 `LLM_JSON_MODE` / `LLM_MAX_OUTPUT_TOKENS` 两行（#53/#57 落地时漏更）；核心设计「按整文件丢」段补 D018 新建文件部分保留例外
 - `.env.example`：`LLM_MAX_OUTPUT_TOKENS` 原夹在 EXTRA_BODY 注释与变量之间无注释，拆出独立注释块；补 `LLM_JSON_MODE` 条目；thinking 示例更新为生产现值（`enabled + reasoning_effort=low`，D033 实值）
 - `docs/plans/roadmap-execution.md` Step 4/6/7 状态按其「随 PR 滚动更新」约定同步（台账 11 次 / #59/#60 完成 / DeepSeek 评测侧完成）
+
+### Changed（活任务管理迁移 GitHub Issues，D034，2026-11-05）
+
+- 活任务追踪（待办 / 进行中 / 观察项 / 触发条件 / 验收闸门）迁移 GitHub Issues（label `roadmap`，首批 12 个：#65-#76）——issues 为唯一源；`docs/plans/roadmap-execution.md` 状态列停止维护（头部注记存档化），README 路线图执行追踪句改指 issues；任务完成随实现 PR closing keywords 关闭，已完成项不补建
+- `AGENTS.md` 会话开始协议加第 5 步（curl 查 open roadmap issues）；工程约定补「specs 归档 `docs/plans/`，任务追踪走 issues；issue 正文会经 D029 进生产审查 prompt，按事实性标准写」
+- pr-agent 对标分析归档 `docs/plans/pr-agent-analysis.md`（PR #64）：借鉴清单 P0×3 / P1×3 / P2×2 与「不借鉴」清单；上游 eval 短板实证（406 单测全 mock、e2e 冒烟、零质量评测）——质量迭代回路差异化成立

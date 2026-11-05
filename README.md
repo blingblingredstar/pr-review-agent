@@ -94,7 +94,7 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 
 ## 路线图
 
-按优先级排序；质量基线看 eval 报告，成本基线看评测落盘的 token 用量。执行排序（先做哪个、每步怎么验收）见 [docs/plans/roadmap-execution.md](./docs/plans/roadmap-execution.md)。
+按优先级排序；质量基线看 eval 报告，成本基线看评测落盘的 token 用量。活任务与执行追踪（待办 / 观察项 / 触发条件 / 验收闸门）见 [GitHub Issues（label: roadmap）](https://github.com/blingblingredstar/pr-review-agent/issues?q=is%3Aissue+is%3Aopen+label%3Aroadmap)（D034 单源原则）；[docs/plans/roadmap-execution.md](./docs/plans/roadmap-execution.md) 为历史执行计划存档（状态列已停止维护）。
 
 1. ~~**对抗性关联 fixture 扩充**~~：已完成——correlation 组扩至 10 例上线（真实仓库「引入 commit + 修复 commit」配对，主题「表面是优化/清理、实际引了坑」），关联命中率在 [evals/report.md](./evals/report.md) 单列口径（不计入能力评估）
 2. **路由效果消融对照**：`DECISION_MODEL` 已上线生产；生产 run 台账工具已上线（`npm run prodlogs`——Hobby 日志保留仅 ~30 分钟，定期回收合并进 [evals/prod-runs/ledger.json](./evals/prod-runs/ledger.json)，已入账 11 次审查、0 超时）；带 `[router] tokens` 的真实 run 攒够门槛（≥10 + diff 规模覆盖大小两端）后做有/无评审计划的质量对照
