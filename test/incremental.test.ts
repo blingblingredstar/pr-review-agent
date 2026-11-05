@@ -5,6 +5,7 @@ import {
   decideIncrement,
   fetchDeltaDiff,
   hasBlockerOrMajor,
+  latestValidReview,
   listBotReviews,
   listCommitShas,
   parseBotReviews,
@@ -49,6 +50,16 @@ test("hasBlockerOrMajor：summary 行 blocker×N / 折叠与降级行 **[major]*
   assert.ok(hasBlockerOrMajor("major×2 / nit×1"));
   assert.ok(!hasBlockerOrMajor("共 2 条：minor×1 / nit×1"));
   assert.ok(!hasBlockerOrMajor("共 0 条"));
+});
+
+test("latestValidReview：无历史 / force-push 全清 → null；多条取 submittedAt 最新（D035 上一轮意见同源推导）", () => {
+  const commits = new Set(["aaaa1111", "bbbb2222"]);
+  assert.equal(latestValidReview([], commits), null, "无历史");
+  assert.equal(latestValidReview([review({ sha: "dead0000" })], commits), null, "标记全被 force-push 清出");
+  const older = review({ id: 1, sha: "aaaa1111", submittedAt: "2026-11-04T00:00:00Z" });
+  const newer = review({ id: 2, sha: "bbbb2222", submittedAt: "2026-11-05T00:00:00Z" });
+  assert.equal(latestValidReview([older, newer], commits)!.id, 2, "取最新（与 decideIncrement 的 delta base 同一条）");
+  assert.equal(latestValidReview([newer, older], commits)!.id, 2, "与传入顺序无关");
 });
 
 test("decideIncrement：skip（head 已审）/ full（无有效标记）/ full（block 继承）/ delta", () => {

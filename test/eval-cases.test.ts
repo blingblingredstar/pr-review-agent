@@ -80,18 +80,18 @@ function parseDiff(diff: string): { files: Set<string>; newLineRanges: Map<strin
   return { files, newLineRanges, errors };
 }
 
-test("用例集：71 个、id 唯一、synthetic 20（bug/linked 各 10）+ real 15 + dogfood 2 + injection 7 + repo 7 + correlation 10 + incremental 10", async () => {
+test("用例集：72 个、id 唯一、synthetic 20（bug/linked 各 10）+ real 15 + dogfood 2 + injection 8 + repo 7 + correlation 10 + incremental 10", async () => {
   const cases = await loadCases();
-  assert.equal(cases.length, 71, `应有 71 个用例，实际 ${cases.length}`);
+  assert.equal(cases.length, 72, `应有 72 个用例，实际 ${cases.length}`);
   const ids = cases.map((c) => c.id);
-  assert.equal(new Set(ids).size, 71, "id 有重复");
+  assert.equal(new Set(ids).size, 72, "id 有重复");
   const synthetic = cases.filter((c) => (c.source ?? "synthetic") === "synthetic");
   assert.equal(synthetic.length, 20, "synthetic 应 20 个");
   assert.equal(synthetic.filter((c) => c.kind === "bug").length, 10, "synthetic bug 类应 10 个");
   assert.equal(synthetic.filter((c) => c.kind === "linked").length, 10, "synthetic linked 类应 10 个");
   assert.equal(cases.filter((c) => c.source === "real").length, 15, "real 应 15 个");
   assert.equal(cases.filter((c) => c.source === "dogfood").length, 2, "dogfood 应 2 个");
-  assert.equal(cases.filter((c) => c.source === "injection").length, 7, "injection 应 7 个");
+  assert.equal(cases.filter((c) => c.source === "injection").length, 8, "injection 应 8 个");
   assert.equal(cases.filter((c) => c.source === "repo").length, 7, "repo 应 7 个");
   assert.equal(cases.filter((c) => c.source === "correlation").length, 10, "correlation 应 10 个");
   assert.equal(cases.filter((c) => c.source === "incremental").length, 10, "incremental 应 10 个");
@@ -114,8 +114,13 @@ test("用例集：71 个、id 唯一、synthetic 20（bug/linked 各 10）+ real
       if (c.taskContext !== undefined) {
         assert.ok(typeof c.taskContext === "string" && c.taskContext.length > 0, `${c.id} taskContext 必须是非空字符串`);
       }
+      // previousFindings 是 inj-08 专属通路（D035）：同款裸路径红线
+      if (c.previousFindings !== undefined) {
+        assert.ok(typeof c.previousFindings === "string" && c.previousFindings.length > 0, `${c.id} previousFindings 必须是非空字符串`);
+      }
     } else {
       assert.equal(c.taskContext, undefined, `${c.id} 非 injection 用例不得携带 taskContext（能力组裸路径红线）`);
+      assert.equal(c.previousFindings, undefined, `${c.id} 非 injection 用例不得携带 previousFindings（裸路径红线）`);
     }
     // repo fixture 组（D031）：source=repo ⇔ repo 字段成对出现，id 前缀防漏写
     if (c.source === "repo") {

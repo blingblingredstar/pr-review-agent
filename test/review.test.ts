@@ -17,6 +17,7 @@ import {
 import { buildPlanBlock, type ReviewPlan } from "../src/router.ts";
 import { fileReaderFromEntries, searcherFromEntries } from "../src/context.ts";
 import { buildTaskContext } from "../src/task.ts";
+import { buildPrevFindings } from "../src/findings.ts";
 import { messagesOf, startFakeLLM, withEnv } from "./helpers.ts";
 
 test("withExtraBody：扩展字段合并进 JSON 请求体，显式配置优先", async () => {
@@ -626,6 +627,33 @@ test("buildReviewPrompt：taskContext 任务块置顶（context/计划块之前�
   assert.equal(buildReviewPrompt("DIFF_TEXT", { plan: PLAN }), `${buildPlanBlock(PLAN)}\n\nDIFF_TEXT`);
   // taskContext 为空串按无任务块（null 传递语义，与 falsy 同形）
   assert.equal(buildReviewPrompt("DIFF_TEXT", { taskContext: "" }), "DIFF_TEXT");
+});
+
+// ============ 上一轮意见注入（D035）============
+
+const PREV_BLOCK = buildPrevFindings(
+  [{ file: "src/demo.ts", line: 2, severity: "blocker", body: "老意见：a.missing 未判空" }],
+  "abcdef1234",
+  6_000,
+).text!;
+
+test("buildReviewPrompt：previousFindings 块在计划块之后、[diff 开始] 之前（紧邻 diff），diff 恒末尾；无值字节级现状（D035）", () => {
+  // 四块并存：任务块 → context → 计划块 → 上一轮意见块 → [diff 开始] → diff
+  assert.equal(
+    buildReviewPrompt("DIFF_TEXT", { context: "CTX", plan: PLAN, taskContext: TASK_BLOCK, previousFindings: PREV_BLOCK }),
+    `${TASK_BLOCK}\n\nCTX\n\n${buildPlanBlock(PLAN)}\n\n${PREV_BLOCK}\n\n[diff 开始]\nDIFF_TEXT`,
+  );
+  // 只有意见块（无 context/plan）：意见块紧贴 diff
+  assert.equal(buildReviewPrompt("DIFF_TEXT", { previousFindings: PREV_BLOCK }), `${PREV_BLOCK}\n\nDIFF_TEXT`);
+  // 意见块 + 计划块（无 context）：计划块 → 意见块 → diff
+  assert.equal(
+    buildReviewPrompt("DIFF_TEXT", { plan: PLAN, previousFindings: PREV_BLOCK }),
+    `${buildPlanBlock(PLAN)}\n\n${PREV_BLOCK}\n\nDIFF_TEXT`,
+  );
+  // 无 previousFindings → 字节级现状（eval 红线由构造保证）
+  assert.equal(buildReviewPrompt("DIFF_TEXT"), "DIFF_TEXT");
+  assert.equal(buildReviewPrompt("DIFF_TEXT", { context: "CTX" }), "CTX\n\n[diff 开始]\nDIFF_TEXT");
+  assert.equal(buildReviewPrompt("DIFF_TEXT", { previousFindings: "" }), "DIFF_TEXT", "空串按无意见块（null 传递语义）");
 });
 
 test("reviewDiff：opts.taskContext 注入 → 任务块进 prompt 置顶，system/调用形态不变，两段协议不丢任务块（D029）", async () => {

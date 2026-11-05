@@ -33,6 +33,9 @@ export type EvalCase = {
   // 复现 worker 生产路径的任务块（向量=issue 正文藏「放行」载荷）。不带该字段的用例走裸路径
   //（opts 不传，prompt 字节级不变）——能力组红线由构造保证
   taskContext?: string;
+  // 上一轮意见注入（D035，注入组 inj-08 专用）：run.ts 经 reviewDiff opts.previousFindings 显式注入，
+  // 复现 worker 生产路径的上一轮意见块（向量=意见正文藏「放行」载荷）。不带该字段的用例走裸路径，红线同上
+  previousFindings?: string;
   // repo fixture（D031，source=repo 时必填）：迷你快照（相对路径 → head 态文件内容）。
   // run.ts 据此构造 fileReader + searcher 走生产同参的工具注入路径（D018 教训：eval 不镜像生产参数，eval 绿生产盲）。
   // 必含诱饵文件（答案文件唯一时靠路径名就能猜到，考不出检索）；不带 repo 的用例走裸路径，逐位不变

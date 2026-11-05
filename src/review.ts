@@ -127,12 +127,18 @@ export const TOOL_PROMPT_MAX_CHARS = 120_000;
 // D030：位置参数收敛为选项对象，输出字节级不变。
 // D029 扩展 opts.taskContext：任务块置顶（需求是最高层信号，在 context/计划块之前），diff 仍末尾；
 // 无 taskContext → 字节级现状（evals 直调永无任务块，红线由构造保证，opts.taskContext 只有 worker 编排注入这一条路径）
-export function buildReviewPrompt(diff: string, opts?: { context?: string; plan?: ReviewPlan; taskContext?: string }): string {
+// D035 扩展 opts.previousFindings：上一轮意见块放计划块之后、`[diff 开始]` 之前（紧邻 diff——意见引用
+// 其行号，规则对照对象是 diff 本身）；无值 → 字节级现状（opts.previousFindings 只有 worker 编排注入这一条路径）
+export function buildReviewPrompt(
+  diff: string,
+  opts?: { context?: string; plan?: ReviewPlan; taskContext?: string; previousFindings?: string },
+): string {
   const diffText = truncateDiff(diff);
   const taskBlock = opts?.taskContext ? `${opts.taskContext}\n\n` : "";
   const planBlock = opts?.plan ? `${buildPlanBlock(opts.plan)}\n\n` : "";
-  if (opts?.context) return `${taskBlock}${opts.context}\n\n${planBlock}[diff 开始]\n${diffText}`;
-  return `${taskBlock}${planBlock}${diffText}`;
+  const findingsBlock = opts?.previousFindings ? `${opts.previousFindings}\n\n` : "";
+  if (opts?.context) return `${taskBlock}${opts.context}\n\n${planBlock}${findingsBlock}[diff 开始]\n${diffText}`;
+  return `${taskBlock}${planBlock}${findingsBlock}${diffText}`;
 }
 
 // reviewDiff 可选项（D027）：fileReader 注入即启用 read_file 工具循环（两段协议）；
@@ -140,12 +146,14 @@ export function buildReviewPrompt(diff: string, opts?: { context?: string; plan?
 // 都不传 = 单次调用原路径，prompt/system 字节级不变——eval 红线由构造保证。
 // D028：plan 由 worker 编排注入（router 产物），reviewDiff 自身不调 router——evals 直调永远无 plan。
 // D029：taskContext 由 worker 编排注入（任务块），reviewDiff 自身不做关联解析/issue 拉取——evals 直调永远无任务块
+// D035：previousFindings 由 worker 编排注入（上一轮意见块），reviewDiff 自身不拉 review 历史——同上红线
 export type ReviewDiffOpts = {
   timeoutMs?: number;
   fileReader?: (path: string) => string | null;
   searcher?: Searcher;
   plan?: ReviewPlan;
   taskContext?: string;
+  previousFindings?: string;
 };
 
 // 第一段声明的工具请求（D031）：search 与 read 并列。searches 为查询词、reads 为快照路径，
@@ -172,9 +180,14 @@ export async function reviewDiff(diff: string, context?: string, opts?: ReviewDi
   }
   const llm = createOpenAI({ apiKey: LLM_API_KEY, baseURL: LLM_BASE_URL, fetch: withExtraBody(fetch, extraBody()) });
   // 上下文（D023，best-effort）放 diff 之前：diff（含截断省略行）保持在生成前最近位置，行号锚点不受影响；
-  // eval 不传 context / 无 plan / 无 taskContext（router 与任务块只由 worker 编排注入）→ prompt 字节级不变
-  //（promptHash 稳定是回归对照的前提）
-  const prompt = buildReviewPrompt(diff, { context, plan: opts?.plan, taskContext: opts?.taskContext });
+  // eval 不传 context / 无 plan / 无 taskContext / 无 previousFindings（router、任务块与上一轮意见块
+  // 只由 worker 编排注入）→ prompt 字节级不变（promptHash 稳定是回归对照的前提）
+  const prompt = buildReviewPrompt(diff, {
+    context,
+    plan: opts?.plan,
+    taskContext: opts?.taskContext,
+    previousFindings: opts?.previousFindings,
+  });
   // 一个 abortSignal 贯穿全部步（D027）：调用方 timeoutMs 封顶的是整个工具循环（两段），不只是单次调用；
   // 不传走 LLM_TIMEOUT_MS（D011）
   const abortSignal = AbortSignal.timeout(opts?.timeoutMs ?? llmTimeoutMs());

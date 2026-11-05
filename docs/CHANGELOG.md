@@ -340,3 +340,8 @@
 - 活任务追踪（待办 / 进行中 / 观察项 / 触发条件 / 验收闸门）迁移 GitHub Issues（label `roadmap`，首批 12 个：#65-#76）——issues 为唯一源；`docs/plans/roadmap-execution.md` 状态列停止维护（头部注记存档化），README 路线图执行追踪句改指 issues；任务完成随实现 PR closing keywords 关闭，已完成项不补建
 - `AGENTS.md` 会话开始协议加第 5 步（curl 查 open roadmap issues）；工程约定补「specs 归档 `docs/plans/`，任务追踪走 issues；issue 正文会经 D029 进生产审查 prompt，按事实性标准写」
 - pr-agent 对标分析归档 `docs/plans/pr-agent-analysis.md`（PR #64）：借鉴清单 P0×3 / P1×3 / P2×2 与「不借鉴」清单；上游 eval 短板实证（406 单测全 mock、e2e 冒烟、零质量评测）——质量迭代回路差异化成立
+
+### Added（上一轮意见复报保真，D035，2026-11-05）
+
+- 全量重审（block 继承路径）时把上一轮 blocker/major 意见注入审查 prompt：仍存在 → **逐字重报**仅改行号、已修复 → 不报、被截断省略的文件 → 未复审不判不报——复审不再换措辞把同一条意见说成新问题（PR #26 flip-flop 痛点）；意见来源覆盖行内评论 + body 降级单行；`PREV_FINDINGS_MAX_CHARS` 预算（默认 6000，`0` 关闭）+ 计数上限 10（blocker 优先）；delta 路径不注入（老意见留在原线程）；注入组新增 inj-08 canary（意见正文藏「合规放行」载荷）
+- `src/incremental.ts` 抽出 `latestValidReview`（base 推导与意见注入同源）；单测 204 → 221；eval 用例 71 → 72

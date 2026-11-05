@@ -23,14 +23,21 @@ export type IncrementDecision =
   | { mode: "full"; reason: string } // 回退全量（行为与现状逐字节一致）
   | { mode: "delta"; base: string; latestReviewId: number };
 
+// 最新有效 review（过滤 = SHA 仍在本 PR commits 列表，force-push 重写后旧 SHA 天然出局）。
+// D035 起上一轮意见注入（findings.ts）复用同一推导取来源 review——base 推导与意见注入必须同源，
+// 两处各写各的「最新」判定会错位（意见对着旧 review、区间对着新 review）
+export function latestValidReview(reviews: BotReview[], commitShas: Set<string>): BotReview | null {
+  const valid = reviews.filter((r) => commitShas.has(r.sha));
+  if (valid.length === 0) return null;
+  return [...valid].sort((a, b) => (a.submittedAt < b.submittedAt ? 1 : -1))[0]!;
+}
+
 // base 推导 + block 继承（spec §二.1/§二.4 同源同滤：两处共用「过滤后的最新有效 review」一个推导结果）。
-// 过滤 = SHA 仍在本 PR commits 列表中（force-push 重写后旧 SHA 天然出局，重写场景自动落回退分支）
 export function decideIncrement(args: { headSha: string; reviews: BotReview[]; commitShas: Set<string> }): IncrementDecision {
   const reviewed = new Set(args.reviews.map((r) => r.sha));
   if (reviewed.has(args.headSha)) return { mode: "skip", reason: "head 已在已审集合（dedupe 命中）" };
-  const valid = args.reviews.filter((r) => args.commitShas.has(r.sha));
-  if (valid.length === 0) return { mode: "full", reason: "无有效历史标记（首审或 force-push 清空历史）" };
-  const latest = [...valid].sort((a, b) => (a.submittedAt < b.submittedAt ? 1 : -1))[0]!;
+  const latest = latestValidReview(args.reviews, args.commitShas);
+  if (!latest) return { mode: "full", reason: "无有效历史标记（首审或 force-push 清空历史）" };
   if (hasBlockerOrMajor(latest.body)) {
     return { mode: "full", reason: "上条有效 review 含 blocker/major，回退全量重审（block 继承：旧意见的解除依据只能来自全量）" };
   }
