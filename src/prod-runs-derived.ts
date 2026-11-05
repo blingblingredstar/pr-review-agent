@@ -73,9 +73,16 @@ export function latestReviewForSha(
   const matched = parseBotReviews(reviews).filter((r) => matchesHeadSha(r.sha, headSha));
   if (matched.length === 0) return null;
   const byId = new Map(matched.map((r) => [r.id, r]));
-  const latest = [...byId.values()].sort((a, b) =>
-    a.submittedAt < b.submittedAt ? -1 : a.submittedAt > b.submittedAt ? 1 : a.id - b.id,
-  );
+  // submitted_at 缺失显式排最旧（bot 折叠 minor：undefined 参与字符串比较时两侧都 false、落到 id 分支，
+  // 缺失项与有日期项的相对顺序由 id 决定——注释声称的「排最旧」没有兑现，同 sha 多标记时可能选错最新）
+  const rank = (r: { submittedAt?: string }): number | null => (r.submittedAt ? Date.parse(r.submittedAt) : null);
+  const latest = [...byId.values()].sort((a, b) => {
+    const ta = rank(a), tb = rank(b);
+    if (ta === null && tb === null) return a.id - b.id;
+    if (ta === null) return -1;
+    if (tb === null) return 1;
+    return ta !== tb ? ta - tb : a.id - b.id;
+  });
   return latest.at(-1) ?? null;
 }
 
