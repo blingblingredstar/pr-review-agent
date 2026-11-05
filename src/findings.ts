@@ -145,9 +145,9 @@ export async function buildPrevFindingsForPr(
     `[findings] 上一轮意见注入：行内 ${inline.length} / 降级 ${degraded.length} 条` +
       `${excluded > 0 ? `，剔除 ${excluded} 条（文件已不在 PR）` : ""}` +
       ` → 注入 ${built.included} 条 / ${built.text.length} 字符（预算 ${budget}）` +
-      (built.truncated || built.dropped > 0
-        ? `，未注入 ${built.dropped + (built.included < kept.length ? kept.length - built.included : 0)} 条（预算/计数上限）`
-        : ""),
+      // 未注入数只按 kept-included 计——它已同时覆盖计数上限与预算截断两路丢弃，
+      // 再加 built.dropped 会双算（PR #78 bot 自审 minor：13 条全装下时报 6 实丢 3）
+      (kept.length > built.included ? `，未注入 ${kept.length - built.included} 条（预算/计数上限）` : ""),
   );
   return built.text;
 }

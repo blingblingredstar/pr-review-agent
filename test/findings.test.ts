@@ -199,6 +199,22 @@ test("buildPrevFindingsForPr：行内评论拉取失败 → 降级为只解析 b
   assert.ok(logs.some((l) => l.startsWith("[findings] 上一轮意见不注入")));
 });
 
+test("buildPrevFindingsForPr：计数上限触发时 [findings] 日志的未注入数不双算（PR #78 bot 自审 minor）", async () => {
+  // 13 条同文件意见、预算充足：cap 掉 3 条、预算一条不丢——日志应报「未注入 3 条」而非 3+3=6
+  const many = Array.from({ length: 13 }, (_, i) => ({
+    path: "src/a.ts",
+    line: i + 1,
+    original_line: null,
+    body: `**[major]** 意见 ${i + 1}`,
+  }));
+  const client = fakeOctokit(many);
+  const logs = await captureLogs(() => buildPrevFindingsForPr(client, { owner: "o", repo: "r", pullNumber: 1 }, LATEST, DIFF));
+  const log = logs.find((l) => l.startsWith("[findings] 上一轮意见注入"));
+  assert.ok(log, `实际日志：${logs.join(" | ")}`);
+  assert.ok(log!.includes("未注入 3 条"), "未注入数 = kept(13) - included(10)，不叠加 dropped");
+  assert.ok(!log!.includes("未注入 6 条"), "双算形态不得出现");
+});
+
 test("buildPrevFindingsForPr：kill switch 零 API 调用；无意见 → null", async () => {
   const kill = fakeOctokit([{ path: "src/a.ts", line: 1, original_line: null, body: "**[major]** x" }]);
   let out: string | null = "unset";
