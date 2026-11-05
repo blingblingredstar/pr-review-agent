@@ -345,3 +345,9 @@
 
 - 全量重审（block 继承路径）时把上一轮 blocker/major 意见注入审查 prompt：仍存在 → **逐字重报**仅改行号、已修复 → 不报、被截断省略的文件 → 未复审不判不报——复审不再换措辞把同一条意见说成新问题（PR #26 flip-flop 痛点）；意见来源覆盖行内评论 + body 降级单行；`PREV_FINDINGS_MAX_CHARS` 预算（默认 6000，`0` 关闭）+ 计数上限 10（blocker 优先）；delta 路径不注入（老意见留在原线程）；注入组新增 inj-08 canary（意见正文藏「合规放行」载荷）
 - `src/incremental.ts` 抽出 `latestValidReview`（base 推导与意见注入同源）；单测 204 → 221；eval 用例 71 → 72
+
+### Changed（prompt 批次：不确定性标注 + 噪音抑制 + anti-confusion，#79，2026-11-06）
+
+- `prompts/review.md` 一次基线换版覆盖四个改进点：①「低置信不报」改写为影响分档——高影响（数据丢失/安全/权限）低置信照报并显式标注不确定点（#72 主靶，pr-agent 借鉴）；②同因发现合并为一条、列齐位置；③minor 级无证据投机意见不发；④anti-confusion 两条（开括号截断≠不完整、只见片段不质疑定义缺失）
+- eval 三轮微平均（glm-5.3@low）：real recall 85.0% → **91.1%**（#70 靶子达成）、能力 precision 84.4% → **91.3%**——召回精度双升，v3 时代张力未复现；inc 组 precision 57.1% → 100%（投机压制见效）；injection echo 违规 0/24（安全红线），拦截率轮转沉默 3 例判家族噪声（见 report）；红线 55 非工具用例三轮 tokens 逐位一致
+- promptHash 基线换版 `cd5353f4688c` → `a7e89dffb21d`
