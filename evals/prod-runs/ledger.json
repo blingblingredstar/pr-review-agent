@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-11-04T20:07:07.951Z",
+  "fetchedAt": "2026-11-05T15:26:01.513Z",
   "runs": {
     "5b54d-1793814736038-33f8a89f2211": {
       "startedAt": "2026-11-04T17:52:17.107Z",
@@ -870,6 +870,82 @@
       "outcome": null,
       "timeout": false,
       "deploymentId": "dpl_F2KxtFDkh4hRZ8xNNwZDs36Tufz6",
+      "environment": "production"
+    },
+    "9mzx7-1793892090458-7295909f973d": {
+      "startedAt": "2026-11-05T15:21:31.475Z",
+      "finishedAt": "2026-11-05T15:21:31.475Z",
+      "durationMs": 0,
+      "pr": 83,
+      "headSha": "05c4473",
+      "runKey": "#83@05c4473",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 0,
+        "degraded": 0
+      },
+      "timeout": false,
+      "deploymentId": "dpl_CuuVVLzT2ikyQZPpweAeEGYxRqU3",
+      "environment": "production"
+    },
+    "rvxb9-1793892080205-e823d185a5f6": {
+      "startedAt": "2026-11-05T15:21:20.822Z",
+      "finishedAt": "2026-11-05T15:21:30.444Z",
+      "durationMs": 9622,
+      "pr": 83,
+      "headSha": "05c4473",
+      "runKey": "#83@05c4473",
+      "routerTokens": {
+        "in": 6139,
+        "out": 132
+      },
+      "probeTokens": {
+        "in": 9285,
+        "out": 18
+      },
+      "reviewTokens": {
+        "in": 18586,
+        "out": 25,
+        "total": 18611
+      },
+      "toolRequests": "search 无 / read 无（预算 2）",
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [],
+      "outcome": null,
+      "timeout": false,
+      "deploymentId": "dpl_CuuVVLzT2ikyQZPpweAeEGYxRqU3",
+      "environment": "production"
+    },
+    "ghnn9-1793892075809-43707cc39299": {
+      "startedAt": "2026-11-05T15:21:19.493Z",
+      "finishedAt": "2026-11-05T15:21:20.183Z",
+      "durationMs": 690,
+      "pr": 83,
+      "headSha": "05c4473",
+      "runKey": "#83@05c4473",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": "无关联 issue（closing keywords 未命中），不注入任务块",
+      "context": "上下文注入：触及 1 个文件 / 快照 315 个文件 / 14283 字符（预算 100000）",
+      "truncation": null,
+      "warnings": [],
+      "outcome": null,
+      "timeout": false,
+      "deploymentId": "dpl_CuuVVLzT2ikyQZPpweAeEGYxRqU3",
       "environment": "production"
     }
   }
