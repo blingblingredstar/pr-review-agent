@@ -123,6 +123,7 @@ export type CaseScore = {
   recall: number;
   agentComments: number;
   // 命中任一期望的意见数（其余视为该用例的误报；agent 发现 diff 中未标注的其他真问题时会被误计，写用例时保持 diff 干净）
+  // #112 定性：意见级指标（precision = 此数/意见数，上界 1）——对计数另见 commentHitCounts
   truePositives: number;
   // 无意见时为 null（没有 FP 就谈不上精确率），报告层显示 —
   precision: number | null;
@@ -134,7 +135,8 @@ export type CaseScore = {
   // 逐意见 TP 判定（#100）：与 agentComments 索引一一对齐（该意见命中至少一个期望 = true）——
   // 与 commentConfidences 配对即 confidence × TP 交叉表的完整数据出口，离线校准零重算
   commentTps: boolean[];
-  // 逐意见命中的期望数（#112）：与 agentComments 索引一一对齐——truePositives 按意见-期望对计的分项
+  // 逐意见命中的期望数（#112）：与 agentComments 索引一一对齐——对计数数据出口（recall 维度分析用；
+  // precision 不消费它，见 truePositives 注释）
   commentHitCounts: number[];
   // 双口径报表（#105，aacr-bench legacy 对齐）：contentComments = 内容命中（file + mustMention，行号不限）；
   // locatedComments = 定位命中（现行全条件 = commentTps 为 true 的意见数）。
@@ -157,12 +159,14 @@ export function matchesContent(exp: Expectation, comment: ReviewComment): boolea
 export function scoreCase(c: EvalCase, comments: ReviewComment[]): CaseScore {
   const verdicts = c.expect.map((expect) => ({ expect, hit: comments.some((cm) => matchesExpectation(expect, cm)) }));
   const hits = verdicts.filter((v) => v.hit).length;
-  // TP 记账（#112 根治）：按（意见，期望）配对计——一条意见命中双联两条期望记 2 个 TP。
-  // 单期望用例逐位一致（每条意见最多命中 1 个期望，配对数 == 命中至少一个的意见数）；
-  // 多期望组（ctxpair）完美模型的 precision 从 50% 修正到 100%（5 意见 × 2 期望：旧 5/10，新 10/10）
+  // TP 记账（#112 终局定性）：**precision 是意见级指标**——「意见里正确的比例」，一条意见命中双联
+  // 两条期望仍是一条正确意见（aacr 同款 matched_generated/generated，上界 1）。首版对计实现被 bot
+  // major 否（分子 2 / 分母 1 = 200% 破比例语义；「对计分母」无自然形态，改期望面则与 recall 重复）。
+  // 「多期望低估」重新定性：不是 precision 缺陷，是 hits（期望维度）与 TP（意见维度）不可比——
+  // 对计数保留在 commentHitCounts 供 recall 维度分析，precision 消费意见级 truePositives
   const commentHitCounts = comments.map((cm) => c.expect.filter((e) => matchesExpectation(e, cm)).length);
   const commentTps = commentHitCounts.map((n) => n > 0);
-  const truePositives = commentHitCounts.reduce((s, n) => s + n, 0);
+  const truePositives = commentTps.filter(Boolean).length;
   const locatedComments = commentTps.filter(Boolean).length;
   const contentComments = comments.filter((cm) => c.expect.some((e) => matchesContent(e, cm))).length;
   return {

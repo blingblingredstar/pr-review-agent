@@ -245,7 +245,7 @@ async function main() {
       const m = metrics(rs);
       return `- **${src}**（${rs.length} 用例）：recall ${percent(m.recall)}（${m.hits}/${m.expectN}），precision ${m.precision === null ? "—" : percent(m.precision)}（${m.tp}/${m.comments}）`
         + (src === "dogfood" ? "（回归集，不计入能力评估）" : "")
-        + (src === "ctxpair" ? "（TP 按（意见，期望）对计，#112 根治后口径——一条意见命中双联两条期望记 2 个 TP）" : "");
+        + (src === "ctxpair" ? "（precision 意见级口径——一条意见命中双联两期望仍计 1 TP，对计数在 run JSON commentHitCounts；#112 终局定性）" : "");
     })
     .filter((x): x is string => x !== null);
 
@@ -288,7 +288,7 @@ async function main() {
       if (r.error) {
         // error 文本可能含 |、换行、反引号，破坏 markdown 表格结构
         const reason = r.error.slice(0, 60).replace(/[|`\\\n]/g, " ");
-        return `| ${r.caseId} ✗ ${reason} | ${r.source} | ${r.kind} | — | — | — | — | — | — | — | ${(r.durationMs / 1000).toFixed(1)} | — |`;
+        return `| ${r.caseId} ✗ ${reason} | ${r.source} | ${r.kind} | — | — | — | — | — | — | — | — | — | ${(r.durationMs / 1000).toFixed(1)} | — |`;
       }
       const s = r.score!;
       // expectClean（D031）无期望条目：期望命中列标 clean，recall 无分母显示 —（precision 照常计入）

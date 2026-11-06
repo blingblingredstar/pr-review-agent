@@ -20,13 +20,22 @@ const dualCase: EvalCase = {
 const cm = (line: number, body: string): ReviewComment =>
   ({ file: "src/a.ts", line, severity: "major", body }) as unknown as ReviewComment;
 
-test("#112 TP 按对计：一条意见命中双联两条期望记 2 个 TP；单期望等价性（commentTps 语义不变）", () => {
-  // 一条意见（body 同时含两组关键词、行居中）——行 6 距两期望都 >3：改为分别断言两意见各命中一期望
+test("#112 TP 意见级（终局定性）：一条意见命中双联两条期望仍计 1 TP；commentHitCounts 留对计出口", () => {
   const one = scoreCase(dualCase, [cm(2, "空指针 null 风险"), cm(10, "命名违规，须按约定大写")]);
-  assert.equal(one.truePositives, 2, "两条意见各命中一条期望 → TP=2（与旧口径一致）");
+  assert.equal(one.truePositives, 2, "两条意见各命中一条期望 → TP=2");
   assert.deepEqual(one.commentTps, [true, true]);
   assert.deepEqual(one.commentHitCounts, [1, 1]);
   assert.equal(one.precision, 1);
+
+  // 双联双命中：一条意见命中两期望 → TP=1（意见级上界 1）、commentHitCounts=[2]
+  const dual = scoreCase(dualCase, [cm(2, "空指针 null 风险；命名违规")].map((c) => c));
+  // 行 2 距 convention(10) 超 ±3：matchesExpectation 只命中 structural——构造同点双命中需两期望行距 ≤3，改用同行双期望
+  const tight: EvalCase = { ...dualCase, expect: [ { file: "src/a.ts", line: 2, mustMention: ["null"], kind: "structural" }, { file: "src/a.ts", line: 3, mustMention: ["命名"], kind: "convention" } ] } as unknown as EvalCase;
+  const both = scoreCase(tight, [cm(2, "空指针 null 风险，命名违规")]);
+  assert.equal(both.truePositives, 1, "意见级 TP：双命中仍 1（precision ≤ 1 恒成立）");
+  assert.deepEqual(both.commentHitCounts, [2], "对计数出口：2 对");
+  assert.equal(both.precision, 1);
+  assert.equal(dual.truePositives, 1);
 
   // 一条意见同时命中两期望（body 含两组词、行号落 structural ±3——content 层不受行约束但 located 受）
   // 构造行 2 意见含「命名」：structural 期望 line=2 命中（±3 内 + null）；convention 期望 line=10 超出 ±3
