@@ -110,6 +110,19 @@ test("summarize：prepare 段（runKey=null）不计入审查数、单列未归�
   assert.match(s, /review in 20000 \/ out 500/, "token 统计不丢");
 });
 
+test("summarize：意见落点三计数进指标——folded/派生覆盖（#65 闸门 2，#89 口径）", () => {
+  const b = aggregateRuns([
+    parseLogLine(L("2026-11-06T17:00:00Z", "r1", "[worker] x/y#7@aaa0000 主评审预算 200000ms"))!,
+    parseLogLine(L("2026-11-06T17:00:05Z", "r1", "[worker] x/y#7@aaa0000 完成：2 条行内（进线程可闭环），1 条降级进 body"))!,
+    parseLogLine(L("2026-11-06T17:01:00Z", "r2", "[worker] x/y#1@bbb1111 完成：0 条行内，1 条降级进 body"))!,
+  ])!;
+  // r1 的 outcome 换成 GitHub 派生值（#89：日志完成行不带 folded，只有派生口径能补齐）
+  b["r1"]!.outcome = { inline: 2, degraded: 1, folded: 3, source: "github" };
+  const s = summarize(mergeLedger(null, b, "t"));
+  // r1（派生：2/1/3）+ r2（日志：0/1，folded/source 缺省）= 行内 2 / 降级 2 / 折叠 3，派生 1 run
+  assert.match(s, /意见落点：行内 2 \/ 降级 2 \/ 折叠 3（#89 派生口径 1 run）/);
+});
+
 test("mergeLedger：字段级合并——跨窗口的同一 requestId 不丢已捕获字段（自审 major 口径）", () => {
   // 第一次抓到 review 段（tokens + tools），第二次同 requestId 只剩 publish 段（outcome），
   // 整记录覆盖会丢 tokens/toolCalls——字段级合并必须保留

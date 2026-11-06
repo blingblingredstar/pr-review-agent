@@ -1,0 +1,313 @@
+{
+  "startedAt": "2026-11-06T03:43:08.397Z",
+  "model": "glm-5.3",
+  "llmBaseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+  "llmExtraBody": "{\"thinking\":{\"type\":\"enabled\"},\"reasoning_effort\":\"low\"}",
+  "promptHash": "a7e89dffb21d",
+  "evalOnly": [
+    "repo"
+  ],
+  "capabilityScope": "synthetic+real",
+  "schemaVersion": 1,
+  "planArm": {
+    "enabled": true,
+    "injected": 7,
+    "failed": 0,
+    "skipped": 0,
+    "routerMs": 40175
+  },
+  "runs": [
+    {
+      "caseId": "repo-01-rename-residual-ref",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/utils/slug.ts",
+          "line": 1,
+          "severity": "blocker",
+          "body": "导出函数从 slugify 改名为 slugifyText，但仓库里存在未同步的调用方：src/render/summary.ts 第 1 行 `import { slugify } from \"../utils/slug.ts\"`，第 4 行仍调用 `slugify(title)`。本次改名后该导入解析失败，构建直接报错（或运行时 undefined 崩溃）。需同步更新 summary.ts 中的导入与调用，或保留 slugify 作为别名导出。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4465,
+        "outputTokens": 177,
+        "totalTokens": 4642
+      },
+      "durationMs": 5702,
+      "score": {
+        "caseId": "repo-01-rename-residual-ref",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/utils/slug.ts",
+              "line": 1,
+              "mustMention": [
+                "summary.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-02-removed-export-still-used",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/config/limits.ts",
+          "line": 2,
+          "severity": "major",
+          "body": "本次删除导出常量 MAX_QUEUE_DEPTH，但快照中 src/queue/publisher.ts:1 仍 import { MAX_QUEUE_DEPTH } from \"../config/limits.ts\"（第 4 行还在使用）。删除后该模块在类型检查/运行时（ESM 命名导出缺失）直接报错。若目的是移除该深度限制，需同步修改 publisher.ts 中的引用与使用；若不是，应恢复该常量。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4233,
+        "outputTokens": 149,
+        "totalTokens": 4382
+      },
+      "durationMs": 5095,
+      "score": {
+        "caseId": "repo-02-removed-export-still-used",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/config/limits.ts",
+              "line": 3,
+              "mustMention": [
+                "publisher.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-03-lexical-dry-copy",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 4532,
+        "outputTokens": 89,
+        "totalTokens": 4621
+      },
+      "durationMs": 5033,
+      "score": {
+        "caseId": "repo-03-lexical-dry-copy",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/api/size.ts",
+              "line": 7,
+              "mustMention": [
+                "format.ts",
+                "formatFileSize"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-04-string-key-residual",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/events/bus.ts",
+          "line": 2,
+          "severity": "major",
+          "body": "事件名从 \"sync:done\" 改为 \"sync:complete\"，但 UI 消费方 src/ui/progress.ts:4 仍以字符串字面量 \"sync:done\" 监听（搜索确认无其他匹配点）。若该消费方未导入 EVT_SYNC_DONE 常量而是硬编码旧字符串，改名后将收不到事件，同步完成进度条不会结束。应同步更新 progress.ts 的监听字符串，或确认所有消费方统一使用常量。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4192,
+        "outputTokens": 172,
+        "totalTokens": 4364
+      },
+      "durationMs": 6152,
+      "score": {
+        "caseId": "repo-04-string-key-residual",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/events/bus.ts",
+              "line": 2,
+              "mustMention": [
+                "progress.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-05-clean-complete-rename",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/auth/session.ts",
+          "line": 2,
+          "severity": "major",
+          "body": "verifyToken 被重命名为 assertToken，但搜索整个快照未发现 verifyToken 的其他引用已同步——需确认仓库中所有 import/调用点都已改为新名，否则运行时（或构建期）会在旧调用处抛 \"verifyToken is not defined\" 之类的错误。当前 diff 只改了 middleware.ts 一处调用方；若还有网关入口（如 src/api/gateway.ts）直接调用旧名，将直接破坏认证路径。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4681,
+        "outputTokens": 166,
+        "totalTokens": 4847
+      },
+      "durationMs": 5083,
+      "score": {
+        "caseId": "repo-05-clean-complete-rename",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-06-clean-similar-but-different",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/export/csv.ts",
+          "line": 9,
+          "severity": "major",
+          "body": "parseCsvExport 假设分号即字段边界，但导出侧（上方 join(\";\")）对字段内容不做任何转义：字段本身含 `;` 时会被错误拆成多列，含换行时整行结构错乱，含 `\"` 时首尾去引号会误伤字段自身的引号字符。结果是对导出产物做再解析会得到错数据。修法：导出时对含 `;`、`\"`、换行的字段做 RFC 4180 式引号包裹与引号翻倍，解析侧相应处理转义后再按 `;` 切分；或者明确限制本函数仅用于不含特殊字符的字段并加断言。另注意导入侧 src/import/csv.ts 用逗号分隔且逐字段 trim，与本函数的分号约定不同，两处格式约定已分叉，若原意是同一格式需先对齐。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4440,
+        "outputTokens": 464,
+        "totalTokens": 4904
+      },
+      "durationMs": 12747,
+      "score": {
+        "caseId": "repo-06-clean-similar-but-different",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-07-dynamic-access-residual",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/commands/registry.ts",
+          "line": 2,
+          "severity": "major",
+          "body": "把键 `build` 改名为 `compile` 后，`src/cli/main.ts:3` 的 `DEFAULT_CMD = \"build\"`（且 main.ts 未随 diff 修改）将不再匹配任何 handler，`handlers[\"build\"]` 为 undefined，`?.()` 静默无操作——无参数调用 CLI 会什么都不做且无任何提示。需同步更新 main.ts 的默认命令（或保留 `build` 别名），并排查仓库中其他以 \"build\" 为键的引用。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4347,
+        "outputTokens": 183,
+        "totalTokens": 4530
+      },
+      "durationMs": 6069,
+      "score": {
+        "caseId": "repo-07-dynamic-access-residual",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/commands/registry.ts",
+              "line": 3,
+              "mustMention": [
+                "main.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    }
+  ],
+  "summary": {
+    "recall": 0,
+    "precision": null,
+    "totalExpect": 0,
+    "totalHits": 0,
+    "totalComments": 0,
+    "totalTp": 0,
+    "failed": 0,
+    "usage": {
+      "inputTokens": 30890,
+      "outputTokens": 1400,
+      "totalTokens": 32290
+    },
+    "groups": {
+      "repo": {
+        "recall": 0.8,
+        "precision": 0.6666666666666666,
+        "expectN": 5,
+        "hits": 4,
+        "comments": 6,
+        "tp": 4,
+        "runs": 7,
+        "failed": 0
+      }
+    }
+  }
+}

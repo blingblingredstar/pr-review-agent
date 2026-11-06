@@ -576,3 +576,29 @@ R4 的 synthetic 0.75（-10pp）与 dogfood/corr 的轮间翻转是既有轮转�
 ### 状态
 
 闸门 1 ✅（本节）；闸门 2 执行待 #89 修复 + eval harness 扩展（路径 1）；闸门 3 decision 待消融表。#65 维持 open。
+
+## 路由计划消融首轮（2026-11-06，会话 45）：#65 闸门 2 执行——EVAL_PLAN 两臂
+
+### 机制（上节路径 1 落地）
+
+`EVAL_PLAN=1`（evals/run.ts）：带 repo 的用例主评审前先跑 router（`tree = snapshotTree(同一 entries)`、`skeleton = diffSkeleton(diff)`——与 worker 编排同构），plan 注入 `opts.plan`；router 失败无计划继续、无 repo 跳过（D028 best-effort 镜像，绝不重试）。可分性三件套：run 文件名 `-plan` 后缀（防同秒互覆，#56 同型）+ run JSON `planArm` 字段 + compare.ts 分组键加 plan 维度（两臂绝不混聚成「同版多轮」）。本轮口径镜像生产：主评审 `glm-5.3@low`、router `glm-5.3-flash`（DECISION_MODEL 生产值，#66 裁决）。
+
+### 首轮读数（EVAL_ONLY=repo，7 例 × 2 臂，单轮）
+
+| 臂 | recall | precision | 意见数 | tokens in/out（主评审） | 附注 |
+|---|---|---|---|---|---|
+| baseline | 60.0%（3/5） | 75.0%（3/4） | 4 | 26515 / 1483 | — |
+| EVAL_PLAN | 80.0%（4/5） | 66.7%（4/6） | 6 | 30890 / 1400 | 注入 7/7 成功；router 合计 40.2s |
+
+- **Δrecall +20pp**：repo-04-string-key-residual 由 miss 转 hit——计划块的定向疑似引导了定位
+- **Δprecision −8.3pp**：repo-05-clean-complete-rename（clean 用例）新增 1 条 FP——「该查什么」的清单暗示在无事可查的场景可能带偏
+- 双臂一致：repo-03-lexical-dry-copy 双双 miss（跨文件关联短板，#69 口径）；repo-06 FP 双臂皆有
+
+### 读数的边界
+
+单轮 × 5 个判据用例：±1 条意见即 ±20pp，远超退出判据 3pp 带宽——本轮证明的是**机制成立 + 方向信号**（recall 增益与 precision 风险并存），不构成 gate 3 裁决依据。加严路径：3 轮池化（D036 同款方法）再判，全量组（71 例）作终验。
+
+### runs 索引
+
+- baseline：`evals/runs/2026-11-06T03-41-59-glm-5.3-a7e89dffb21d-690926.json`
+- plan 臂：`evals/runs/2026-11-06T03-43-08-glm-5.3-a7e89dffb21d-690926-plan.json`
