@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-11-06T16:35:08.753Z",
+  "fetchedAt": "2026-11-06T18:02:32.616Z",
   "runs": {
     "5b54d-1793814736038-33f8a89f2211": {
       "startedAt": "2026-11-04T17:52:17.107Z",
@@ -25,7 +25,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_78dbFvZzRBhoHTNEpffKwQHD3soU",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "x2gcs-1793814706299-bf0553dc30a0": {
       "startedAt": "2026-11-04T17:51:46.809Z",
@@ -61,7 +65,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_78dbFvZzRBhoHTNEpffKwQHD3soU",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "7tj4j-1793814703804-407702f793d4": {
       "startedAt": "2026-11-04T17:51:46.265Z",
@@ -110,7 +118,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_78dbFvZzRBhoHTNEpffKwQHD3soU",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "c7c6f-1793814365327-032e9b41acdb": {
       "startedAt": "2026-11-04T17:46:05.924Z",
@@ -157,7 +169,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_78dbFvZzRBhoHTNEpffKwQHD3soU",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "x56hs-1793814362738-12277d6de5f7": {
       "startedAt": "2026-11-04T17:46:05.306Z",
@@ -204,7 +220,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_HRscwgRKnp1JGYxaVMqchh79DBEp",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "6rmxk-1793812582381-f4b4dcdfa371": {
       "startedAt": "2026-11-04T17:16:22.538Z",
@@ -237,7 +257,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_HRscwgRKnp1JGYxaVMqchh79DBEp",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "w542g-1793812580159-cb392b9bb9e7": {
       "startedAt": "2026-11-04T17:16:22.322Z",
@@ -286,7 +310,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_AmvS6FZmW7eSMrgmEpsArPxYSzma",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "rw2z2-1793816284421-bfbc7addb659": {
       "startedAt": "2026-11-04T18:18:05.062Z",
@@ -322,7 +350,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_AmvS6FZmW7eSMrgmEpsArPxYSzma",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "5qxrh-1793816280999-fdefb998653c": {
       "startedAt": "2026-11-04T18:18:04.385Z",
@@ -369,7 +401,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_CBMCGeiUsDpWdkHvcPbPQyHaLEuP",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "bltsf-1793815663139-86cfebe48bf7": {
       "startedAt": "2026-11-04T18:07:44.697Z",
@@ -405,7 +441,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_CBMCGeiUsDpWdkHvcPbPQyHaLEuP",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "n6n4s-1793815659956-78d66864c8db": {
       "startedAt": "2026-11-04T18:07:43.100Z",
@@ -452,7 +492,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_5PEpBdW4QdEXrmRKR9PR7AUVCzB9",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "jd27f-1793822633172-e1baf049eab6": {
       "startedAt": "2026-11-04T20:03:54.735Z",
@@ -488,7 +532,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_5PEpBdW4QdEXrmRKR9PR7AUVCzB9",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "pgjjk-1793822630202-0296a400ad30": {
       "startedAt": "2026-11-04T20:03:52.501Z",
@@ -514,7 +562,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_5PEpBdW4QdEXrmRKR9PR7AUVCzB9",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "2mvqm-1793822441838-e258730d7097": {
       "startedAt": "2026-11-04T20:00:43.053Z",
@@ -540,7 +592,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_5PEpBdW4QdEXrmRKR9PR7AUVCzB9",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "jj664-1793822417641-1e27f5f6cd43": {
       "startedAt": "2026-11-04T20:00:18.205Z",
@@ -576,7 +632,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_5PEpBdW4QdEXrmRKR9PR7AUVCzB9",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "hftf9-1793822415090-b0cfdde16a49": {
       "startedAt": "2026-11-04T20:00:16.958Z",
@@ -602,7 +662,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_5PEpBdW4QdEXrmRKR9PR7AUVCzB9",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "khzn9-1793821895547-e15abd8fd680": {
       "startedAt": "2026-11-04T19:51:36.567Z",
@@ -628,7 +692,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_8esV2jNsnmr9QPjERLbB9KKhRtzf",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "4twjn-1793821871758-3c4cc16eabfe": {
       "startedAt": "2026-11-04T19:51:12.389Z",
@@ -664,7 +732,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_8esV2jNsnmr9QPjERLbB9KKhRtzf",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "lfpch-1793821868764-1c5a2476520e": {
       "startedAt": "2026-11-04T19:51:11.167Z",
@@ -690,7 +762,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_8esV2jNsnmr9QPjERLbB9KKhRtzf",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "vcw9g-1793821832246-72b6ab7ada2a": {
       "startedAt": "2026-11-04T19:50:33.289Z",
@@ -718,7 +794,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_8esV2jNsnmr9QPjERLbB9KKhRtzf",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "jbbs7-1793821806617-23bdc77cb3ef": {
       "startedAt": "2026-11-04T19:50:08.114Z",
@@ -765,7 +845,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_8esV2jNsnmr9QPjERLbB9KKhRtzf",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "t5hdr-1793821802984-170aedb7e657": {
       "startedAt": "2026-11-04T19:50:06.020Z",
@@ -791,7 +875,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_8esV2jNsnmr9QPjERLbB9KKhRtzf",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "mlttv-1793821579013-2c19ed02a21b": {
       "startedAt": "2026-11-04T19:46:19.946Z",
@@ -817,7 +905,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_8esV2jNsnmr9QPjERLbB9KKhRtzf",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "qw7lm-1793821553151-7fec7a248d05": {
       "startedAt": "2026-11-04T19:45:54.780Z",
@@ -864,7 +956,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_8esV2jNsnmr9QPjERLbB9KKhRtzf",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "gmcqt-1793821550550-11f24c9e47b4": {
       "startedAt": "2026-11-04T19:45:52.489Z",
@@ -890,7 +986,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_8esV2jNsnmr9QPjERLbB9KKhRtzf",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "j594c-1793821176619-f5f9de051979": {
       "startedAt": "2026-11-04T19:39:37.579Z",
@@ -918,7 +1018,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_F2KxtFDkh4hRZ8xNNwZDs36Tufz6",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "8dzdz-1793821138032-828f35f9791e": {
       "startedAt": "2026-11-04T19:38:59.657Z",
@@ -951,7 +1055,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_F2KxtFDkh4hRZ8xNNwZDs36Tufz6",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "c2z44-1793821136004-9c2d5a1b9d9d": {
       "startedAt": "2026-11-04T19:38:57.985Z",
@@ -998,7 +1106,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_CuuVVLzT2ikyQZPpweAeEGYxRqU3",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "rvxb9-1793892080205-e823d185a5f6": {
       "startedAt": "2026-11-05T15:21:20.822Z",
@@ -1034,7 +1146,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_CuuVVLzT2ikyQZPpweAeEGYxRqU3",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "ghnn9-1793892075809-43707cc39299": {
       "startedAt": "2026-11-05T15:21:19.493Z",
@@ -1060,7 +1176,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_CuuVVLzT2ikyQZPpweAeEGYxRqU3",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "qlbsj-1793899107275-c614607a28b4": {
       "startedAt": "2026-11-05T17:18:28.248Z",
@@ -1086,7 +1206,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_3a9aV8ZwefYfJmCSG6oTj7pymq96",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "hncfz-1793899095754-2ba9a16cfa6c": {
       "startedAt": "2026-11-05T17:18:16.337Z",
@@ -1122,7 +1246,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_3a9aV8ZwefYfJmCSG6oTj7pymq96",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "pbhd6-1793899092834-2a632c22aa34": {
       "startedAt": "2026-11-05T17:18:15.107Z",
@@ -1148,7 +1276,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_3a9aV8ZwefYfJmCSG6oTj7pymq96",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "c9phf-1793898679268-9cfb470fcde0": {
       "startedAt": "2026-11-05T17:11:20.516Z",
@@ -1176,7 +1308,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_BGauhBrXu56jSi1tZbMSw2my5XX7",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "fs22s-1793898593573-8b316f3a15bf": {
       "startedAt": "2026-11-05T17:09:53.669Z",
@@ -1209,7 +1345,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_BGauhBrXu56jSi1tZbMSw2my5XX7",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "v4wg2-1793898655614-357edfc624b9": {
       "startedAt": "2026-11-05T17:10:56.551Z",
@@ -1235,7 +1375,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_BGauhBrXu56jSi1tZbMSw2my5XX7",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "bt4bx-1793898637309-44a171193af5": {
       "startedAt": "2026-11-05T17:10:37.880Z",
@@ -1271,7 +1415,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_BGauhBrXu56jSi1tZbMSw2my5XX7",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "prktc-1793898633231-0c0c6cadc37c": {
       "startedAt": "2026-11-05T17:10:36.317Z",
@@ -1297,7 +1445,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_BGauhBrXu56jSi1tZbMSw2my5XX7",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "sxj5m-1793898620728-3be13054b6f5": {
       "startedAt": "2026-11-05T17:10:21.907Z",
@@ -1323,7 +1475,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_BGauhBrXu56jSi1tZbMSw2my5XX7",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "c9st5-1793898567804-239cc65f37af": {
       "startedAt": "2026-11-05T17:09:27.991Z",
@@ -1356,7 +1512,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_BGauhBrXu56jSi1tZbMSw2my5XX7",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "t49mh-1793898590003-8e4337c58dcc": {
       "startedAt": "2026-11-05T17:09:52.394Z",
@@ -1382,7 +1542,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_BGauhBrXu56jSi1tZbMSw2my5XX7",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "brqgs-1793898563593-c8dd46f2d28d": {
       "startedAt": "2026-11-05T17:09:26.852Z",
@@ -1408,7 +1572,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_BGauhBrXu56jSi1tZbMSw2my5XX7",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "5qhzv-1793898262101-b39b17374d81": {
       "startedAt": "2026-11-05T17:04:23.349Z",
@@ -1434,7 +1602,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_HAw7ijzHDGwHi4UuFGkdaJ4kCrZT",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "xwmxp-1793898194801-edf81c153940": {
       "startedAt": "2026-11-05T17:03:14.918Z",
@@ -1467,7 +1639,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_HAw7ijzHDGwHi4UuFGkdaJ4kCrZT",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "r8gd9-1793898190287-a7f1c8d8c807": {
       "startedAt": "2026-11-05T17:03:13.773Z",
@@ -1493,7 +1669,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_HAw7ijzHDGwHi4UuFGkdaJ4kCrZT",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "zd4wp-1793902370445-8e2c83eadbea": {
       "startedAt": "2026-11-05T18:12:51.168Z",
@@ -1561,7 +1741,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_EE2HX4by668rZJpwEhHyaRqNYgPK",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "42vgf-1793900695147-6a9e7a3f7505": {
       "startedAt": "2026-11-05T17:44:55.722Z",
@@ -1608,7 +1792,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_EE2HX4by668rZJpwEhHyaRqNYgPK",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "lss6m-1793900692046-5a3da25be3fb": {
       "startedAt": "2026-11-05T17:44:54.426Z",
@@ -1634,7 +1822,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_EE2HX4by668rZJpwEhHyaRqNYgPK",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "2vcp8-1793939812947-717658321256": {
       "startedAt": "2026-11-06T04:36:53.813Z",
@@ -1660,7 +1852,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_9iSMTVbBN8bmCoLV7dVHsJiqGatU",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "m44mm-1793939799754-071d3972d40d": {
       "startedAt": "2026-11-06T04:36:40.332Z",
@@ -1707,7 +1903,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_9iSMTVbBN8bmCoLV7dVHsJiqGatU",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "2vnkz-1793939796025-cc4850d0595d": {
       "startedAt": "2026-11-06T04:36:39.116Z",
@@ -1733,7 +1933,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_9iSMTVbBN8bmCoLV7dVHsJiqGatU",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "nq647-1793982644563-2c5cf0c5f8bb": {
       "startedAt": "2026-11-06T16:30:45.772Z",
@@ -1759,7 +1963,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_78pamh5AXQ89R4g1GWBxeNBMw18y",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "btqx5-1793982613534-cf49e4f643c7": {
       "startedAt": "2026-11-06T16:30:14.274Z",
@@ -1795,7 +2003,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_78pamh5AXQ89R4g1GWBxeNBMw18y",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "9xqqp-1793982608785-2eec4158d039": {
       "startedAt": "2026-11-06T16:30:12.274Z",
@@ -1821,7 +2033,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_78pamh5AXQ89R4g1GWBxeNBMw18y",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "pvh7n-1793982186145-082ea23629c8": {
       "startedAt": "2026-11-06T16:23:07.187Z",
@@ -1847,7 +2063,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_78pamh5AXQ89R4g1GWBxeNBMw18y",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "h7q72-1793982151126-a05767b82305": {
       "startedAt": "2026-11-06T16:22:31.739Z",
@@ -1883,7 +2103,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_78pamh5AXQ89R4g1GWBxeNBMw18y",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "swvsb-1793982147053-e4fdb98e1580": {
       "startedAt": "2026-11-06T16:22:29.631Z",
@@ -1909,7 +2133,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_78pamh5AXQ89R4g1GWBxeNBMw18y",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "j9v8d-1793981955913-d1520dde52dc": {
       "startedAt": "2026-11-06T16:19:16.931Z",
@@ -1937,7 +2165,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_78pamh5AXQ89R4g1GWBxeNBMw18y",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "vkg46-1793981895426-d96bcdbc0657": {
       "startedAt": "2026-11-06T16:18:16.058Z",
@@ -1973,7 +2205,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_78pamh5AXQ89R4g1GWBxeNBMw18y",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "4vs5p-1793981892228-74dcb63e2b28": {
       "startedAt": "2026-11-06T16:18:14.417Z",
@@ -1999,7 +2235,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_78pamh5AXQ89R4g1GWBxeNBMw18y",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "gqn77-1793981516406-9dab06fe9862": {
       "startedAt": "2026-11-06T16:11:57.433Z",
@@ -2025,7 +2265,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_3AicFzWM8PNN6eDduBsm66EuWGnA",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "spm9l-1793981504629-0fd037096381": {
       "startedAt": "2026-11-06T16:11:45.263Z",
@@ -2061,7 +2305,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_3AicFzWM8PNN6eDduBsm66EuWGnA",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "rvbp6-1793981501053-46d6cc957bd0": {
       "startedAt": "2026-11-06T16:11:43.765Z",
@@ -2087,7 +2335,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_3AicFzWM8PNN6eDduBsm66EuWGnA",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "sjtvn-1793981481611-d84ec032891d": {
       "startedAt": "2026-11-06T16:11:22.566Z",
@@ -2113,7 +2365,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_3AicFzWM8PNN6eDduBsm66EuWGnA",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "cgw7q-1793981473767-34aac94d6ce6": {
       "startedAt": "2026-11-06T16:11:15.462Z",
@@ -2149,7 +2405,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_3AicFzWM8PNN6eDduBsm66EuWGnA",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "967vt-1793981470142-abf5d9f19a9c": {
       "startedAt": "2026-11-06T16:11:13.037Z",
@@ -2175,7 +2435,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_3AicFzWM8PNN6eDduBsm66EuWGnA",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "vxjfl-1793981310014-df016693ebce": {
       "startedAt": "2026-11-06T16:08:31.062Z",
@@ -2201,7 +2465,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_3AicFzWM8PNN6eDduBsm66EuWGnA",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "7xnm2-1793981235133-3521400c638e": {
       "startedAt": "2026-11-06T16:07:15.904Z",
@@ -2234,7 +2502,11 @@
       },
       "timeout": false,
       "deploymentId": "dpl_3AicFzWM8PNN6eDduBsm66EuWGnA",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     },
     "c284p-1793981232258-fd126083cf6a": {
       "startedAt": "2026-11-06T16:07:14.080Z",
@@ -2260,7 +2532,616 @@
       },
       "timeout": false,
       "deploymentId": "dpl_3AicFzWM8PNN6eDduBsm66EuWGnA",
-      "environment": "production"
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
+    },
+    "vcs69-1793988011188-2ff3a443f34a": {
+      "startedAt": "2026-11-06T18:00:12.303Z",
+      "finishedAt": "2026-11-06T18:00:12.303Z",
+      "durationMs": 0,
+      "pr": 115,
+      "headSha": "ba3a431",
+      "runKey": "#115@ba3a431",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_HTbMpFj5AANczdrWjQQcQ8kuEFtt",
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
+    },
+    "8nx4s-1793987984808-20f70838c26c": {
+      "startedAt": "2026-11-06T17:59:45.543Z",
+      "finishedAt": "2026-11-06T18:00:11.171Z",
+      "durationMs": 25628,
+      "pr": 115,
+      "headSha": "ba3a431",
+      "runKey": "#115@ba3a431",
+      "routerTokens": {
+        "in": 9241,
+        "out": 358
+      },
+      "probeTokens": null,
+      "reviewTokens": {
+        "in": 57470,
+        "out": 746,
+        "total": 58216
+      },
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_HTbMpFj5AANczdrWjQQcQ8kuEFtt",
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
+    },
+    "dqzbs-1793987979809-aac1a6dd246b": {
+      "startedAt": "2026-11-06T17:59:42.637Z",
+      "finishedAt": "2026-11-06T17:59:44.789Z",
+      "durationMs": 2152,
+      "pr": 115,
+      "headSha": "ba3a431",
+      "runKey": "#115@ba3a431",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": "任务块注入：关联 3 个 issue（#105、#112、#106） / 2887 字符（预算 4000）",
+      "context": "上下文注入：触及 11 个文件 / 快照 405 个文件 / 99992 字符（预算 100000）",
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_HTbMpFj5AANczdrWjQQcQ8kuEFtt",
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
+    },
+    "zwgx8-1793987708428-81c35de31b14": {
+      "startedAt": "2026-11-06T17:55:09.547Z",
+      "finishedAt": "2026-11-06T17:55:13.367Z",
+      "durationMs": 3820,
+      "pr": 115,
+      "headSha": "4f6bbbb",
+      "runKey": "#115@4f6bbbb",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [
+        "[github] REQUEST_CHANGES 被拒（422 自家 PR 或行号非法），回退 COMMENT"
+      ],
+      "outcome": {
+        "inline": 1,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_71d67ga8agpHzNHzf5ukboYyvDm8",
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
+    },
+    "nrwxd-1793987659205-66ade27f4b09": {
+      "startedAt": "2026-11-06T17:54:19.804Z",
+      "finishedAt": "2026-11-06T17:55:08.412Z",
+      "durationMs": 48608,
+      "pr": 115,
+      "headSha": "4f6bbbb",
+      "runKey": "#115@4f6bbbb",
+      "routerTokens": {
+        "in": 9251,
+        "out": 544
+      },
+      "probeTokens": null,
+      "reviewTokens": {
+        "in": 70052,
+        "out": 1922,
+        "total": 71974
+      },
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 1,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_71d67ga8agpHzNHzf5ukboYyvDm8",
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
+    },
+    "7xnm2-1793987690241-c7993770b99f": {
+      "startedAt": "2026-11-06T17:54:51.386Z",
+      "finishedAt": "2026-11-06T17:54:51.386Z",
+      "durationMs": 0,
+      "pr": 116,
+      "headSha": "8e88b19",
+      "runKey": "#116@8e88b19",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_71d67ga8agpHzNHzf5ukboYyvDm8",
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
+    },
+    "tmzfr-1793987677063-bbd4c52827dc": {
+      "startedAt": "2026-11-06T17:54:37.666Z",
+      "finishedAt": "2026-11-06T17:54:50.226Z",
+      "durationMs": 12560,
+      "pr": 116,
+      "headSha": "8e88b19",
+      "runKey": "#116@8e88b19",
+      "routerTokens": {
+        "in": 8820,
+        "out": 208
+      },
+      "probeTokens": {
+        "in": 39858,
+        "out": 160
+      },
+      "reviewTokens": {
+        "in": 79732,
+        "out": 192,
+        "total": 79924
+      },
+      "toolRequests": "search 无 / read 无（预算 2）",
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_71d67ga8agpHzNHzf5ukboYyvDm8",
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
+    },
+    "mw6sl-1793987674658-f7761d5b3759": {
+      "startedAt": "2026-11-06T17:54:36.419Z",
+      "finishedAt": "2026-11-06T17:54:37.038Z",
+      "durationMs": 619,
+      "pr": 116,
+      "headSha": "8e88b19",
+      "runKey": "#116@8e88b19",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": "无关联 issue（closing keywords 未命中），不注入任务块",
+      "context": "上下文注入：触及 1 个文件 / 快照 400 个文件 / 89632 字符（预算 100000）",
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_71d67ga8agpHzNHzf5ukboYyvDm8",
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
+    },
+    "gsf76-1793987652901-b8bb8512e60a": {
+      "startedAt": "2026-11-06T17:54:16.889Z",
+      "finishedAt": "2026-11-06T17:54:19.191Z",
+      "durationMs": 2302,
+      "pr": 115,
+      "headSha": "4f6bbbb",
+      "runKey": "#115@4f6bbbb",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": "任务块注入：关联 3 个 issue（#105、#112、#106） / 2887 字符（预算 4000）",
+      "context": "上下文注入：触及 12 个文件 / 快照 405 个文件 / 99987 字符（预算 100000）",
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 1,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_71d67ga8agpHzNHzf5ukboYyvDm8",
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
+    },
+    "btmn4-1793987652426-d92cb673d470": {
+      "startedAt": "2026-11-06T17:54:13.247Z",
+      "finishedAt": "2026-11-06T17:54:17.063Z",
+      "durationMs": 3816,
+      "pr": 115,
+      "headSha": "64f792d",
+      "runKey": "#115@64f792d",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [
+        "[github] REQUEST_CHANGES 被拒（422 自家 PR 或行号非法），回退 COMMENT"
+      ],
+      "outcome": {
+        "inline": 0,
+        "degraded": 1,
+        "folded": 1,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_71d67ga8agpHzNHzf5ukboYyvDm8",
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
+    },
+    "z75nz-1793987585271-1c4f7ad58ee8": {
+      "startedAt": "2026-11-06T17:53:05.916Z",
+      "finishedAt": "2026-11-06T17:54:12.410Z",
+      "durationMs": 66494,
+      "pr": 115,
+      "headSha": "64f792d",
+      "runKey": "#115@64f792d",
+      "routerTokens": {
+        "in": 8906,
+        "out": 382
+      },
+      "probeTokens": null,
+      "reviewTokens": {
+        "in": 46801,
+        "out": 2722,
+        "total": 49523
+      },
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 0,
+        "degraded": 1,
+        "folded": 1,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_71d67ga8agpHzNHzf5ukboYyvDm8",
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
+    },
+    "k5nfk-1793987580829-9b4177510e5c": {
+      "startedAt": "2026-11-06T17:53:03.311Z",
+      "finishedAt": "2026-11-06T17:53:05.254Z",
+      "durationMs": 1943,
+      "pr": 115,
+      "headSha": "64f792d",
+      "runKey": "#115@64f792d",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": "任务块注入：关联 3 个 issue（#105、#112、#106） / 2887 字符（预算 4000）",
+      "context": "上下文注入：触及 7 个文件 / 快照 401 个文件 / 92158 字符（预算 100000）",
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 0,
+        "degraded": 1,
+        "folded": 1,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_71d67ga8agpHzNHzf5ukboYyvDm8",
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
+    },
+    "krsvx-1793987396773-b7d26e0db5d5": {
+      "startedAt": "2026-11-06T17:49:57.617Z",
+      "finishedAt": "2026-11-06T17:50:01.595Z",
+      "durationMs": 3978,
+      "pr": 115,
+      "headSha": "0346473",
+      "runKey": "#115@0346473",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [
+        "[github] REQUEST_CHANGES 被拒（422 自家 PR 或行号非法），回退 COMMENT"
+      ],
+      "outcome": {
+        "inline": 1,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_71d67ga8agpHzNHzf5ukboYyvDm8",
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
+    },
+    "f7rx5-1793987374031-c8a9d25248b9": {
+      "startedAt": "2026-11-06T17:49:34.633Z",
+      "finishedAt": "2026-11-06T17:49:56.757Z",
+      "durationMs": 22124,
+      "pr": 115,
+      "headSha": "0346473",
+      "runKey": "#115@0346473",
+      "routerTokens": {
+        "in": 8906,
+        "out": 416
+      },
+      "probeTokens": {
+        "in": 46199,
+        "out": 255
+      },
+      "reviewTokens": {
+        "in": 92414,
+        "out": 627,
+        "total": 93041
+      },
+      "toolRequests": "search 无 / read 无（预算 2）",
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 1,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_71d67ga8agpHzNHzf5ukboYyvDm8",
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
+    },
+    "6c4c9-1793987369690-6231b8910390": {
+      "startedAt": "2026-11-06T17:49:32.309Z",
+      "finishedAt": "2026-11-06T17:49:34.013Z",
+      "durationMs": 1704,
+      "pr": 115,
+      "headSha": "0346473",
+      "runKey": "#115@0346473",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": "任务块注入：关联 2 个 issue（#105、#112） / 2086 字符（预算 4000）",
+      "context": "上下文注入：触及 7 个文件 / 快照 401 个文件 / 90578 字符（预算 100000）",
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 1,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_71d67ga8agpHzNHzf5ukboYyvDm8",
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
+    },
+    "9kg5f-1793987098057-9c2c3fbe8c6a": {
+      "startedAt": "2026-11-06T17:44:58.863Z",
+      "finishedAt": "2026-11-06T17:45:03.782Z",
+      "durationMs": 4919,
+      "pr": 115,
+      "headSha": "5d89eb7",
+      "runKey": "#115@5d89eb7",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [
+        "[github] REQUEST_CHANGES 被拒（422 自家 PR 或行号非法），回退 COMMENT"
+      ],
+      "outcome": {
+        "inline": 1,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_71d67ga8agpHzNHzf5ukboYyvDm8",
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
+    },
+    "26bf7-1793987037843-2e4ecdd6cea2": {
+      "startedAt": "2026-11-06T17:43:58.531Z",
+      "finishedAt": "2026-11-06T17:44:58.042Z",
+      "durationMs": 59511,
+      "pr": 115,
+      "headSha": "5d89eb7",
+      "runKey": "#115@5d89eb7",
+      "routerTokens": {
+        "in": 8868,
+        "out": 337
+      },
+      "probeTokens": {
+        "in": 32049,
+        "out": 1086
+      },
+      "reviewTokens": {
+        "in": 66137,
+        "out": 2115,
+        "total": 68252
+      },
+      "toolRequests": "search 无 / read ×1（test/compare.test.ts）（预算 2）",
+      "toolCalls": [
+        {
+          "step": 1,
+          "kind": "read",
+          "detail": "test/compare.test.ts (5561 chars)"
+        }
+      ],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 1,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_71d67ga8agpHzNHzf5ukboYyvDm8",
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
+    },
+    "5jqj6-1793987033578-bed6677ae681": {
+      "startedAt": "2026-11-06T17:43:56.600Z",
+      "finishedAt": "2026-11-06T17:43:57.824Z",
+      "durationMs": 1224,
+      "pr": 115,
+      "headSha": "5d89eb7",
+      "runKey": "#115@5d89eb7",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": "任务块注入：关联 2 个 issue（#105、#112） / 2086 字符（预算 4000）",
+      "context": "上下文注入：触及 4 个文件 / 快照 401 个文件 / 60469 字符（预算 100000）",
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 1,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_71d67ga8agpHzNHzf5ukboYyvDm8",
+      "environment": "production",
+      "reactions": {
+        "plus": 0,
+        "minus": 0
+      }
     }
   }
 }
