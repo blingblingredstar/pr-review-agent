@@ -806,3 +806,5 @@
   1. 晨起三裁定：cheap-pair 灰区三选一（#82 comment 已贴选项）/ `.env` 漂移来源核实 / 校准「无信号」结论复核
   2. 白天候选：#105/#106/#107（并行会话新立，D040 预分配）/ #112 TP 口径根治 / npm audit fix chore
   3. 观察项：glm-flash@新 prompt（`16-34-02` run）与 glm-5.3@新 prompt（`16-57-38`）同期对照数据已就位——端点演进观察项的第一笔新基线可比对
+
+- **会话 46 续（加班批，2026-11-07 晚，用户指令「能做的都做」）**：PR #115（双口径 LP/Noise **#105 关** + TP 口径终局定性 **#112 关** + reactions 派生 **#106 关**）/ #116（npm audit 4 high 清零，lock-only）/ #117（台账 95 run，#106 首批 reactions 数据 31 run 0/0）。**bot 今晚累计抓 4 条真 major 全闭环**（framing id 映射 / 校准闭环缺交叉 / compare 守卫恒真出假 100% / 对计 precision 200% 破比例）——最后一条直接否掉了 #112 方案 1 的实现，issue 以「precision 意见级 by design + commentHitCounts 对计出口」终局定性关闭（aacr 同款口径，原文已核对）。#99 池化挂账因 prompt 换代转 framing 新 prompt 观察点：**b 权威预设三轮全满分**（与「权威软化」假设稳定反方向），a 中性反而波动最大。剩给白天：#107（等 #69 触发）、#105-#107 之外无新增，晨起三裁定不变。

@@ -401,3 +401,10 @@
 - 路由计划消融加严（repo 7 例 × 2 臂 × 3 轮池化）：EVAL_PLAN 臂 93.3%/87.5% vs baseline 33.3%/45.5%——**Δrecall +60pp 且 Δprecision +42pp 双升**，退出判据完全不触发，`DECISION_MODEL` 保留（D039，#65 关闭）；首轮单轮的 precision −8.3pp 风险未复现
 - D036 cheap-pair 新基线复验（3+3 轮池化）：glm-flash 单模型 88.6/90.5 双超维持（端点演进观察项两轮确证）；课程四步合并 89.5/91.6 双超维持但 recall 幅度 +3.8pp 落 +5pp 闸门线下——灰区晨起裁定；corr 短板复确认（前置③数据齐，#82 comment 已贴）；`analyze-cross-review.ts` 清单切新基线 6 run
 - 仓库重构评估（G 轨）：目录重组维持否决（D030），局部收敛清单 6 条全绑自然时点（C1/C2 挂 #82 双指纹去重动工窗口），`docs/plans/refactor-assessment-2026-11-07.md`
+
+### Added（加班批：eval 双口径报表 + TP 口径终局 + 台账 reactions，#105/#112/#106，2026-11-07）
+
+- `evals/score.ts` 拆 content/located 两级命中：**LP = located/content**（定位漂移率）、**Noise = unmatched/total**（aacr-bench legacy 口径对齐，原文已核对）；run.ts/compare.ts 报表列；历史 run 显示 —（内嵌 score 不变）；首批读数落 report（新基线 LP 93.9% / Noise 24.4%，定位漂移 4 条明细全落档供 D027/D031 联动）
+- TP 口径终局定性（#112）：**precision 意见级 by design**（上界 1 恒成立，aacr 同款）；对计方案被 bot major 否（200% 破比例）；对计数保留 run JSON `commentHitCounts` 供 recall 维度分析
+- 台账 reactions 派生（#106）：`npm run prodlogs` 按 runKey 聚合行内评论 + review body 的 👍/👎（零新增 API 调用），summarize 好评率行；首批 31 run 全 0/0（随生产使用积累）
+- npm audit 4 high → 0（@vercel/functions 链，lock-only）
