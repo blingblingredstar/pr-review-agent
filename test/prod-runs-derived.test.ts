@@ -129,7 +129,7 @@ test("latestReviewForSha：同 sha 多条标记（重派/增量）取 submitted_
 test("deriveOutcomeForRuns：命中 review → 派生三格 + source github（inline=comments 数、degraded=body 降级行、folded=折叠行）", async () => {
   const { client, calls } = mkClient([{ id: 1001, body: BODY(FULL_SHA) }], { 1001: [{ id: 1 }, { id: 2 }, { id: 3 }] });
   const derived = await deriveOutcomeForRuns([run({ runKey: "#87@05c4473" })], client, { delayMs: 0 });
-  assert.deepEqual(derived.get("#87@05c4473"), { inline: 3, degraded: 1, folded: 2, source: "github" });
+  assert.deepEqual(derived.get("#87@05c4473"), { inline: 3, degraded: 1, folded: 2, source: "github", reactions: { plus: 0, minus: 0 } });
   assert.equal(calls.listReviews, 1);
   assert.deepEqual(calls.commentIds, [1001]);
 });
@@ -146,7 +146,7 @@ test("deriveOutcomeForRuns：0/0 脏值 run 命中真实意见 → 派生覆盖�
   const derived = await deriveOutcomeForRuns(Object.values(runs), client, { delayMs: 0 });
   const applied = applyDerivedOutcomes(runs, derived);
   assert.equal(applied, 1);
-  const want: DerivedOutcome = { inline: 2, degraded: 1, folded: 2, source: "github" };
+  const want = { inline: 2, degraded: 1, folded: 2, source: "github" };
   assert.deepEqual(runs["req-pub"]!.outcome, want);
 });
 
@@ -173,7 +173,7 @@ test("deriveOutcomeForRuns：listComments 失败只废该 runKey，同 PR 其余
     { delayMs: 0 },
   );
   assert.equal(derived.has("#87@05c4473"), false, "comments 失败的 runKey 保留日志值");
-  assert.deepEqual(derived.get("#87@80268e2"), { inline: 1, degraded: 1, folded: 2, source: "github" });
+  assert.deepEqual(derived.get("#87@80268e2"), { inline: 1, degraded: 1, folded: 2, source: "github", reactions: { plus: 0, minus: 0 } });
 });
 
 test("deriveOutcomeForRuns：runKey 去重——同 runKey 多段记录只派生一次；apply 覆盖该 runKey 全部记录（publish 段脏值一并纠正）", async () => {
@@ -187,7 +187,7 @@ test("deriveOutcomeForRuns：runKey 去重——同 runKey 多段记录只派生
   assert.equal(calls.listComments, 1, "每 runKey 去重：派生只调一次");
   const applied = applyDerivedOutcomes(runs, derived);
   assert.equal(applied, 2, "同 runKey 全部记录统一口径");
-  const want: DerivedOutcome = { inline: 2, degraded: 1, folded: 2, source: "github" };
+  const want = { inline: 2, degraded: 1, folded: 2, source: "github" };
   assert.deepEqual(runs["req-review"]!.outcome, want);
   assert.deepEqual(runs["req-publish"]!.outcome, want);
 });
@@ -234,6 +234,20 @@ test("mergeRuns 不回归：派生 outcome（folded/source 两格）经字段级
   const prev: Record<string, ProdRun> = { r1: run({ runKey: "#1@abc", outcome: { inline: 3, degraded: 1, folded: 2, source: "github" } }) };
   const fresh = aggregateRuns([parseLogLine(L("2026-11-04T17:00:00Z", "r1", "[worker] x/y#1@abc 完成：0 条行内，0 条降级"))!]!);
   const merged = mergeLedger({ fetchedAt: "t0", runs: prev }, fresh, "t1");
-  const want: DerivedOutcome = { inline: 3, degraded: 1, folded: 2, source: "github" };
+  const want = { inline: 3, degraded: 1, folded: 2, source: "github" };
   assert.deepEqual(merged.runs["r1"]!.outcome, want, "prev 非空 outcome 赢（a ?? b），两格扩展字段随对象整体保留");
+});
+
+test("#106 reactions：review body + 行内评论两面的 👍/👎 聚合（缺格按 0，零新增调用）", async () => {
+  const { client } = mkClient(
+    [{ id: 1001, body: BODY(FULL_SHA), reactions: { "+1": 2, "-1": 1 } }],
+    { 1001: [{ id: 1, reactions: { "+1": 3, "-1": 0 } }, { id: 2 }, { id: 3, reactions: { "+1": 0, "-1": 4 } }] },
+  );
+  const runs = [run({ runKey: "#87@05c4473", reviewTokens: { in: 1, out: 1 }, pr: 87, headSha: "05c4473" })];
+  const derived = await deriveOutcomeForRuns(runs, client, { delayMs: 0 });
+  assert.deepEqual(derived.get("#87@05c4473")!.reactions, { plus: 5, minus: 5 }, "body 2/1 + 评论 3/4 求和；缺格评论按 0");
+  const ledgerRuns = { req: run({ runKey: "#87@05c4473", outcome: { inline: 0, degraded: 0 } }) };
+  applyDerivedOutcomes(ledgerRuns, derived);
+  assert.deepEqual(ledgerRuns["req"]!.reactions, { plus: 5, minus: 5 });
+  assert.deepEqual(ledgerRuns["req"]!.outcome, { inline: 3, degraded: 1, folded: 2, source: "github" }, "outcome 不夹带 reactions");
 });
