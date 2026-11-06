@@ -245,7 +245,7 @@ async function main() {
       const m = metrics(rs);
       return `- **${src}**（${rs.length} 用例）：recall ${percent(m.recall)}（${m.hits}/${m.expectN}），precision ${m.precision === null ? "—" : percent(m.precision)}（${m.tp}/${m.comments}）`
         + (src === "dogfood" ? "（回归集，不计入能力评估）" : "")
-        + (src === "ctxpair" ? "（多期望双联口径：一条意见命中双联两条期望时 recall 记 2 而 TP 只记 1，precision 为系统性低估下界——读数以 Δrecall 为主，根治口径见 #112）" : "");
+        + (src === "ctxpair" ? "（TP 按（意见，期望）对计，#112 根治后口径——一条意见命中双联两条期望记 2 个 TP）" : "");
     })
     .filter((x): x is string => x !== null);
 
@@ -282,8 +282,8 @@ async function main() {
   const missLowRate = missLow.length ? `${missLow.filter((p) => p.conf === "low").length}/${missLow.length}（${((missLow.filter((p) => p.conf === "low").length / missLow.length) * 100).toFixed(0)}%）` : "—";
 
   const tableLines = [
-    `| case | source | kind | 期望命中 | recall | 意见数 | TP | precision | echo违规 | tokens 入/出 | 耗时s | confidence |`,
-    `|---|---|---|---|---|---|---|---|---|---|---|---|`,
+    `| case | source | kind | 期望命中 | recall | 意见数 | TP | precision | echo违规 | LP | Noise | tokens 入/出 | 耗时s | confidence |`,
+    `|---|---|---|---|---|---|---|---|---|---|---|---|---|---|`,
     ...runs.map((r) => {
       if (r.error) {
         // error 文本可能含 |、换行、反引号，破坏 markdown 表格结构
@@ -297,9 +297,20 @@ async function main() {
       const recPct = clean ? "—" : percent(s.recall);
       const prec = s.precision === null ? "—" : s.precision.toFixed(2);
       const echo = r.source === "injection" ? String(s.echoViolations) : "—";
-      return `| ${r.caseId} | ${r.source} | ${r.kind} | ${rec} | ${recPct} | ${s.agentComments} | ${s.truePositives} | ${prec} | ${echo} | ${fmtInOut(r.usage)} | ${(r.durationMs / 1000).toFixed(1)} | ${confidenceDist(s.commentConfidences)} |`;
+      // 双口径（#105，aacr-bench legacy 对齐）：LP = located/content（内容命中里定位也准的比例）；
+      // Noise = unmatched/total（意见级）。历史 run 无 contentComments 字段 → —
+      const lp = s.contentComments === undefined || s.contentComments === 0 ? "—" : percent(s.locatedComments / s.contentComments);
+      const noise = s.agentComments === 0 ? "—" : percent((s.agentComments - s.locatedComments) / s.agentComments);
+      return `| ${r.caseId} | ${r.source} | ${r.kind} | ${rec} | ${recPct} | ${s.agentComments} | ${s.truePositives} | ${prec} | ${echo} | ${lp} | ${noise} | ${fmtInOut(r.usage)} | ${(r.durationMs / 1000).toFixed(1)} | ${confidenceDist(s.commentConfidences)} |`;
     }),
-    `| **汇总**（能力评估；${failed > 0 ? `排除 ${failed} 个失败用例、` : ""}dogfood 回归集单独统计） | | | **${totalHits}/${totalExpect}** | **${percent(recall)}** | ${totalComments} | ${totalTp} | **${precision === null ? "—" : percent(precision)}** | ${injDenom ? injEchoTotal : "—"} | ${usageKnown ? `${fmtTok(usageTotal.inputTokens)}/${fmtTok(usageTotal.outputTokens)}` : "—"} | ${(totalMs / 1000).toFixed(0)} | ${confidenceTotal} |`,
+    (() => {
+      // 汇总双口径：能力组合计（与汇总行同口径）
+      const capContent = capability.reduce((s, r) => s + r.score.contentComments, 0);
+      const capLocated = capability.reduce((s, r) => s + r.score.locatedComments, 0);
+      const lp = capContent === 0 ? "—" : percent(capLocated / capContent);
+      const noise = totalComments === 0 ? "—" : percent((totalComments - capLocated) / totalComments);
+      return `| **汇总**（能力评估；${failed > 0 ? `排除 ${failed} 个失败用例、` : ""}dogfood 回归集单独统计） | | | **${totalHits}/${totalExpect}** | **${percent(recall)}** | ${totalComments} | ${totalTp} | **${precision === null ? "—" : percent(precision)}** | ${injDenom ? injEchoTotal : "—"} | ${lp} | ${noise} | ${usageKnown ? `${fmtTok(usageTotal.inputTokens)}/${fmtTok(usageTotal.outputTokens)}` : "—"} | ${(totalMs / 1000).toFixed(0)} | ${confidenceTotal} |`;
+    })(),
   ];
 
   const report = [
