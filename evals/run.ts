@@ -14,7 +14,8 @@ import {
   type ReviewResult,
   type TokenUsage,
 } from "../src/review.ts";
-import { fileReaderFromEntries, searcherFromEntries, type ZipballEntries } from "../src/context.ts";
+import { fileReaderFromEntries, searcherFromEntries, snapshotTree, type ZipballEntries } from "../src/context.ts";
+import { diffSkeleton, runReviewRouter, type ReviewPlan } from "../src/router.ts";
 
 const CASE_GAP_MS = 2_000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -38,21 +39,26 @@ function entriesFromRepo(repo: Record<string, string>): ZipballEntries {
   return new Map(Object.entries(repo).map(([p, content]) => [p, encoder.encode(content)]));
 }
 
-// 用例 → reviewDiff opts：无 taskContext / previousFindings 且无 repo = 裸路径（opts 整个不传，调用形态与
-// 历史字节级一致，能力组 promptHash + 逐用例 tokens 红线由构造保证）；taskContext 只在用例显式携带时进 opts
-//（inj-07，D029）、previousFindings 同款（inj-08，D035）；repo 用例注入 fileReader + searcher
-//（生产同参走工具注入路径，D018 教训：eval 不镜像生产参数，eval 绿生产盲）
-function caseOpts(c: EvalCase): ReviewDiffOpts | undefined {
-  if (c.taskContext === undefined && c.previousFindings === undefined && !c.repo) return undefined;
+// 用例 → reviewDiff opts + repo entries：无 taskContext / previousFindings 且无 repo = 裸路径（opts 整个
+// 不传，调用形态与历史字节级一致，能力组 promptHash + 逐用例 tokens 红线由构造保证）；taskContext 只在用例
+// 显式携带时进 opts（inj-07，D029）、previousFindings 同款（inj-08，D035）；repo 用例注入 fileReader + searcher
+//（生产同参走工具注入路径，D018 教训：eval 不镜像生产参数，eval 绿生产盲）。
+// entries 一并返回（#65 闸门 2）：EVAL_PLAN 臂的 router 要用同一份 entries 构造文件树（snapshotTree），
+// 不提升的话 router 侧会二次构造同一 Map
+function caseOpts(c: EvalCase): { opts: ReviewDiffOpts | undefined; entries: ZipballEntries | null } {
+  if (c.taskContext === undefined && c.previousFindings === undefined && !c.repo) {
+    return { opts: undefined, entries: null };
+  }
   const opts: ReviewDiffOpts = {};
   if (c.taskContext !== undefined) opts.taskContext = c.taskContext;
   if (c.previousFindings !== undefined) opts.previousFindings = c.previousFindings;
+  let entries: ZipballEntries | null = null;
   if (c.repo) {
-    const entries = entriesFromRepo(c.repo);
+    entries = entriesFromRepo(c.repo);
     opts.fileReader = fileReaderFromEntries(entries);
     opts.searcher = searcherFromEntries(entries);
   }
-  return opts;
+  return { opts, entries };
 }
 
 async function reviewWithRetry(diff: string, opts?: ReviewDiffOpts): Promise<ReviewOutcome> {
@@ -87,22 +93,53 @@ async function main() {
   // console/md/JSON 三处都带子集标记，防子集 run 混进全量对比（parseEvalOnly 校验组名，见 score.ts）
   const evalOnly = parseEvalOnly(process.env.EVAL_ONLY, allCases.map(sourceOf));
   const cases = evalOnly ? allCases.filter((c) => evalOnly.includes(sourceOf(c))) : allCases;
+  // EVAL_PLAN 消融臂（#65 闸门 2）：带 repo 的用例主评审前先跑 router 出评审计划，注入 opts.plan——
+  // 与 worker 编排同构（tree = snapshotTree(同一 entries)、skeleton = diffSkeleton(diff)，router.ts 复用）。
+  // 未开启时零行为差异（caseOpts 产物原样下传，字节级红线由构造保证）
+  const evalPlan = process.env.EVAL_PLAN === "1";
   const model = process.env.LLM_MODEL ?? "(unknown)";
   // prompt 内容指纹：同 prompt 多轮与改版后的 run 机械可分（D006——eval 报告引用具体 prompt 版本）；
   // 指纹跟随实际生效的 system（JSON 模式含 json-output.md 后缀，DeepSeek 类端点；GLM 下字节不变 hash 不变）
   const promptHash = createHash("sha256").update(withJsonSuffix(loadPrompt())).digest("hex").slice(0, 12);
   const startedAt = new Date().toISOString();
-  console.log(`eval 开始：${cases.length} 个用例，模型 ${model}，prompt ${promptHash}` + (evalOnly ? `，子集（EVAL_ONLY）${evalOnly.join(",")}` : ""));
+  console.log(
+    `eval 开始：${cases.length} 个用例，模型 ${model}，prompt ${promptHash}`
+      + (evalOnly ? `，子集（EVAL_ONLY）${evalOnly.join(",")}` : "")
+      + (evalPlan ? `，router 计划臂（EVAL_PLAN）` : ""),
+  );
+
+  // 臂级统计（#65 消融口径）：injected = router 成功出计划；failed = router 抛错按无计划继续（D028
+  // best-effort 镜像，绝不重试）；skipped = 用例无 repo 无文件树（worker「快照不可用跳过」同款语义）。
+  // routerMs 单列（不算进用例 durationMs——那是主评审的量，两臂耗时对比要干净）
+  const planStats = { injected: 0, failed: 0, skipped: 0, routerMs: 0 };
 
   const runs: CaseRun[] = [];
   for (const [i, c] of cases.entries()) {
     process.stdout.write(`[${i + 1}/${cases.length}] ${c.id} ... `);
+    const { opts, entries } = caseOpts(c);
+    let plan: ReviewPlan | undefined;
+    if (evalPlan) {
+      if (!entries) {
+        planStats.skipped++;
+      } else {
+        const routerStart = Date.now();
+        try {
+          plan = await runReviewRouter({ tree: snapshotTree(entries), skeleton: diffSkeleton(c.diff) });
+          planStats.injected++;
+        } catch (err) {
+          planStats.failed++;
+          console.warn(`\n  router 失败，无计划继续（D028 best-effort 镜像）：${String(err).slice(0, 160)}`);
+        }
+        planStats.routerMs += Date.now() - routerStart;
+      }
+    }
     const started = Date.now();
     let error: string | null = null;
     let comments: ReviewResult["comments"] = [];
     let usage: TokenUsage | null = null;
     try {
-      const outcome = await reviewWithRetry(c.diff, caseOpts(c));
+      // plan 只在有值时并入（裸路径用例 + EVAL_PLAN 未开 → opts 原样下传，历史字节级一致）
+      const outcome = await reviewWithRetry(c.diff, plan ? { ...(opts ?? {}), plan } : opts);
       comments = outcome.comments;
       usage = outcome.usage;
     } catch (e) {
@@ -112,7 +149,7 @@ async function main() {
     const score = error ? null : scoreCase(c, comments);
     runs.push({ caseId: c.id, kind: c.kind, source: sourceOf(c), error, comments, usage, durationMs, score });
     const mark = error ? `✗ 出错` : score!.verdicts.length === 0 ? `clean（FP 对照）` : `命中 ${score!.hits}/${score!.verdicts.length}`;
-    console.log(`${mark}，${comments.length} 条意见，tokens ${fmtInOut(usage)}，${(durationMs / 1000).toFixed(1)}s`);
+    console.log(`${plan ? "⚙计划 " : ""}${mark}，${comments.length} 条意见，tokens ${fmtInOut(usage)}，${(durationMs / 1000).toFixed(1)}s`);
     if (i < cases.length - 1) await sleep(CASE_GAP_MS);
   }
 
@@ -216,6 +253,9 @@ async function main() {
     + (process.env.LLM_BASE_URL ? `（${process.env.LLM_BASE_URL}）` : ""),
     `- prompt 指纹：\`${promptHash}\``,
     ...(evalOnly ? [`- 子集（EVAL_ONLY）：\`${evalOnly.join(",")}\`（非全量，各指标只覆盖所列组）`] : []),
+    ...(evalPlan
+      ? [`- router 计划臂（EVAL_PLAN）：注入 ${planStats.injected} / 失败 ${planStats.failed}（无计划继续）/ 无 repo 跳过 ${planStats.skipped}，router 耗时合计 ${(planStats.routerMs / 1000).toFixed(1)}s`]
+      : []),
     `- 汇总（能力评估 = synthetic + real）：recall ${percent(recall)}（${totalHits}/${totalExpect}），precision ${precision === null ? "—" : percent(precision)}（${totalTp}/${totalComments}），失败用例 ${failed}（不计入指标），总耗时 ${(totalMs / 1000 / 60).toFixed(1)} 分钟`,
     `- token 用量（成功用例求和${failed > 0 ? `，失败 ${failed} 例未计量` : ""}）：${usageKnown ? `输入 ${fmtTok(usageTotal.inputTokens)} / 输出 ${fmtTok(usageTotal.outputTokens)} / 合计 ${fmtTok(usageTotal.totalTokens)}` : "端点未返回 usage"}`,
     ``,
@@ -235,14 +275,21 @@ async function main() {
   const extraBodyHash = process.env.LLM_EXTRA_BODY
     ? `-${createHash("sha256").update(process.env.LLM_EXTRA_BODY).digest("hex").slice(0, 6)}`
     : "";
-  const base = `${stamp}-${safeModel}-${promptHash}${extraBodyHash}`;
+  // plan 臂后缀：两臂同模型同 prompt 同 extraBody，同秒起跑时若无后缀互覆（#56 同型事故）；
+  // 后缀即口径自描述——文件名一眼可分「这一轮是带计划的臂」
+  const planSuffix = evalPlan ? "-plan" : "";
+  const base = `${stamp}-${safeModel}-${promptHash}${extraBodyHash}${planSuffix}`;
   writeFileSync(
     new URL(`./runs/${base}.json`, import.meta.url),
     // schemaVersion 1 = groups 不含 injection、summary.injection 携带拦截率块、echo 口径为违规意见数；
     // 此前落盘的 run 无此字段（历史上 groups 含 injection），消费方按 0 处理——runs JSON 无版本标记的盲区就此闭合
     // evalOnly：非 null = 子集 run（EVAL_ONLY 过滤）；llmExtraBody：请求体扩展参数原样落盘（配置自描述——
     // thinking 档位等实验的对照读数靠它区分，文件名指纹的出处）
-    JSON.stringify({ startedAt, model, llmBaseUrl: process.env.LLM_BASE_URL ?? null, llmExtraBody: process.env.LLM_EXTRA_BODY ?? null, promptHash, evalOnly, capabilityScope: "synthetic+real", schemaVersion: 1, runs, summary: {
+    JSON.stringify({ startedAt, model, llmBaseUrl: process.env.LLM_BASE_URL ?? null, llmExtraBody: process.env.LLM_EXTRA_BODY ?? null, promptHash, evalOnly, capabilityScope: "synthetic+real", schemaVersion: 1,
+      // planArm（#65 闸门 2）：null = baseline 臂（无计划）；对象 = EVAL_PLAN 臂。compare.ts 按
+      // enabled 分组键拆两臂——同模型同 prompt 的两臂绝不能混聚成「同版多轮」
+      planArm: evalPlan ? { enabled: true, ...planStats } : null,
+      runs, summary: {
       recall, precision, totalExpect, totalHits, totalComments, totalTp, failed, usage: usageTotal, groups: groupMetrics,
       // 注入组拦截率进 JSON（runs/*.json 是 compare 聚合与迭代对比的数据出口，只读 md 抄数会断机械聚合）
       ...(injDenom ? { injection: { passed: injPassed, denom: injDenom, echoViolations: injEchoTotal, echoCases: injEchoBad.length, suppressed: injSuppressed.length, failed: injFailed } } : {}),

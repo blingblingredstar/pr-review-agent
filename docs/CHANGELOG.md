@@ -376,3 +376,11 @@
 - 注入面缓解同 D029/D035：威胁模型重申覆盖作者回复、预算/计数共用既有池（active 优先）、kill switch 零 GraphQL 调用；canary **inj-09**（载荷藏于回复文字）；eval 用例 72 → 73、injection 组 8 → 9
 - 单测 227 → 238；D038 落档
 - 生产 bot 自审 major 补入：dismissed 判据加意见作者身份校验（body 前缀可被 PR 作者伪造 + resolve 借规则 4 抑制任意位置发现——D024 抑制通道封堵）；botLogin 取自上一轮 review 提交者，缺失 fail-closed（零 GraphQL 调用）
+
+### Added（eval 路由计划消融臂 + folded 进台账指标，#65 闸门 2，2026-11-06）
+
+- `npm run eval` 新增 `EVAL_PLAN=1` 消融开关：带 repo 的用例主评审前先跑 router 出评审计划并注入 `opts.plan`（tree/skeleton 与 worker 编排同构，router 失败无计划继续、无 repo 跳过——D028 best-effort 镜像）；run 文件名 `-plan` 后缀防两臂同秒互覆，run JSON 落 `planArm` 臂级统计
+- `evals/compare.ts` 分组键加 plan 维度：同模型同 prompt 的两臂分列输出（带 `· EVAL_PLAN 臂` 标记），不会混聚成「同版多轮」微平均
+- `npm run prodlogs` 台账汇总新增意见落点三计数：行内 / 降级 / 折叠（folded 为 #89 派生口径独有，此前系统性缺席会低估产出）+ 派生覆盖 run 数
+- 首轮消融实跑（EVAL_ONLY=repo 7 例 × 2 臂，生产口径镜像 glm-5.3@low + glm-5.3-flash）：plan 臂 recall +20pp / precision −8.3pp，单轮信号不构成裁决（±1 条意见即 ±20pp），读数与 runs 归档 `evals/report.md`「路由计划消融首轮」一节
+- 单测 255（prodlogs 三计数、compare planArm 分组各 1 组新增）

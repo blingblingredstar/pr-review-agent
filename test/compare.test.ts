@@ -120,3 +120,23 @@ test("aggregateRuns：空组返回 null 而非 0（与 precision 的 — 语义�
   assert.equal(agg.micro.recall, null);
   assert.equal(agg.micro.precision, null);
 });
+
+test("aggregateRuns：planArm 分组——EVAL_PLAN 臂与 baseline 不混聚，legacy/null 归 baseline（#65 闸门 2）", () => {
+  const base = { caseId: "repo-01", source: "repo", error: null, score: score(1, 1, 2, 1) };
+  const planRun = runJson({ planArm: { enabled: true }, runs: [base] });
+  const nullArmRun = runJson({ planArm: null, runs: [base] });
+  // legacy run：不传 planArm（run.ts 写出该字段之前的存量 run JSON 就是这个形态）
+  const legacyRun = runJson({ runs: [base] });
+  const aggs = aggregateRuns([
+    { name: "plan.json", data: planRun },
+    { name: "null-arm.json", data: nullArmRun },
+    { name: "legacy.json", data: legacyRun },
+  ]);
+  // 同模型同 prompt：baseline 两个 run（null 臂 + legacy）聚一组、plan 臂单独一组——
+  // 混聚会被当「同版多轮」微平均，消融对照失义
+  assert.equal(aggs.length, 2);
+  const planAgg = aggs.find((a) => a.planArm === "plan")!;
+  const baseAgg = aggs.find((a) => a.planArm === "")!;
+  assert.equal(planAgg.files.length, 1, "plan 臂独立成组");
+  assert.equal(baseAgg.files.length, 2, "null 臂与 legacy 同归 baseline 组");
+});

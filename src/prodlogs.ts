@@ -223,10 +223,18 @@ export function summarize(ledger: Ledger): string {
   const reviewIn = reviews.reduce((s, r) => s + r.reviewIn, 0);
   const reviewOut = reviews.reduce((s, r) => s + r.reviewOut, 0);
   const routerOut = reviews.reduce((s, r) => s + r.routerOut, 0);
+  // 意见落点三计数（#65 闸门 2：folded 进指标——D032 起 minor/nit 折叠段是意见的重要落点，缺了
+  // 会系统性低估产出）。folded/source 为 optional（#89 前的老记录无这格），缺省 0 / 不计入派生数：
+  // 只加总已知值，宁可低报也不编造
+  const inline = reviews.reduce((s, r) => s + (r.outcome?.inline ?? 0), 0);
+  const degraded = reviews.reduce((s, r) => s + (r.outcome?.degraded ?? 0), 0);
+  const folded = reviews.reduce((s, r) => s + (r.outcome?.folded ?? 0), 0);
+  const derived = reviews.filter((r) => r.outcome?.source === "github").length;
   return (
     `审查 ${reviews.length} 次（完成 ${finished}，超时 ${timeouts}）` +
     `；review in ${reviewIn} / out ${reviewOut}，router out ${routerOut}` +
     `；带工具调用审查 ${toolRuns} 次` +
+    `；意见落点：行内 ${inline} / 降级 ${degraded} / 折叠 ${folded}（#89 派生口径 ${derived} run）` +
     `；未归组段 ${unattributed.length}（prepare 阶段 request，无 [worker] 行不计数）`
   );
 }

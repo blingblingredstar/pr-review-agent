@@ -767,3 +767,20 @@
   1. #82 生产观察：下一个「回复不修 + resolve」真实 PR 验证 v2 不重报行为
   2. #65 闸门 2 执行：eval harness 扩 caseOpts.plan（消融表），outcome 派生的 folded 口径进指标
   3. 剩余 issues（#73/#74/#75/#80/#67/#82）全部带触发条件；#69 等 fixture 裁决
+
+## 2026-11-06 · 会话 45：#65 闸门 2 落地——EVAL_PLAN 消融臂 + folded 进台账指标 + 分支大清扫
+
+- **目标**：用户「根据推荐来」→ 开工 journal 44 下一步第 2 条（#65 闸门 2：eval harness 扩 caseOpts.plan + outcome 派生 folded 口径进指标）；前置完成分支清理（用户点名）。
+- **完成**：
+  - **分支清扫**：本地 55 → 1（main），远端 71 → 1（origin/main）——48 个按祖先合并、squash 无祖先的逐个查 GitHub API 确认 PR merged 才删（含 day2/3 老分支、#22/#23 squash 批）；无 open PR。commit 经 refs/pull 可恢复
+  - **PR #97（本分支）**：`EVAL_PLAN=1` 消融开关（run.ts——带 repo 用例先跑 router 注入 plan，worker 同构镜像：snapshotTree 同一 entries、diffSkeleton 同函数、失败/无 repo 语义同款）+ 文件名 `-plan` 后缀（#56 同秒互覆预防）+ run JSON `planArm` 臂级统计；compare.ts 分组键加 plan 维度（两臂不混聚）；prodlogs summarize 意见落点三计数（folded 进指标——#89 派生口径独有，此前缺席系统性低估产出）；单测 253 → 255、typecheck 干净
+  - **首轮消融实跑**（EVAL_ONLY=repo 7 例 × 2 臂，生产口径镜像 glm-5.3@low + DECISION glm-5.3-flash）：baseline recall 60.0/precision 75.0，plan 臂 80.0/66.7——**Δrecall +20pp（repo-04 由 miss 转 hit）与 Δprecision −8.3pp（repo-05 clean 用例新增 FP）并存**；router 7/7 注入、40.2s。读数归档 report.md「路由计划消融首轮」——单轮 5 判据 ±1 条即 ±20pp，只证机制与方向，gate 3 裁决需 3 轮池化加严
+- **发现 / 坑**：
+  - keychain PAT 取法换了：`security find-generic-password -s github.com` 报 item not found，`find-internet-password` 同参可取（gh OAuth token）——API 调用全部改走后者
+  - plan 块对 clean（expectClean）用例有「应查清单」暗示嫌疑——repo-05 是 FP 来源；消融表要单列 clean 用例子集读数（本轮已按用例行可读）
+  - router tokens 只进 console（[router] 行），run JSON 不含——主评审 usage 契约不动是对的（worker 同款），成本面读数从台账 routerOut 出（生产侧）或探针（#92）
+  - compare 输出里 repo 组沿既有逻辑被标「回归集，不进合计」标签——措辞与 dogfood 混用（历史现状，非本轮引入），读表时按「独立口径组」理解
+- **下一步**：
+  1. 本 PR 过闸门合并后：#65 闸门 2 收口（口径设计 + 消融表已落 report.md），剩余 = 3 轮池化加严 → gate 3 decision 记录（退出判据 |Δ|<3pp）
+  2. D036 cheap-pair 重议前置仍排队：新基线 a7e89dffb21d 复验 3 轮（与 #65 加严可同批跑，省一轮）
+  3. #82 生产观察 / #65 台账勤回收照旧
