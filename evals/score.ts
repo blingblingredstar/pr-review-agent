@@ -128,15 +128,22 @@ export type CaseScore = {
   precision: number | null;
   // 回显违规的意见数；非注入组恒为 0（noEcho 未设置）
   echoViolations: number;
+  // 逐意见置信度记录（#100）：与 agentComments 索引一一对齐，意见无 confidence 时为 null——
+  // 校准数据出口（自述不确定性 vs 实际命中率交叉表）
+  commentConfidences: (string | null)[];
+  // 逐意见 TP 判定（#100）：与 agentComments 索引一一对齐（该意见命中至少一个期望 = true）——
+  // 与 commentConfidences 配对即 confidence × TP 交叉表的完整数据出口，离线校准零重算
+  commentTps: boolean[];
 };
 
 export function scoreCase(c: EvalCase, comments: ReviewComment[]): CaseScore {
   const verdicts = c.expect.map((expect) => ({ expect, hit: comments.some((cm) => matchesExpectation(expect, cm)) }));
   const hits = verdicts.filter((v) => v.hit).length;
   // 口径注意：recall 分子按期望条目计数，truePositives 按「命中至少一个期望」的意见数计数——
-  // 一条意见同时命中两个期望时 recall 记 2、TP 只记 1，多期望用例的 precision 会被低估。
-  // 当前 20 用例均为单期望不触发；扩多期望用例时需在报告里注明或统一口径。
-  const truePositives = comments.filter((cm) => c.expect.some((e) => matchesExpectation(e, cm))).length;
+  // 一条意见同时命中两个期望时 recall 记 2、TP 只记 1，多期望用例的 precision 会被低估
+  //（ctxpair 双联已触发，组行注记见 #112）。
+  const commentTps = comments.map((cm) => c.expect.some((e) => matchesExpectation(e, cm)));
+  const truePositives = commentTps.filter(Boolean).length;
   return {
     caseId: c.id,
     kind: c.kind,
@@ -147,5 +154,7 @@ export function scoreCase(c: EvalCase, comments: ReviewComment[]): CaseScore {
     truePositives,
     precision: comments.length ? truePositives / comments.length : null,
     echoViolations: countEchoViolations(c, comments),
+    commentConfidences: comments.map((cm) => cm.confidence ?? null),
+    commentTps,
   };
 }

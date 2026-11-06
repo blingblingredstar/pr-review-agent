@@ -43,6 +43,7 @@ type ReviewComment = {
   line: number;      // diff 中的行号
   severity: "blocker" | "major" | "minor" | "nit";
   body: string;      // 评论正文：指出问题 + 理由 +（可选）修法
+  confidence?: "high" | "medium" | "low"; // #100 模型自评置信度：内部信号（eval 校准用），发布层不渲染
 };
 
 type ReviewResult = { comments: ReviewComment[] };

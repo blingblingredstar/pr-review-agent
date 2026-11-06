@@ -4,6 +4,6 @@
 
 形状（字段名、类型完全一致，不增删字段）：
 
-{"comments": [{"file": "相对仓库根的文件路径", "line": 1, "severity": "blocker|major|minor|nit", "body": "问题 + 理由 +（可选）修法"}]}
+{"comments": [{"file": "相对仓库根的文件路径", "line": 1, "severity": "blocker|major|minor|nit", "body": "问题 + 理由 +（可选）修法", "confidence": "high|medium|low（可选：对该发现是真问题的自评确信度；不确定但高影响的照报并标 low）"}]}
 
 确实没有问题时输出 {"comments": []}。
