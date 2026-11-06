@@ -134,6 +134,7 @@ DoD：`npm test` / `npm run typecheck` 全绿；历史 run JSON 读入不炸；�
 
 ## G 轨（新增，用户指令）：仓库重构评估——只读分析，不动生产代码
 
+- **输入（重要，防重评）**：会话 46 白天已有一轮目录重组裁定（architect 双路独立评审一致，纯讨论未落库）：**domain→service→adaptor 目录重组否决、D030 维持**——分层已以模块为单位存在（github/context/review = adaptor；diff/dedupe/incremental = domain；worker = service），全仓两个环（webhook↔worker、review↔router）均为文档化有意设计；真实压力点另有三处：①bot review 产物 wire format 无 owner（severity 前缀 / 降级行 / 折叠段——写侧 github.ts 四处、读侧 findings.ts + prod-runs-derived.ts 手抄同构 regex；正面样板 = dedupe.ts sha marker 单点）②github.ts 混 API client 与 ~100 行发布策略 ③worker.ts 589 行（非 god module，cheap-pair 立项时拆 runPrepare/runReview/runPublish 即可）。**G 轨不重开目录重组问题**——内容清单 1/3 以该裁定为起点做证据复核（引用 D030），聚焦裁定未覆盖的维度（清单 2/4/5/6/7）与压力点收敛切口验证（对照 #82 发布层门槛链路，自然时点 = 第四个 wire format consumer 出现时）
 - 时机：C④ 长尾等待期（~2h 空档）subagent 起草，与 A/B 轨 subagent 错峰（并发上限 2）
 - 产出：`docs/plans/refactor-assessment-2026-11-07.md` + docs PR（`docs:` 标签）
 - 内容清单（每项带证据：文件:行 / 数字，不写空话）：
@@ -145,7 +146,7 @@ DoD：`npm test` / `npm run typecheck` 全绿；历史 run JSON 读入不炸；�
   6. docs 体系负担：append-only 体量、每 PR 双文档（journal + CHANGELOG）纪律的执行成本
   7. 依赖健康：依赖数 / 已知 CVE 面（sec-auditor 口径）
 - 结论三选一（评估文档内给出，晨起处理）：**不需要重构**（理由落 journal）/ **局部重构清单**（开 issue 列优先级 + 预估收益）/ **整体重构**（开 issue + 建议计划文档）
-- DoD：评估文档 PR 合并；结论与候选清单落 journal 会话 46「下一步」；G 轨不占 D 编号（评估不产决策，若需 D 编号晨起定）
+- DoD：评估文档 PR 合并；**白天目录重组裁定随评估文档落库**（正文记录 + 引用 D030；是否新开 D 编号晨起定——不占 D039）；结论与候选清单落 journal 会话 46「下一步」
 
 ## 预分配（并行撞号预防）
 
