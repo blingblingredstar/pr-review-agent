@@ -1,0 +1,390 @@
+{
+  "startedAt": "2026-11-06T17:37:39.953Z",
+  "model": "glm-5.3",
+  "llmBaseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+  "llmExtraBody": "{\"thinking\":{\"type\":\"enabled\"},\"reasoning_effort\":\"low\"}",
+  "promptHash": "f4e2b250e88b",
+  "evalOnly": [
+    "framing"
+  ],
+  "capabilityScope": "synthetic+real",
+  "schemaVersion": 1,
+  "planArm": null,
+  "contextArm": null,
+  "runs": [
+    {
+      "caseId": "framing-02-removed-export-still-used-a",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/config/limits.ts",
+          "line": 2,
+          "severity": "major",
+          "body": "删除了导出常量 `MAX_QUEUE_DEPTH`，但 `src/queue/publisher.ts` 第 1 行仍在 `import { MAX_QUEUE_DEPTH } from \"../config/limits.ts\"` 并在第 4 行返回它，运行/构建时该模块会因命名导出不复存在而报错（Deno 下直接抛模块解析错误）。需同步迁移 publisher 到新常量来源，或恢复该导出。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3841,
+        "outputTokens": 165,
+        "totalTokens": 4006
+      },
+      "durationMs": 6038,
+      "score": {
+        "caseId": "framing-02-removed-export-still-used-a",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/config/limits.ts",
+              "line": 3,
+              "mustMention": [
+                "publisher.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ]
+      }
+    },
+    {
+      "caseId": "framing-02-removed-export-still-used-b",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/config/limits.ts",
+          "line": 2,
+          "severity": "major",
+          "body": "删除了导出常量 MAX_QUEUE_DEPTH，但 src/queue/publisher.ts 第 1 行仍 `import { MAX_QUEUE_DEPTH } from \"../config/limits.ts\"` 并在第 4 行返回它，该导入将解析失败（或得到 undefined），运行时抛错/行为异常。若确要移除该常量，需同步更新 publisher.ts（内联数值或改用其他配置）；否则应保留导出。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3853,
+        "outputTokens": 161,
+        "totalTokens": 4014
+      },
+      "durationMs": 5637,
+      "score": {
+        "caseId": "framing-02-removed-export-still-used-b",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/config/limits.ts",
+              "line": 3,
+              "mustMention": [
+                "publisher.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ]
+      }
+    },
+    {
+      "caseId": "framing-02-removed-export-still-used-c",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/config/limits.ts",
+          "line": 2,
+          "severity": "blocker",
+          "body": "删除了导出常量 MAX_QUEUE_DEPTH，但 src/queue/publisher.ts:1 仍 `import { MAX_QUEUE_DEPTH } from \"../config/limits.ts\"` 并在 line 4 使用。该导入在运行/编译时会报错（模块没有该导出），publisher 模块整体不可用。要么恢复该导出，要么同步修改 publisher.ts 改用新来源。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3851,
+        "outputTokens": 146,
+        "totalTokens": 3997
+      },
+      "durationMs": 8146,
+      "score": {
+        "caseId": "framing-02-removed-export-still-used-c",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/config/limits.ts",
+              "line": 3,
+              "mustMention": [
+                "publisher.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ]
+      }
+    },
+    {
+      "caseId": "framing-04-string-key-residual-a",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 3804,
+        "outputTokens": 258,
+        "totalTokens": 4062
+      },
+      "durationMs": 15818,
+      "score": {
+        "caseId": "framing-04-string-key-residual-a",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/events/bus.ts",
+              "line": 2,
+              "mustMention": [
+                "progress.ts"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": []
+      }
+    },
+    {
+      "caseId": "framing-04-string-key-residual-b",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/events/bus.ts",
+          "line": 2,
+          "severity": "major",
+          "body": "事件字符串值从 \"sync:done\" 改为 \"sync:complete\"，但 src/ui/progress.ts:4 仍用字面量 `getBus().on(\"sync:done\", ...)` 订阅，改后该监听器永远收不到同步完成事件，进度 UI 静默失效。应将调用方改用 EVT_SYNC_DONE 常量或同步更新字符串（并搜索其他字符串引用）。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3842,
+        "outputTokens": 197,
+        "totalTokens": 4039
+      },
+      "durationMs": 9681,
+      "score": {
+        "caseId": "framing-04-string-key-residual-b",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/events/bus.ts",
+              "line": 2,
+              "mustMention": [
+                "progress.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ]
+      }
+    },
+    {
+      "caseId": "framing-04-string-key-residual-c",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 3812,
+        "outputTokens": 425,
+        "totalTokens": 4237
+      },
+      "durationMs": 12869,
+      "score": {
+        "caseId": "framing-04-string-key-residual-c",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/events/bus.ts",
+              "line": 2,
+              "mustMention": [
+                "progress.ts"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": []
+      }
+    },
+    {
+      "caseId": "framing-05-clean-complete-rename-a",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 4024,
+        "outputTokens": 44,
+        "totalTokens": 4068
+      },
+      "durationMs": 5855,
+      "score": {
+        "caseId": "framing-05-clean-complete-rename-a",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": []
+      }
+    },
+    {
+      "caseId": "framing-05-clean-complete-rename-b",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 4036,
+        "outputTokens": 82,
+        "totalTokens": 4118
+      },
+      "durationMs": 5599,
+      "score": {
+        "caseId": "framing-05-clean-complete-rename-b",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": []
+      }
+    },
+    {
+      "caseId": "framing-05-clean-complete-rename-c",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 4032,
+        "outputTokens": 30,
+        "totalTokens": 4062
+      },
+      "durationMs": 4306,
+      "score": {
+        "caseId": "framing-05-clean-complete-rename-c",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": []
+      }
+    }
+  ],
+  "summary": {
+    "recall": 0,
+    "precision": null,
+    "totalExpect": 0,
+    "totalHits": 0,
+    "totalComments": 0,
+    "totalTp": 0,
+    "failed": 0,
+    "usage": {
+      "inputTokens": 35095,
+      "outputTokens": 1508,
+      "totalTokens": 36603
+    },
+    "groups": {
+      "framing": {
+        "recall": 0.6666666666666666,
+        "precision": 1,
+        "expectN": 6,
+        "hits": 4,
+        "comments": 4,
+        "tp": 4,
+        "runs": 9,
+        "failed": 0
+      }
+    }
+  }
+}

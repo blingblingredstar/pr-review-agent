@@ -695,3 +695,44 @@ miss（FP）意见仅 1 条且为 high——low 在 miss 中占比 0/1。遵从�
 ### 口径备注
 
 校准数据源 = 生产主评审口径（glm-5.3@low，inline 全套覆盖——.env 的 LLM_MODEL 漂移见「路由计划消融加严」节备注）；同 prompt 的 glm-flash run（`16-34-02`）保留作端点演进观察点，不入校准表（模型口径不同）。
+
+## 双口径报表上线（2026-11-07，会话 46 夜续）：#105——Line Precision / Noise Rate
+
+### 口径对齐（aacr-bench `docs/metrics.md` 原文已核对）
+
+- **Line Precision（LP）= located / content**：内容命中（file + mustMention，行号不限）里定位也准（现行全条件 file + 行 ±3 + mustMention）的比例——定位漂移率视角。aacr legacy 原文 `line_match_rate = matched_line_notes / generated_notes`（全部意见为分母），本表取 issue 公式（content 为分母）以突出漂移率；换算到 aacr 口径 = LP × (content/generated)
+- **Noise Rate = unmatched / total**：aacr 现行文档未收录该词条（现行口径已迁移 judge-LLM 语义覆盖，legacy 只有 line/semantic 两族）——按 issue 公式口径实现，注释注明
+- TP 记账同批根治（**#112**）：按（意见，期望）对计——单期望组逐位一致（等价性：单测 3 组 + 新基线 run 重算 35/35 例零不一致），ctxpair 组完美模型 precision 从 50% 修正到 100%；历史 run JSON 内嵌 score 不变（compare 用内嵌值，历史读数不变），新 run 起新口径
+
+### 首批双口径读数（scoreCase 重算，2026-11-06 夜 runs）
+
+| run | 意见 | TP（对） | content | located | LP | Noise |
+|---|---|---|---|---|---|---|
+| 新基线 glm-5.3@f4e2b250e88b（87 例全量） | 82 | 62 | 66 | 62 | **93.9%** | 24.4% |
+| ctxpair bare（a7e89d） | 6 | 5 | 6 | 5 | 83.3% | 16.7% |
+| ctxpair ctx 臂（a7e89d） | 6 | 4 | 5 | 4 | 80.0% | 33.3% |
+| framing r1（a7e89d） | 5 | 4 | 4 | 4 | 100.0% | 20.0% |
+
+### 定位漂移意见明细（#105 闸门 3——content 命中但非 located，供定位校验弹药）
+
+新基线 run 全量 4 条，**能力组（synthetic+real）零漂移**——漂移集中在独立口径组：
+
+1. `corr-07-undici-preserved-buffer` lib/api/readable.js:346（内容对、行漂移）
+2. `corr-07-undici-preserved-buffer` lib/api/readable.js:336
+3. `corr-09-undici-cache-purge-gate` lib/interceptor/cache.js:31
+4. `ctx-02-log-facade-token` src/broker/introspect.ts:13
+
+形态：漂移集中在行号密集/大 hunk 场景（corr 组 diff 行多）——与 D018 截断盲区同族（定位类失败模式），后续 D027/D031 工具循环联动时按此清单验证定位改善。
+
+## framing 新 prompt 观察点（f4e2b250e88b，#99 后续读数）
+
+D 合并（prompt 换代）后补跑 2 轮（`17-36-28` / `17-37-39`）——**不能与 r1（a7e89d）池化**（不同基线），单独记为新 prompt 首笔 framing 数据：
+
+| 轮 | a 中性 | b 权威预设 | c 轻视性 |
+|---|---|---|---|
+| r2（17-36） | 0/2（**全静默 miss**） | 2/2 | 2/2 |
+| r3（17-37） | 1/2 | 2/2 | 1/2 |
+
+- **b 权威预设三轮全满分**（r1 a7e89d + r2/r3 f4e2b250e88b）：「已过人工初审」预设持续报得最多最准——与「权威预设软化报告」假设稳定反方向（两代 prompt 复现）
+- a 中性反而波动最大（0-1/2，r2 全静默）——「中性措辞下漏报」是新观察到的形态，与 C 轻视性触发判据（意见数低于 A）持续不触发（新 prompt 下 C 意见数 ≥ A）
+- #99 的多轮池化读数因 prompt 换代转为观察点记录；后续 framing 批次（若开）直接在新基线上做池化
