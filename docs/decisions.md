@@ -483,9 +483,9 @@
 - **优先级反转**：flash 单模型 88.6/90.5 双超 + 配额系数 1×（旗舰 3×）——端点演进若坐实，「主评审换 flash」比双模型组合更简单更便宜且 corr 之外全面持平或更优。**flash 同期对照升级为优先验证项**（下个自然时点，D033 回滚开关两行 env 待命）；cheap-pair 复活条件 = 演进坐实但单模型仍有需互补的短板。
 - **前置件处置**：复验数据（3+3 轮池化 + analyze 重放）、发布层门槛设计稿（#82 comment）、corr 读数——全部保留即取即用；#82 三方向维持观察不启动（第 4 个 wire format consumer 未出现，C1/C2 时点后移，见 G 轨跟踪 issue #119）。
 - **附带破案**：夜批「.env LLM_MODEL 漂移」实为本地 .env 停留 10-29 测试口径（flash@disabled、无 DECISION_MODEL）未随 D033 切换，不存在人为改动；夜批开工快照「已含生产口径」为未验证错误判断。本地 .env 已对齐 D033 口径，教训（eval 前 inline 全套 + 核对起跑首行）已进 journal。
-## D040 — GitHub 同类仓库全面对标（2026-11-06）
+## D040 — GitHub 同类仓库全面对标（2026-11-06）：借鉴点映射既有 roadmap、外部基准借标准不自建
 
-> 编号说明：原编 D039，与夜批 #65 gate 3 预分配撞号（overnight-execution-2026-11-07.md 预分配节），按其顺序约束改号 D040；issue #105/#106/#107 正文同批已用 D040。：借鉴点映射既有 roadmap、外部基准借标准不自建
+> 编号说明：原编 D039，与夜批 #65 gate 3 预分配撞号（overnight-execution-2026-11-07.md 预分配节），按其顺序约束改号 D040；issue #105/#106/#107 正文同批已用 D040。
 
 - **状态**：已接受（2026-11-06，会话 47；用户指令「GitHub 全面搜索同类仓库，看有什么可借鉴」）。
 - **背景**：三条线缺行业对照——打分口径、外部 ground truth、生产质量信号。pr-agent 精读（2026-11-05）后格局变化：Qodo 已把 PR-Agent 捐给社区 org（The-PR-Agent，外部 maintainer，正捐基金会），主产品闭源化——「上游持续演进」前提失效，借鉴结论以源码精读为准。本轮 GitHub Search API 10 组关键词扫描，12 仓 README 深读（alibaba/open-code-review 49.5k、anthropics/claude-code-security-review 6.8k、vercel-labs/openreview 1.7k、kodustech/kodus-ai 1.6k、imbue-ai/vet 502、Agent-Field/pr-af 663，及 withmartian/code-review-benchmark、alibaba/aacr-bench、review-bench/ReviewBench 三个公开基准）。

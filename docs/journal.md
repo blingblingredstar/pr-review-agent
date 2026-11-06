@@ -819,10 +819,10 @@
   - **PR（本分支）**：decisions D039 + journal 本条，走独立 worktree（pr-review-agent-wt-c）基于 origin/main
 - **发现 / 坑**：
   - **格局变化**：Qodo 把 PR-Agent 捐给社区 org（The-PR-Agent），主产品闭源化——「上游持续演进」前提失效，D035/#82 借鉴结论以 2026-11-05 源码精读为准
-  - **三个公开基准涌现**（withmartian offline+online 双轨 / aacr-bench / ReviewBench by GitHub）——PR 审查评测正在标准化；我们 eval 体系差异化确认，可借标准不自建（D039 结论 4）
+  - **三个公开基准涌现**（withmartian offline+online 双轨 / aacr-bench / ReviewBench by GitHub）——PR 审查评测正在标准化；我们 eval 体系差异化确认，可借标准不自建（D040 结论 4）
   - alibaba/open-code-review（49.5k）= 本轮最大发现：混合架构（确定性工程 × agent）、文件捆绑分治、外部定位/反思模块、1/9 tokens 换 precision 优先——「确定性护栏包住 LLM」与仓库既有威胁模型/确定性过滤（D020/D024）思路同向
   - anthropics/claude-code-security-review 自认未做注入加固（只审可信 PR）——我们 9 条 canary 是真实差异点
   - 并行会话纪律实践：另一会话在 -wt-a/-wt-b 做 #99/#80 实现（分支零提交、未动 docs），本会话全走独立 worktree + origin/main 基线 + 精确 add，零接触主树脏文件（ledger.json）
 - **下一步**：
-  1. #105（指标双口径）最小可先做；#106/#107 带触发条件排队
+  1. 后续批次全景（#105 最小可先做 / #82·D036·G 轨裁定驱动 / #106·#107·#67 观察项 / #73·#74·#75 排期队列）见 `docs/plans/followup-plan-2026-11-07.md`（随本 PR 落库）
   2. 并行会话 #99/#80 收尾合并；#65 加严 3 轮 + D036 cheap-pair 复验同批（夜批顺序不变）
