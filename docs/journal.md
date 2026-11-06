@@ -816,7 +816,7 @@
 - **完成**：
   - GitHub Search API 10 组关键词扫描（ai code review / code review llm / pr review agent / code-review-bot / topic:code-review / topic:ai-code-review / chatgpt code review / code review benchmark / github app code review / agentic code review），12 仓 README 深读
   - **D040 落库**（原编号 D039，撞夜批 #65 gate 3 预分配，按 overnight-execution-2026-11-07.md 顺序约束改号）：借鉴点映射既有 roadmap（#73/#74/#75/#80/#82/#100 各补一条参考评论）、指标口径对齐（新立 #105）、reaction 回执（新立 #106）、外部 golden 子集转译（新立 #107）、三项不追（pr-af 重型管线 / 多平台 / 产品面）+ LLM-as-judge 不引入
-  - **PR（本分支）**：decisions D039 + journal 本条，走独立 worktree（pr-review-agent-wt-c）基于 origin/main
+  - **PR（本分支）**：decisions D040（原编 D039，见上）+ journal 本条，走独立 worktree（pr-review-agent-wt-c）基于 origin/main
 - **发现 / 坑**：
   - **格局变化**：Qodo 把 PR-Agent 捐给社区 org（The-PR-Agent），主产品闭源化——「上游持续演进」前提失效，D035/#82 借鉴结论以 2026-11-05 源码精读为准
   - **三个公开基准涌现**（withmartian offline+online 双轨 / aacr-bench / ReviewBench by GitHub）——PR 审查评测正在标准化；我们 eval 体系差异化确认，可借标准不自建（D040 结论 4）
