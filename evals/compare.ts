@@ -177,7 +177,9 @@ async function main() {
       console.log(`|---|---|---|`);
       for (const [src, m] of Object.entries(agg.groups)) {
         const tag = isCapabilitySource(src) ? "" : "（回归集，不进合计）";
-        console.log(`| ${src}${tag} | ${percent(m.recall)} | ${percent(m.precision)} |`);
+        // ctxpair 多期望双联口径（#112）：一条意见命中双联两条期望时 recall 记 2、TP 记 1——precision 低估下界
+        const tpNote = src === "ctxpair" ? "〔TP 口径见 #112，precision 低估下界〕" : "";
+        console.log(`| ${src}${tag}${tpNote} | ${percent(m.recall)} | ${percent(m.precision)} |`);
       }
       console.log(`| **合计（能力评估）** | **${percent(agg.micro.recall)}** | **${percent(agg.micro.precision)}** |`);
       if (agg.unstable.length > 0) {

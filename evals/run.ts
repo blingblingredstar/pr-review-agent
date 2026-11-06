@@ -232,7 +232,8 @@ async function main() {
       if (rs.length === 0) return null;
       const m = metrics(rs);
       return `- **${src}**（${rs.length} 用例）：recall ${percent(m.recall)}（${m.hits}/${m.expectN}），precision ${m.precision === null ? "—" : percent(m.precision)}（${m.tp}/${m.comments}）`
-        + (src === "dogfood" ? "（回归集，不计入能力评估）" : "");
+        + (src === "dogfood" ? "（回归集，不计入能力评估）" : "")
+        + (src === "ctxpair" ? "（多期望双联口径：一条意见命中双联两条期望时 recall 记 2 而 TP 只记 1，precision 为系统性低估下界——读数以 Δrecall 为主，根治口径见 #112）" : "");
     })
     .filter((x): x is string => x !== null);
 
