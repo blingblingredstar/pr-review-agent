@@ -92,6 +92,15 @@ function percent(n: number): string {
 const fmtTok = (v: number | null): string => (v === null ? "—" : String(v));
 const fmtInOut = (u: TokenUsage | null): string => (u ? `${fmtTok(u.inputTokens)}/${fmtTok(u.outputTokens)}` : "—");
 
+// confidence 分布紧凑串（#100）：`2H1M0L`（全带值）/ `3null`（全缺）/ 混合 `1H0M0L2null`；无意见为 —
+function confidenceDist(cs: (string | null)[]): string {
+  if (cs.length === 0) return "—";
+  const count = (v: string | null) => cs.filter((c) => c === v).length;
+  const nulls = count(null);
+  const hml = `${count("high")}H${count("medium")}M${count("low")}L`;
+  return nulls === cs.length ? `${nulls}null` : nulls > 0 ? `${hml}${nulls}null` : hml;
+}
+
 type OkRun = CaseRun & { score: CaseScore };
 
 async function main() {
@@ -177,7 +186,10 @@ async function main() {
     const score = error ? null : scoreCase(c, comments);
     runs.push({ caseId: c.id, kind: c.kind, source: sourceOf(c), error, comments, usage, durationMs, score });
     const mark = error ? `✗ 出错` : score!.verdicts.length === 0 ? `clean（FP 对照）` : `命中 ${score!.hits}/${score!.verdicts.length}`;
-    console.log(`${plan ? "⚙计划 " : ""}${ctxText ? "≣已注入 " : ""}${mark}，${comments.length} 条意见，tokens ${fmtInOut(usage)}，${(durationMs / 1000).toFixed(1)}s`);
+    console.log(
+      `${plan ? "⚙计划 " : ""}${ctxText ? "≣已注入 " : ""}${mark}，${comments.length} 条意见，tokens ${fmtInOut(usage)}，${(durationMs / 1000).toFixed(1)}s`
+        + `，confidence ${confidenceDist(score?.commentConfidences ?? [])}`,
+    );
     if (i < cases.length - 1) await sleep(CASE_GAP_MS);
   }
 
@@ -254,14 +266,17 @@ async function main() {
       `（注入 canary 单独考核，不计入能力评估）`
     : null;
 
+  // confidence 分布合计（#100）：口径与汇总行一致 = 能力评估组（synthetic + real）
+  const confidenceTotal = confidenceDist(capability.flatMap((r) => r.score.commentConfidences));
+
   const tableLines = [
-    `| case | source | kind | 期望命中 | recall | 意见数 | TP | precision | echo违规 | tokens 入/出 | 耗时s |`,
-    `|---|---|---|---|---|---|---|---|---|---|---|`,
+    `| case | source | kind | 期望命中 | recall | 意见数 | TP | precision | echo违规 | tokens 入/出 | 耗时s | confidence |`,
+    `|---|---|---|---|---|---|---|---|---|---|---|---|`,
     ...runs.map((r) => {
       if (r.error) {
         // error 文本可能含 |、换行、反引号，破坏 markdown 表格结构
         const reason = r.error.slice(0, 60).replace(/[|`\\\n]/g, " ");
-        return `| ${r.caseId} ✗ ${reason} | ${r.source} | ${r.kind} | — | — | — | — | — | — | — | ${(r.durationMs / 1000).toFixed(1)} |`;
+        return `| ${r.caseId} ✗ ${reason} | ${r.source} | ${r.kind} | — | — | — | — | — | — | — | ${(r.durationMs / 1000).toFixed(1)} | — |`;
       }
       const s = r.score!;
       // expectClean（D031）无期望条目：期望命中列标 clean，recall 无分母显示 —（precision 照常计入）
@@ -270,9 +285,9 @@ async function main() {
       const recPct = clean ? "—" : percent(s.recall);
       const prec = s.precision === null ? "—" : s.precision.toFixed(2);
       const echo = r.source === "injection" ? String(s.echoViolations) : "—";
-      return `| ${r.caseId} | ${r.source} | ${r.kind} | ${rec} | ${recPct} | ${s.agentComments} | ${s.truePositives} | ${prec} | ${echo} | ${fmtInOut(r.usage)} | ${(r.durationMs / 1000).toFixed(1)} |`;
+      return `| ${r.caseId} | ${r.source} | ${r.kind} | ${rec} | ${recPct} | ${s.agentComments} | ${s.truePositives} | ${prec} | ${echo} | ${fmtInOut(r.usage)} | ${(r.durationMs / 1000).toFixed(1)} | ${confidenceDist(s.commentConfidences)} |`;
     }),
-    `| **汇总**（能力评估；${failed > 0 ? `排除 ${failed} 个失败用例、` : ""}dogfood 回归集单独统计） | | | **${totalHits}/${totalExpect}** | **${percent(recall)}** | ${totalComments} | ${totalTp} | **${precision === null ? "—" : percent(precision)}** | ${injDenom ? injEchoTotal : "—"} | ${usageKnown ? `${fmtTok(usageTotal.inputTokens)}/${fmtTok(usageTotal.outputTokens)}` : "—"} | ${(totalMs / 1000).toFixed(0)} |`,
+    `| **汇总**（能力评估；${failed > 0 ? `排除 ${failed} 个失败用例、` : ""}dogfood 回归集单独统计） | | | **${totalHits}/${totalExpect}** | **${percent(recall)}** | ${totalComments} | ${totalTp} | **${precision === null ? "—" : percent(precision)}** | ${injDenom ? injEchoTotal : "—"} | ${usageKnown ? `${fmtTok(usageTotal.inputTokens)}/${fmtTok(usageTotal.outputTokens)}` : "—"} | ${(totalMs / 1000).toFixed(0)} | ${confidenceTotal} |`,
   ];
 
   const report = [
@@ -289,6 +304,7 @@ async function main() {
       ? [`- 上下文注入臂（EVAL_CONTEXT，仅 ctxpair）：注入 ${contextStats.injected} / 跳过 ${contextStats.skipped}（预算关或无触及路径；buildContextText 纯函数无失败路径）`]
       : []),
     `- 汇总（能力评估 = synthetic + real）：recall ${percent(recall)}（${totalHits}/${totalExpect}），precision ${precision === null ? "—" : percent(precision)}（${totalTp}/${totalComments}），失败用例 ${failed}（不计入指标），总耗时 ${(totalMs / 1000 / 60).toFixed(1)} 分钟`,
+    `- confidence 分布（能力组合计，#100；H/M/L = 模型自评条数，null = 意见未带）：${confidenceTotal}`,
     `- token 用量（成功用例求和${failed > 0 ? `，失败 ${failed} 例未计量` : ""}）：${usageKnown ? `输入 ${fmtTok(usageTotal.inputTokens)} / 输出 ${fmtTok(usageTotal.outputTokens)} / 合计 ${fmtTok(usageTotal.totalTokens)}` : "端点未返回 usage"}`,
     ``,
     ...groupLines,

@@ -15,6 +15,9 @@ export const reviewResultSchema = z.object({
       line: z.number().int().positive().describe("新文件中的行号"),
       severity: z.enum(["blocker", "major", "minor", "nit"]),
       body: z.string().describe("问题 + 理由 +（可选）修法"),
+      // #100 意见置信度（行为级可观测性：自述不确定性 vs 实际命中校准）。optional：历史 run JSON 读入零破坏；
+      // 内部信号，发布层不渲染（src/github.ts 组装只取 file/line/severity/body）
+      confidence: z.enum(["high", "medium", "low"]).optional(),
     }),
   ),
 });
