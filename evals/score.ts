@@ -10,6 +10,10 @@ export type Expectation = {
   line: number | null;
   // body 命中其一即算提到该问题（大小写不敏感），给同义候选以容忍措辞差异
   mustMention: string[];
+  // 缺陷类型标注（ctxpair 双联组专用，#80）：structural = 纯 diff 内可发现的结构缺陷；
+  // convention = 违反 diff 外快照约定的缺陷（diff-only 结构性不可见，双联组被度量的能力缺口）。
+  // 其他组不写、零破坏
+  kind?: "structural" | "convention";
 };
 
 export type EvalCase = {
@@ -24,8 +28,11 @@ export type EvalCase = {
   // correlation=对抗性关联组（路线图第 1 项：真实「引入 commit + 修复 commit」配对，考 diff 内跨位置关联推理，
   // 独立口径先不进能力评估，injection/repo 同款模式）；
   // incremental=增量对照组（D032 开放问题②量化：同一 fixture 的 full（S0→S2）/delta（S1→S2）两口径成对，
-  // repo 快照恒为 head 态模拟生产增量审查输入，full/delta 召回差 = 跨 push 盲区量化，独立口径不进能力评估）
-  source?: "synthetic" | "real" | "dogfood" | "injection" | "repo" | "correlation" | "incremental";
+  // repo 快照恒为 head 态模拟生产增量审查输入，full/delta 召回差 = 跨 push 盲区量化，独立口径不进能力评估）；
+  // ctxpair=context-aware 双联组（#80：每例 = 1 条 structural（diff 内）+ 1 条 convention（约定在非触及文件，
+  // diff-only 不可见）的双联缺陷；bare 臂 = 真 diff-only 裸跑 vs EVAL_CONTEXT 臂 = D023 上下文注入的 Δrecall，
+  // 独立口径不进能力评估，injection/repo 同款模式）
+  source?: "synthetic" | "real" | "dogfood" | "injection" | "repo" | "correlation" | "incremental" | "ctxpair";
   // 注入组专用（source=injection 时必填）：注入载荷的特征串。任何意见 body 命中且不含 ECHO_META_MARKERS
   // （指出「这是注入」的元讨论是职责行为，不算回显）即记一次 echo 违规
   noEcho?: string[];
@@ -46,12 +53,12 @@ export type EvalCase = {
   expectClean?: true;
 };
 
-export function sourceOf(c: EvalCase): "synthetic" | "real" | "dogfood" | "injection" | "repo" | "correlation" | "incremental" {
+export function sourceOf(c: EvalCase): "synthetic" | "real" | "dogfood" | "injection" | "repo" | "correlation" | "incremental" | "ctxpair" {
   return c.source ?? "synthetic";
 }
 
 // 能力评估口径（D015）：synthetic + real；dogfood 是回归集（考过的原题）不进能力指标。
-// injection / repo / correlation / incremental 独立口径，不进能力指标。
+// injection / repo / correlation / incremental / ctxpair 独立口径，不进能力指标。
 // 显式白名单：拼错或新增的 source 字符串不会被静默计入能力口径——run.ts 打分与 compare.ts 聚合共用
 export const isCapabilitySource = (src: string): boolean => src === "synthetic" || src === "real";
 

@@ -14,7 +14,8 @@ import {
   type ReviewResult,
   type TokenUsage,
 } from "../src/review.ts";
-import { fileReaderFromEntries, searcherFromEntries, snapshotTree, type ZipballEntries } from "../src/context.ts";
+import { buildContextText, contextMaxChars, fileReaderFromEntries, searcherFromEntries, snapshotTree, type ZipballEntries } from "../src/context.ts";
+import { diffTouchedPaths } from "../src/diff.ts";
 import { diffSkeleton, runReviewRouter, type ReviewPlan } from "../src/router.ts";
 
 const CASE_GAP_MS = 2_000;
@@ -43,6 +44,8 @@ function entriesFromRepo(repo: Record<string, string>): ZipballEntries {
 // 不传，调用形态与历史字节级一致，能力组 promptHash + 逐用例 tokens 红线由构造保证）；taskContext 只在用例
 // 显式携带时进 opts（inj-07，D029）、previousFindings 同款（inj-08，D035）；repo 用例注入 fileReader + searcher
 //（生产同参走工具注入路径，D018 教训：eval 不镜像生产参数，eval 绿生产盲）。
+// ctxpair 用例（#80）例外：repo 快照只是 EVAL_CONTEXT 臂的上下文原料，fileReader/searcher 永不注入——
+// 双联组的 bare 臂 = 真 diff-only 裸跑（与 repo 组的工具注入口径不同：这里对照的唯一变量是注入文本，不是工具循环）。
 // entries 一并返回（#65 闸门 2）：EVAL_PLAN 臂的 router 要用同一份 entries 构造文件树（snapshotTree），
 // 不提升的话 router 侧会二次构造同一 Map
 function caseOpts(c: EvalCase): { opts: ReviewDiffOpts | undefined; entries: ZipballEntries | null } {
@@ -55,23 +58,27 @@ function caseOpts(c: EvalCase): { opts: ReviewDiffOpts | undefined; entries: Zip
   let entries: ZipballEntries | null = null;
   if (c.repo) {
     entries = entriesFromRepo(c.repo);
-    opts.fileReader = fileReaderFromEntries(entries);
-    opts.searcher = searcherFromEntries(entries);
+    if (c.source !== "ctxpair") {
+      opts.fileReader = fileReaderFromEntries(entries);
+      opts.searcher = searcherFromEntries(entries);
+    }
   }
-  return { opts, entries };
+  // ctxpair bare 臂（EVAL_CONTEXT 未开）构造出的 opts 是空对象：归一为 undefined，
+  // 调用形态与历史裸路径逐位一致（reviewDiff 对 opts 只做可选链读取，此处归一是口径自证不是行为修正）
+  return { opts: Object.keys(opts).length > 0 ? opts : undefined, entries };
 }
 
-async function reviewWithRetry(diff: string, opts?: ReviewDiffOpts): Promise<ReviewOutcome> {
+async function reviewWithRetry(diff: string, context: string | undefined, opts?: ReviewDiffOpts): Promise<ReviewOutcome> {
   let firstError: unknown = null;
   try {
-    return await reviewDiff(diff, undefined, opts);
+    return await reviewDiff(diff, context, opts);
   } catch (e) {
     firstError = e;
     console.warn(`\n  首次失败（${String(e).slice(0, 160)}），10s 后重试一次`);
     await sleep(10_000);
   }
   try {
-    return await reviewDiff(diff, undefined, opts);
+    return await reviewDiff(diff, context, opts);
   } catch (e) {
     throw new Error(`首次：${String(firstError).slice(0, 160)}；重试：${String(e).slice(0, 160)}`);
   }
@@ -97,6 +104,10 @@ async function main() {
   // 与 worker 编排同构（tree = snapshotTree(同一 entries)、skeleton = diffSkeleton(diff)，router.ts 复用）。
   // 未开启时零行为差异（caseOpts 产物原样下传，字节级红线由构造保证）
   const evalPlan = process.env.EVAL_PLAN === "1";
+  // EVAL_CONTEXT 消融臂（#80）：仅 ctxpair 用例在主评审前按生产同参拼上下文（buildContextText 纯函数 =
+  // worker buildRepoContext 的确定性尾段：触及文件全文按 diff 顺序 + 文件树，预算 contextMaxChars()），
+  // 经 reviewDiff 第二位置参数注入（生产 context 通路同款）。其他组开与不开行为完全不变（字节级红线由构造保证）
+  const evalContext = process.env.EVAL_CONTEXT === "1";
   const model = process.env.LLM_MODEL ?? "(unknown)";
   // prompt 内容指纹：同 prompt 多轮与改版后的 run 机械可分（D006——eval 报告引用具体 prompt 版本）；
   // 指纹跟随实际生效的 system（JSON 模式含 json-output.md 后缀，DeepSeek 类端点；GLM 下字节不变 hash 不变）
@@ -105,13 +116,17 @@ async function main() {
   console.log(
     `eval 开始：${cases.length} 个用例，模型 ${model}，prompt ${promptHash}`
       + (evalOnly ? `，子集（EVAL_ONLY）${evalOnly.join(",")}` : "")
-      + (evalPlan ? `，router 计划臂（EVAL_PLAN）` : ""),
+      + (evalPlan ? `，router 计划臂（EVAL_PLAN）` : "")
+      + (evalContext ? `，上下文注入臂（EVAL_CONTEXT，仅 ctxpair）` : ""),
   );
 
   // 臂级统计（#65 消融口径）：injected = router 成功出计划；failed = router 抛错按无计划继续（D028
   // best-effort 镜像，绝不重试）；skipped = 用例无 repo 无文件树（worker「快照不可用跳过」同款语义）。
   // routerMs 单列（不算进用例 durationMs——那是主评审的量，两臂耗时对比要干净）
   const planStats = { injected: 0, failed: 0, skipped: 0, routerMs: 0 };
+  // context 臂级统计（#80，镜像 planStats 结构）：injected = buildContextText 出非空文本；skipped = 返回 null
+  //（预算关 / 无触及路径）；failed 恒 0——buildContextText 是纯函数无失败路径，字段保留仅为两侧统计同构
+  const contextStats = { injected: 0, failed: 0, skipped: 0 };
 
   const runs: CaseRun[] = [];
   for (const [i, c] of cases.entries()) {
@@ -133,13 +148,26 @@ async function main() {
         planStats.routerMs += Date.now() - routerStart;
       }
     }
+    // EVAL_CONTEXT（#80）：仅 ctxpair 用例拼上下文（buildContextText 返回 null → 不注入计 skipped）。
+    // 注入标记在主评审调用前落 stdout——干跑校验看得到「开始注入」而无需等 LLM 返回
+    let ctxText: string | undefined;
+    if (evalContext && sourceOf(c) === "ctxpair") {
+      const text = entries ? buildContextText(entries, diffTouchedPaths(c.diff), contextMaxChars()) : null;
+      if (text === null) {
+        contextStats.skipped++;
+      } else {
+        ctxText = text;
+        contextStats.injected++;
+        process.stdout.write(`≣上下文 ${text.length} 字符（触及 ${diffTouchedPaths(c.diff).length} 文件）`);
+      }
+    }
     const started = Date.now();
     let error: string | null = null;
     let comments: ReviewResult["comments"] = [];
     let usage: TokenUsage | null = null;
     try {
-      // plan 只在有值时并入（裸路径用例 + EVAL_PLAN 未开 → opts 原样下传，历史字节级一致）
-      const outcome = await reviewWithRetry(c.diff, plan ? { ...(opts ?? {}), plan } : opts);
+      // plan / context 只在有值时并入（裸路径用例 + 两臂均未开 → opts 与 context 原样下传，历史字节级一致）
+      const outcome = await reviewWithRetry(c.diff, ctxText, plan ? { ...(opts ?? {}), plan } : opts);
       comments = outcome.comments;
       usage = outcome.usage;
     } catch (e) {
@@ -149,7 +177,7 @@ async function main() {
     const score = error ? null : scoreCase(c, comments);
     runs.push({ caseId: c.id, kind: c.kind, source: sourceOf(c), error, comments, usage, durationMs, score });
     const mark = error ? `✗ 出错` : score!.verdicts.length === 0 ? `clean（FP 对照）` : `命中 ${score!.hits}/${score!.verdicts.length}`;
-    console.log(`${plan ? "⚙计划 " : ""}${mark}，${comments.length} 条意见，tokens ${fmtInOut(usage)}，${(durationMs / 1000).toFixed(1)}s`);
+    console.log(`${plan ? "⚙计划 " : ""}${ctxText ? "≣已注入 " : ""}${mark}，${comments.length} 条意见，tokens ${fmtInOut(usage)}，${(durationMs / 1000).toFixed(1)}s`);
     if (i < cases.length - 1) await sleep(CASE_GAP_MS);
   }
 
@@ -204,7 +232,8 @@ async function main() {
       if (rs.length === 0) return null;
       const m = metrics(rs);
       return `- **${src}**（${rs.length} 用例）：recall ${percent(m.recall)}（${m.hits}/${m.expectN}），precision ${m.precision === null ? "—" : percent(m.precision)}（${m.tp}/${m.comments}）`
-        + (src === "dogfood" ? "（回归集，不计入能力评估）" : "");
+        + (src === "dogfood" ? "（回归集，不计入能力评估）" : "")
+        + (src === "ctxpair" ? "（多期望双联口径：一条意见命中双联两条期望时 recall 记 2 而 TP 只记 1，precision 为系统性低估下界——读数以 Δrecall 为主，根治口径见 #112）" : "");
     })
     .filter((x): x is string => x !== null);
 
@@ -256,6 +285,9 @@ async function main() {
     ...(evalPlan
       ? [`- router 计划臂（EVAL_PLAN）：注入 ${planStats.injected} / 失败 ${planStats.failed}（无计划继续）/ 无 repo 跳过 ${planStats.skipped}，router 耗时合计 ${(planStats.routerMs / 1000).toFixed(1)}s`]
       : []),
+    ...(evalContext
+      ? [`- 上下文注入臂（EVAL_CONTEXT，仅 ctxpair）：注入 ${contextStats.injected} / 跳过 ${contextStats.skipped}（预算关或无触及路径；buildContextText 纯函数无失败路径）`]
+      : []),
     `- 汇总（能力评估 = synthetic + real）：recall ${percent(recall)}（${totalHits}/${totalExpect}），precision ${precision === null ? "—" : percent(precision)}（${totalTp}/${totalComments}），失败用例 ${failed}（不计入指标），总耗时 ${(totalMs / 1000 / 60).toFixed(1)} 分钟`,
     `- token 用量（成功用例求和${failed > 0 ? `，失败 ${failed} 例未计量` : ""}）：${usageKnown ? `输入 ${fmtTok(usageTotal.inputTokens)} / 输出 ${fmtTok(usageTotal.outputTokens)} / 合计 ${fmtTok(usageTotal.totalTokens)}` : "端点未返回 usage"}`,
     ``,
@@ -275,10 +307,11 @@ async function main() {
   const extraBodyHash = process.env.LLM_EXTRA_BODY
     ? `-${createHash("sha256").update(process.env.LLM_EXTRA_BODY).digest("hex").slice(0, 6)}`
     : "";
-  // plan 臂后缀：两臂同模型同 prompt 同 extraBody，同秒起跑时若无后缀互覆（#56 同型事故）；
-  // 后缀即口径自描述——文件名一眼可分「这一轮是带计划的臂」
+  // plan / ctx 臂后缀：两臂同模型同 prompt 同 extraBody，同秒起跑时若无后缀互覆（#56 同型事故）；
+  // 后缀即口径自描述——文件名一眼可分「这一轮是带计划/带上下文的臂」
   const planSuffix = evalPlan ? "-plan" : "";
-  const base = `${stamp}-${safeModel}-${promptHash}${extraBodyHash}${planSuffix}`;
+  const ctxSuffix = evalContext ? "-ctx" : "";
+  const base = `${stamp}-${safeModel}-${promptHash}${extraBodyHash}${planSuffix}${ctxSuffix}`;
   writeFileSync(
     new URL(`./runs/${base}.json`, import.meta.url),
     // schemaVersion 1 = groups 不含 injection、summary.injection 携带拦截率块、echo 口径为违规意见数；
@@ -289,6 +322,9 @@ async function main() {
       // planArm（#65 闸门 2）：null = baseline 臂（无计划）；对象 = EVAL_PLAN 臂。compare.ts 按
       // enabled 分组键拆两臂——同模型同 prompt 的两臂绝不能混聚成「同版多轮」
       planArm: evalPlan ? { enabled: true, ...planStats } : null,
+      // contextArm（#80）：null = baseline 臂（diff-only 裸跑）；对象 = EVAL_CONTEXT 臂（仅 ctxpair 注入，
+      // 含注入统计）。compare.ts 分组键同款拆臂，防止双联组两臂被混聚成「同版多轮」
+      contextArm: evalContext ? { enabled: true, ...contextStats } : null,
       runs, summary: {
       recall, precision, totalExpect, totalHits, totalComments, totalTp, failed, usage: usageTotal, groups: groupMetrics,
       // 注入组拦截率进 JSON（runs/*.json 是 compare 聚合与迭代对比的数据出口，只读 md 抄数会断机械聚合）

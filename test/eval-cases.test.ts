@@ -80,11 +80,11 @@ function parseDiff(diff: string): { files: Set<string>; newLineRanges: Map<strin
   return { files, newLineRanges, errors };
 }
 
-test("用例集：82 个、id 唯一、synthetic 20（bug/linked 各 10）+ real 15 + dogfood 2 + injection 9 + repo 7 + correlation 10 + incremental 10 + framing 9", async () => {
+test("用例集：87 个、id 唯一、synthetic 20（bug/linked 各 10）+ real 15 + dogfood 2 + injection 9 + repo 7 + correlation 10 + incremental 10 + framing 9 + ctxpair 5", async () => {
   const cases = await loadCases();
-  assert.equal(cases.length, 82, `应有 82 个用例，实际 ${cases.length}`);
+  assert.equal(cases.length, 87, `应有 87 个用例，实际 ${cases.length}`);
   const ids = cases.map((c) => c.id);
-  assert.equal(new Set(ids).size, 82, "id 有重复");
+  assert.equal(new Set(ids).size, 87, "id 有重复");
   const synthetic = cases.filter((c) => (c.source ?? "synthetic") === "synthetic");
   assert.equal(synthetic.length, 20, "synthetic 应 20 个");
   assert.equal(synthetic.filter((c) => c.kind === "bug").length, 10, "synthetic bug 类应 10 个");
@@ -96,6 +96,7 @@ test("用例集：82 个、id 唯一、synthetic 20（bug/linked 各 10）+ real
   assert.equal(cases.filter((c) => c.source === "correlation").length, 10, "correlation 应 10 个");
   assert.equal(cases.filter((c) => c.source === "incremental").length, 10, "incremental 应 10 个");
   assert.equal(cases.filter((c) => (c.source as string) === "framing").length, 9, "framing 应 9 个");
+  assert.equal(cases.filter((c) => c.source === "ctxpair").length, 5, "ctxpair 应 5 个");
   // 增量对照组（D032 开放问题②）：full/delta 成对（5 fixture × 2 口径）；id 前缀防漏写；
   // repo 快照必带（head 态模拟生产 zipball，两口径共用同一快照——对照的唯一变量是 diff 区间）
   const incIds = cases.filter((c) => c.source === "incremental").map((c) => c.id);
@@ -131,8 +132,8 @@ test("用例集：82 个、id 唯一、synthetic 20（bug/linked 各 10）+ real
     if (c.source === "repo") {
       assert.ok(c.id.startsWith("repo-"), `${c.id} source=repo 但 id 前缀不符`);
       assert.ok(c.repo && Object.keys(c.repo).length > 0, `${c.id} source=repo 但缺 repo fixture`);
-    } else if (c.source !== "incremental" && (c.source as string) !== "framing") {
-      assert.equal(c.repo, undefined, `${c.id} 非 repo/incremental/framing 组不得携带 repo fixture（裸路径红线）`);
+    } else if (c.source !== "incremental" && (c.source as string) !== "framing" && c.source !== "ctxpair") {
+      assert.equal(c.repo, undefined, `${c.id} 非 repo/incremental/framing/ctxpair 组不得携带 repo fixture（裸路径红线）`);
     }
     // 增量对照组：repo 必带（head 态快照是两口径共用的前提，缺快照 delta 用例退化为裸路径、对照失效）
     if (c.source === "incremental") {
@@ -143,6 +144,36 @@ test("用例集：82 个、id 唯一、synthetic 20（bug/linked 各 10）+ real
     if ((c.source as string) === "framing") {
       assert.ok(c.id.startsWith("framing-"), `${c.id} source=framing 但 id 前缀不符`);
       assert.ok(c.repo && Object.keys(c.repo).length > 0, `${c.id} framing 用例缺 repo fixture（须复用原 repo 用例快照）`);
+    }
+    // ctxpair 双联组（#80）：repo 快照必带（EVAL_CONTEXT 臂的上下文原料；bare 臂不注入工具由 run.ts caseOpts 保证）。
+    // 双联断言：expect ≥2、kind 标注覆盖 structural + convention 各 ≥1、其余条目标注合法；
+    // 防循环性机械弱断言：convention 条目的 mustMention 词不得在快照任何 markdown 文档逐字出现
+    //（约定文档与 mustMention 是同义异措的两套词汇——expected 措辞复用 context 文档原词会给上下文臂白送命中，
+    // 课程 §三循环性教训，#80 闸门 3）。逐字判定的盲区（同义改写、词表穷尽）由各用例文件头的人工核对注释兜底
+    if (c.source === "ctxpair") {
+      assert.ok(c.id.startsWith("ctx-"), `${c.id} source=ctxpair 但 id 前缀不符`);
+      assert.ok(c.repo && Object.keys(c.repo).length > 0, `${c.id} source=ctxpair 但缺 repo fixture`);
+      assert.ok(c.expect.length >= 2, `${c.id} 双联用例 expect 应 ≥2 条（structural + convention 双联）`);
+      const kinds = c.expect.map((e) => e.kind);
+      for (const e of c.expect) {
+        assert.ok(e.kind === "structural" || e.kind === "convention", `${c.id} 双联用例每条 expect 须标 kind: structural | convention`);
+      }
+      assert.ok(kinds.includes("structural"), `${c.id} 缺 structural 标注条目`);
+      assert.ok(kinds.includes("convention"), `${c.id} 缺 convention 标注条目`);
+      const mdText = Object.entries(c.repo!)
+        .filter(([p]) => p.endsWith(".md"))
+        .map(([, v]) => v.toLowerCase())
+        .join("\n");
+      assert.ok(mdText.length > 0, `${c.id} 快照缺 markdown 约定文档（约定须落在非触及文件里）`);
+      for (const e of c.expect) {
+        if (e.kind !== "convention") continue;
+        for (const w of e.mustMention) {
+          assert.ok(
+            !mdText.includes(w.toLowerCase()),
+            `${c.id} convention 条目 mustMention「${w}」在快照 markdown 文档中逐字出现（防循环性红线，#80 闸门 3——expected 措辞不得复用约定文档原词）`,
+          );
+        }
+      }
     }
     // 对抗性关联组（路线图第 1 项）：id 前缀防漏写；describe 里的 provenance（引入/修复 commit）随 description 必填，
     // 防止「手写想当然用例」混进组里（D015 教训：底料必须可追溯到真实仓库配对）
@@ -159,9 +190,9 @@ test("用例集：82 个、id 唯一、synthetic 20（bug/linked 各 10）+ real
   }
 });
 
-test("repo/incremental/framing 组 fixture 结构：diff 触及文件都在快照中（head 态）、非 diff 文件 ≥2（答案文件 + 诱饵）", async () => {
-  const cases = (await loadCases()).filter((c) => c.source === "repo" || c.source === "incremental" || (c.source as string) === "framing");
-  assert.ok(cases.length >= 6, "repo 组应有足够用例");
+test("repo/incremental/framing/ctxpair 组 fixture 结构：diff 触及文件都在快照中（head 态）、非 diff 文件 ≥2（答案文件 + 诱饵）", async () => {
+  const cases = (await loadCases()).filter((c) => c.source === "repo" || c.source === "incremental" || (c.source as string) === "framing" || c.source === "ctxpair");
+  assert.ok(cases.length >= 6, "repo/incremental/framing/ctxpair 组应有足够用例");
   for (const c of cases) {
     const repo = c.repo!;
     const { files } = parseDiff(c.diff);
