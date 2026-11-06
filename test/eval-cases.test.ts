@@ -193,11 +193,12 @@ test("framing 组（#99）：fixture 三变体成对（-a/-b/-c），同 fixture
     assert.deepEqual([a.diff, a.kind, a.expect, a.expectClean, a.repo], [b.diff, b.kind, b.expect, b.expectClean, b.repo], `${base} a/b 字段漂移`);
     assert.deepEqual([a.diff, a.kind, a.expect, a.expectClean, a.repo], [c.diff, c.kind, c.expect, c.expectClean, c.repo], `${base} a/c 字段漂移`);
     assert.equal(new Set(trio.map((x) => x.taskContext)).size, 3, `${base} 三变体 taskContext 应互不相同（全同则对照退化）`);
-    // 与原 repo 用例的一致性（对照的有效性前提）：原用例修订时 framing 副本必须跟随，否则对照静默失效
-    const origin = all.find((x) => x.id === base);
+    // 与原 repo 用例的一致性（对照的有效性前提）：原用例修订时 framing 副本必须跟随，否则对照静默失效。
+    // framing id = 原 id 去 repo- 前缀，故映射回 repo-*
+    const origin = all.find((x) => x.id === base.replace(/^framing-/, "repo-"));
     assert.ok(origin, `${base} 找不到原 repo 用例`);
     if (origin) {
-      assert.deepEqual([a.diff, a.kind, a.expect, a.expectClean, a.repo], [origin.diff, origin.kind, origin.expect, origin.expectClean, origin.repo], `${base} 与原用例 ${base} 漂移（原用例修订后 framing 副本未跟随）`);
+      assert.deepEqual([a.diff, a.kind, a.expect, a.expectClean, a.repo], [origin.diff, origin.kind, origin.expect, origin.expectClean, origin.repo], `${base} 与原用例 ${origin.id} 漂移（原用例修订后 framing 副本未跟随）`);
     }
   }
 });
