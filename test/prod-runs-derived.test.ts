@@ -63,7 +63,7 @@ const run = (over: Partial<ProdRun>): ProdRun => ({
 // mock client：直填 DeriveGithubClient 结构，带调用计数（分组共享 / 不参与派生的断言用）。
 // comments 值可为 Error（按 review id 定向注错——失败隔离断言用）
 const mkClient = (
-  reviews: { id: number; body: string; submitted_at?: string | null }[] | Error,
+  reviews: { id: number; body: string; submitted_at?: string | null; reactions?: { "+1"?: number; "-1"?: number } }[] | Error,
   comments: Record<number, unknown[] | Error> = {},
 ): { client: DeriveGithubClient; calls: { listReviews: number; listComments: number; commentIds: number[] } } => {
   const calls = { listReviews: 0, listComments: 0, commentIds: [] as number[] };

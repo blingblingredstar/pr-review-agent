@@ -72,3 +72,23 @@ test("#112 单期望等价性：truePositives 逐位等于旧口径（命中至�
   assert.equal(s.truePositives, 2);
   assert.deepEqual(s.commentHitCounts, [1, 0, 1]);
 });
+
+test("#105 compare 聚合：历史 run（无 contentComments）或混传 → LP/Noise 置 null 不出假 100%", async () => {
+  const { aggregateRuns } = await import("../evals/compare.ts");
+  const mkRunJson = (contentComments?: number, locatedComments?: number) => ({
+    startedAt: "2026-11-06T00:00:00Z",
+    model: "glm-5.3",
+    promptHash: "aaaaaaaaaaaa",
+    runs: [{ caseId: "c1", source: "synthetic", error: null, score: { hits: 1, verdicts: [{ hit: true, expect: { file: "f", line: 1 } }], agentComments: 2, truePositives: 1, ...(contentComments !== undefined ? { contentComments } : {}), ...(locatedComments !== undefined ? { locatedComments } : {}) } }],
+  });
+  const old = { name: "old.json", data: mkRunJson() as never };
+  const [aggOld] = aggregateRuns([old]);
+  assert.equal(aggOld.micro.linePrecision, null, "纯历史 run LP → null");
+  assert.equal(aggOld.micro.noiseRate, null, "纯历史 run Noise → null（缺失不能抹 0 出假 100%）");
+  const mixed = { name: "new.json", data: mkRunJson(2, 2) as never };
+  const [aggMixed] = aggregateRuns([old, mixed]);
+  assert.equal(aggMixed.micro.noiseRate, null, "混传 → null（分子分母口径不齐）");
+  const [aggNew] = aggregateRuns([mixed]);
+  assert.equal(aggNew.micro.linePrecision, 1);
+  assert.equal(aggNew.micro.noiseRate, 0);
+});

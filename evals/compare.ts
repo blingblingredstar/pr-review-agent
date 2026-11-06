@@ -46,20 +46,30 @@ export type VersionAggregate = {
   unstable: { caseId: string; source: string; perRun: string[]; missAt: string[] }[];
 };
 
-function micro(hits: number[], expects: number[], tps: number[], comments: number[], content: number[] = [], located: number[] = []) {
+function micro(
+  hits: number[],
+  expects: number[],
+  tps: number[],
+  comments: number[],
+  content: (number | undefined)[] = [],
+  located: (number | undefined)[] = [],
+) {
   const expectN = expects.reduce((s, n) => s + n, 0);
   const hitN = hits.reduce((s, n) => s + n, 0);
   const tpN = tps.reduce((s, n) => s + n, 0);
   const cmN = comments.reduce((s, n) => s + n, 0);
-  const ctN = content.reduce((s, n) => s + n, 0);
-  const lcN = located.reduce((s, n) => s + n, 0);
-  // 空数据返回 null（显示 —）而非 0——0% 会被误读成「全 miss」；
-  // LP = located/content（#105，历史 run 无字段 → null）；Noise = (comments - located)/comments
+  // 双口径（#105）只在该组**全部** run 都带 contentComments/locatedComments 时才计算——
+  // 历史 run 缺字段不能按 0 抹平（bot major：缺失→0 会产出假 100% noise），混传同理（部分有值 =
+  // 分子分母口径不齐）。allHave 不满足 → LP/Noise 置 null 显示 —
+  const allHave = content.length > 0 && content.every((n) => n !== undefined) && located.every((n) => n !== undefined);
+  const ctN = allHave ? (content as number[]).reduce((s, n) => s + n, 0) : 0;
+  const lcN = allHave ? (located as number[]).reduce((s, n) => s + n, 0) : 0;
+  // 空数据返回 null（显示 —）而非 0——0% 会被误读成「全 miss」
   return {
     recall: expectN ? hitN / expectN : null,
     precision: cmN ? tpN / cmN : null,
-    linePrecision: ctN ? lcN / ctN : null,
-    noiseRate: cmN && lcN !== undefined ? (cmN - lcN) / cmN : null,
+    linePrecision: allHave && ctN ? lcN / ctN : null,
+    noiseRate: allHave && cmN ? (cmN - lcN) / cmN : null,
   };
 }
 
@@ -96,8 +106,8 @@ export function aggregateRuns(files: { name: string; data: RunJson }[]): Version
       capScores.map((s) => s.verdicts.length),
       capScores.map((s) => s.truePositives),
       capScores.map((s) => s.agentComments),
-      capScores.map((s) => s.contentComments ?? 0),
-      capScores.map((s) => s.locatedComments ?? 0),
+      capScores.map((s) => s.contentComments),
+      capScores.map((s) => s.locatedComments),
     );
     // groups 含全部 source（dogfood 照常输出、打印处标注回归集），能力口径只作用于 micro 合计；
     // injection 不进组聚合（D024：组指标是拦截率不是 recall/precision，按普通组展示会误导跨轮对比）
@@ -112,8 +122,8 @@ export function aggregateRuns(files: { name: string; data: RunJson }[]): Version
           ss.map((s) => s.verdicts.length),
           ss.map((s) => s.truePositives),
           ss.map((s) => s.agentComments),
-          ss.map((s) => s.contentComments ?? 0),
-          ss.map((s) => s.locatedComments ?? 0),
+          ss.map((s) => s.contentComments),
+          ss.map((s) => s.locatedComments),
         )];
       }),
     );
