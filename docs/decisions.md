@@ -483,3 +483,18 @@
 - **优先级反转**：flash 单模型 88.6/90.5 双超 + 配额系数 1×（旗舰 3×）——端点演进若坐实，「主评审换 flash」比双模型组合更简单更便宜且 corr 之外全面持平或更优。**flash 同期对照升级为优先验证项**（下个自然时点，D033 回滚开关两行 env 待命）；cheap-pair 复活条件 = 演进坐实但单模型仍有需互补的短板。
 - **前置件处置**：复验数据（3+3 轮池化 + analyze 重放）、发布层门槛设计稿（#82 comment）、corr 读数——全部保留即取即用；#82 三方向维持观察不启动（第 4 个 wire format consumer 未出现，C1/C2 时点后移，见 G 轨跟踪 issue #119）。
 - **附带破案**：夜批「.env LLM_MODEL 漂移」实为本地 .env 停留 10-29 测试口径（flash@disabled、无 DECISION_MODEL）未随 D033 切换，不存在人为改动；夜批开工快照「已含生产口径」为未验证错误判断。本地 .env 已对齐 D033 口径，教训（eval 前 inline 全套 + 核对起跑首行）已进 journal。
+## D040 — GitHub 同类仓库全面对标（2026-11-06）
+
+> 编号说明：原编 D039，与夜批 #65 gate 3 预分配撞号（overnight-execution-2026-11-07.md 预分配节），按其顺序约束改号 D040；issue #105/#106/#107 正文同批已用 D040。：借鉴点映射既有 roadmap、外部基准借标准不自建
+
+- **状态**：已接受（2026-11-06，会话 47；用户指令「GitHub 全面搜索同类仓库，看有什么可借鉴」）。
+- **背景**：三条线缺行业对照——打分口径、外部 ground truth、生产质量信号。pr-agent 精读（2026-11-05）后格局变化：Qodo 已把 PR-Agent 捐给社区 org（The-PR-Agent，外部 maintainer，正捐基金会），主产品闭源化——「上游持续演进」前提失效，借鉴结论以源码精读为准。本轮 GitHub Search API 10 组关键词扫描，12 仓 README 深读（alibaba/open-code-review 49.5k、anthropics/claude-code-security-review 6.8k、vercel-labs/openreview 1.7k、kodustech/kodus-ai 1.6k、imbue-ai/vet 502、Agent-Field/pr-af 663，及 withmartian/code-review-benchmark、alibaba/aacr-bench、review-bench/ReviewBench 三个公开基准）。
+- **决策**：
+  1. **借鉴点映射既有 roadmap（D034 单源），不建并行文档**：#73 reflect 参照 anthropics 两段式（分析 pass + 独立 FP 过滤 pass + 显式噪音类别排除清单）与 vet 后置 filter/dedup；#74 分块参照 alibaba OCR 文件捆绑分治（相关文件捆 bundle、每 bundle 隔离子上下文、天然并发）；#80 标注 schema 对齐 aacr-bench context 三级（diff/file/repo）；#82 状态机完整版参照 kodus Kody Issues（跨 PR 未实现建议跟踪）；#75 参照 kodus Kody Rules + vet guides.toml（按缺陷类型 prefix/suffix/replace，最小可用形态）。
+  2. **指标口径对齐行业**：score.ts 拆 content hit / located hit 两级，报表加 Line Precision 与 Noise Rate 双列（aacr-bench 同名指标）——新立 #105，零行为改动。
+  3. **生产质量信号取最廉价通路**：作者 resolve 处置行为（repair/rebut 留痕已在）作「实际命中」一级信号（#100 评论留痕）；reaction 回执统计立观察项 #106；withmartian online 轨的 commit-diff 挖掘不起步（成本高一个量级）。
+  4. **外部 golden 借标准不自建**：withmartian offline 集（50 PR / 173 条人工核验 golden comments）挑小 diff 子集转译 real 组用例校验自标偏差——观察项 #107，触发条件挂 #69 fixture 裁决后窗口；ReviewBench（GitHub 官方，219 PR / 352 findings）与 aacr-bench 留作口径参考。三大公开基准的涌现反而确认 eval 体系是稀缺卖点：自建基准（现有用例集）不扩，借外部标准补盲。
+  5. **明确不追**：pr-af 式重型管线（35-50min/PR，deep-audit gate 定位不同）；多平台支持（D008 GitHub-only 维持）；kodus 式产品面（dashboard/多租户/SaaS 分层）。LLM-as-judge 现阶段不引入（确定性 mustMention 更便宜且可复现；withmartian 三 judge 模型 rank 稳定性数据留作未来模糊匹配场景参考）。
+  6. **差异化确认**（对外叙述可用）：eval 驱动迭代、注入 canary 一等公民（anthropics 官方安全审查自认未加固、只审可信 PR——我们 9 条 canary 是真实差异点）、硬闸门闭环（REQUEST_CHANGES + resolve 留痕）——同类仓库均无完整组合。
+- **备选**：对标结论只落 journal——活任务不可查，违反 D034 单源；新建「对标借鉴汇总」issue 挂清单——清单会腐化，映射到既有 issue 才活；外部 golden 全量 50 PR 转译——大 PR 超预算截断判分失真，子集即可。均否决。
+- **后果**：新立 #105/#106/#107（roadmap，带触发条件与验收闸门）+ #73/#74/#75/#80/#82/#100 补参考评论各一条；pr-agent 社区化动态记录在案，社区版演进按需重看；D018 截断缺口与 position drift 属同族定位问题，#105 的 located/content 拆分为其提供度量出口。
