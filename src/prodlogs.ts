@@ -47,6 +47,10 @@ export type ProdRun = {
   truncation: string | null;
   warnings: string[];
   outcome: RunOutcome | null;
+  // 意见 reactions 派生值（#106）：行内评论 + review body 两面的 👍/👎 求和——作者对意见的即时态度
+  //（比 resolve 轻、独立信息：resolve 前的态度、折叠段 minor 也有 reaction）。optional：
+  // #106 前的老记录无此格照常读；派生失败不写（与 outcome 同款隔离语义）
+  reactions?: { plus: number; minus: number };
   timeout: boolean;
   deploymentId: string | null;
   environment: string | null;
@@ -186,6 +190,7 @@ function mergeRuns(a: ProdRun, b: ProdRun): ProdRun {
     truncation: a.truncation ?? b.truncation,
     warnings: [...new Set([...a.warnings, ...b.warnings])],
     outcome: a.outcome ?? b.outcome,
+    reactions: a.reactions ?? b.reactions,
     timeout: a.timeout || b.timeout,
     deploymentId: a.deploymentId ?? b.deploymentId,
     environment: a.environment ?? b.environment,
@@ -210,6 +215,8 @@ export function summarize(ledger: Ledger): string {
     const withOutcome = rs.find((r) => r.outcome !== null);
     return {
       outcome: withOutcome?.outcome ?? null,
+      // reactions（#106）：apply 覆盖 runKey 全记录，任一记录带值即该 runKey 的值
+      reactions: rs.find((r) => r.reactions !== undefined)?.reactions ?? null,
       timeout: rs.some((r) => r.timeout),
       tools: rs.some((r) => r.toolCalls.length > 0),
       reviewIn: rs.reduce((s, r) => s + (r.reviewTokens?.in ?? 0), 0),
@@ -230,11 +237,19 @@ export function summarize(ledger: Ledger): string {
   const degraded = reviews.reduce((s, r) => s + (r.outcome?.degraded ?? 0), 0);
   const folded = reviews.reduce((s, r) => s + (r.outcome?.folded ?? 0), 0);
   const derived = reviews.filter((r) => r.outcome?.source === "github").length;
+  // reactions 好评率（#106）：runKey 层取任一记录的 reactions（apply 覆盖 runKey 全记录，取值等价）；
+  // #106 前的老记录无此格不计——只加总已知值
+  const rx = reviews
+    .map((rs) => rs.reactions)
+    .filter((x): x is { plus: number; minus: number } => x !== null);
+  const rxPlus = rx.reduce((s, r) => s + r.plus, 0);
+  const rxMinus = rx.reduce((s, r) => s + r.minus, 0);
   return (
     `审查 ${reviews.length} 次（完成 ${finished}，超时 ${timeouts}）` +
     `；review in ${reviewIn} / out ${reviewOut}，router out ${routerOut}` +
     `；带工具调用审查 ${toolRuns} 次` +
     `；意见落点：行内 ${inline} / 降级 ${degraded} / 折叠 ${folded}（#89 派生口径 ${derived} run）` +
+    `；意见反应 👍${rxPlus} / 👎${rxMinus}（#106，${rx.length} run 有数据）` +
     `；未归组段 ${unattributed.length}（prepare 阶段 request，无 [worker] 行不计数）`
   );
 }

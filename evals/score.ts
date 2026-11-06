@@ -123,6 +123,7 @@ export type CaseScore = {
   recall: number;
   agentComments: number;
   // 命中任一期望的意见数（其余视为该用例的误报；agent 发现 diff 中未标注的其他真问题时会被误计，写用例时保持 diff 干净）
+  // #112 定性：意见级指标（precision = 此数/意见数，上界 1）——对计数另见 commentHitCounts
   truePositives: number;
   // 无意见时为 null（没有 FP 就谈不上精确率），报告层显示 —
   precision: number | null;
@@ -134,16 +135,40 @@ export type CaseScore = {
   // 逐意见 TP 判定（#100）：与 agentComments 索引一一对齐（该意见命中至少一个期望 = true）——
   // 与 commentConfidences 配对即 confidence × TP 交叉表的完整数据出口，离线校准零重算
   commentTps: boolean[];
+  // 逐意见命中的期望数（#112）：与 agentComments 索引一一对齐——对计数数据出口（recall 维度分析用；
+  // precision 不消费它，见 truePositives 注释）
+  commentHitCounts: number[];
+  // 双口径报表（#105，aacr-bench legacy 对齐）：contentComments = 内容命中（file + mustMention，行号不限）；
+  // locatedComments = 定位命中（现行全条件 = commentTps 为 true 的意见数）。
+  // Line Precision = located/content（内容命中里定位也准的比例——定位漂移率视角）；Noise Rate = unmatched/total。
+  // aacr 原文 line_match_rate = matched_line_notes / generated_notes（全部意见为分母），与本表 LP 分母不同，
+  // 落 report 时注明。历史 run JSON（#105 前落库）无这两个字段——compare 显示 —
+  contentComments: number;
+  locatedComments: number;
 };
+
+// 内容命中（#105 双口径的内容层）：file 匹配 + mustMention 命中、行号不限——定位漂移（行不对）但内容对
+// 的意见在此层命中。不含 file 维度的关键词误命中（跨文件）不计——那是内容错位不是定位漂移
+export function matchesContent(exp: Expectation, comment: ReviewComment): boolean {
+  const candidates = Array.isArray(exp.file) ? exp.file : [exp.file];
+  if (!candidates.some((f) => normalizePath(f) === normalizePath(comment.file))) return false;
+  const body = comment.body.toLowerCase();
+  return exp.mustMention.some((k) => body.includes(k.toLowerCase()));
+}
 
 export function scoreCase(c: EvalCase, comments: ReviewComment[]): CaseScore {
   const verdicts = c.expect.map((expect) => ({ expect, hit: comments.some((cm) => matchesExpectation(expect, cm)) }));
   const hits = verdicts.filter((v) => v.hit).length;
-  // 口径注意：recall 分子按期望条目计数，truePositives 按「命中至少一个期望」的意见数计数——
-  // 一条意见同时命中两个期望时 recall 记 2、TP 只记 1，多期望用例的 precision 会被低估
-  //（ctxpair 双联已触发，组行注记见 #112）。
-  const commentTps = comments.map((cm) => c.expect.some((e) => matchesExpectation(e, cm)));
+  // TP 记账（#112 终局定性）：**precision 是意见级指标**——「意见里正确的比例」，一条意见命中双联
+  // 两条期望仍是一条正确意见（aacr 同款 matched_generated/generated，上界 1）。首版对计实现被 bot
+  // major 否（分子 2 / 分母 1 = 200% 破比例语义；「对计分母」无自然形态，改期望面则与 recall 重复）。
+  // 「多期望低估」重新定性：不是 precision 缺陷，是 hits（期望维度）与 TP（意见维度）不可比——
+  // 对计数保留在 commentHitCounts 供 recall 维度分析，precision 消费意见级 truePositives
+  const commentHitCounts = comments.map((cm) => c.expect.filter((e) => matchesExpectation(e, cm)).length);
+  const commentTps = commentHitCounts.map((n) => n > 0);
   const truePositives = commentTps.filter(Boolean).length;
+  const locatedComments = commentTps.filter(Boolean).length;
+  const contentComments = comments.filter((cm) => c.expect.some((e) => matchesContent(e, cm))).length;
   return {
     caseId: c.id,
     kind: c.kind,
@@ -156,5 +181,8 @@ export function scoreCase(c: EvalCase, comments: ReviewComment[]): CaseScore {
     echoViolations: countEchoViolations(c, comments),
     commentConfidences: comments.map((cm) => cm.confidence ?? null),
     commentTps,
+    commentHitCounts,
+    contentComments,
+    locatedComments,
   };
 }

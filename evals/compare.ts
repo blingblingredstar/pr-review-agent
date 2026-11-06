@@ -25,6 +25,9 @@ export type RunJson = {
       verdicts: { hit: boolean; expect: { file: string | string[]; line: number | null } }[];
       agentComments: number;
       truePositives: number;
+      // 双口径（#105）：历史 run（#105 前落库）无此二字段 → LP/Noise 列显示 —
+      contentComments?: number;
+      locatedComments?: number;
     } | null;
   }[];
 };
@@ -43,16 +46,34 @@ export type VersionAggregate = {
   unstable: { caseId: string; source: string; perRun: string[]; missAt: string[] }[];
 };
 
-function micro(hits: number[], expects: number[], tps: number[], comments: number[]) {
+function micro(
+  hits: number[],
+  expects: number[],
+  tps: number[],
+  comments: number[],
+  content: (number | undefined)[] = [],
+  located: (number | undefined)[] = [],
+) {
   const expectN = expects.reduce((s, n) => s + n, 0);
   const hitN = hits.reduce((s, n) => s + n, 0);
   const tpN = tps.reduce((s, n) => s + n, 0);
   const cmN = comments.reduce((s, n) => s + n, 0);
+  // 双口径（#105）只在该组**全部** run 都带 contentComments/locatedComments 时才计算——
+  // 历史 run 缺字段不能按 0 抹平（bot major：缺失→0 会产出假 100% noise），混传同理（部分有值 =
+  // 分子分母口径不齐）。allHave 不满足 → LP/Noise 置 null 显示 —
+  const allHave = content.length > 0 && content.every((n) => n !== undefined) && located.every((n) => n !== undefined);
+  const ctN = allHave ? (content as number[]).reduce((s, n) => s + n, 0) : 0;
+  const lcN = allHave ? (located as number[]).reduce((s, n) => s + n, 0) : 0;
   // 空数据返回 null（显示 —）而非 0——0% 会被误读成「全 miss」
-  return { recall: expectN ? hitN / expectN : null, precision: cmN ? tpN / cmN : null };
+  return {
+    recall: expectN ? hitN / expectN : null,
+    precision: cmN ? tpN / cmN : null,
+    linePrecision: allHave && ctN ? lcN / ctN : null,
+    noiseRate: allHave && cmN ? (cmN - lcN) / cmN : null,
+  };
 }
 
-export type Micro = { recall: number | null; precision: number | null };
+export type Micro = { recall: number | null; precision: number | null; linePrecision: number | null; noiseRate: number | null };
 
 export function aggregateRuns(files: { name: string; data: RunJson }[]): VersionAggregate[] {
   // model + prompt 指纹 + plan/ctx 臂一起分组：同 prompt 换模型不属于同一次对比；EVAL_PLAN / EVAL_CONTEXT 臂与
@@ -85,6 +106,8 @@ export function aggregateRuns(files: { name: string; data: RunJson }[]): Version
       capScores.map((s) => s.verdicts.length),
       capScores.map((s) => s.truePositives),
       capScores.map((s) => s.agentComments),
+      capScores.map((s) => s.contentComments),
+      capScores.map((s) => s.locatedComments),
     );
     // groups 含全部 source（dogfood 照常输出、打印处标注回归集），能力口径只作用于 micro 合计；
     // injection 不进组聚合（D024：组指标是拦截率不是 recall/precision，按普通组展示会误导跨轮对比）
@@ -99,6 +122,8 @@ export function aggregateRuns(files: { name: string; data: RunJson }[]): Version
           ss.map((s) => s.verdicts.length),
           ss.map((s) => s.truePositives),
           ss.map((s) => s.agentComments),
+          ss.map((s) => s.contentComments),
+          ss.map((s) => s.locatedComments),
         )];
       }),
     );
@@ -173,15 +198,18 @@ async function main() {
     // 按 prompt 首次出现顺序输出（命令行顺序即时间顺序）
     for (const agg of aggregateRuns(files)) {
       console.log(`## ${agg.model} · prompt \`${agg.promptHash}\`${agg.planArm ? " · EVAL_PLAN 臂" : ""}${agg.contextArm ? " · EVAL_CONTEXT 臂" : ""}（${agg.files.length} 轮：${agg.files.join(", ")}）\n`);
-      console.log(`| 组 | recall（微平均） | precision（微平均） |`);
-      console.log(`|---|---|---|`);
+      console.log(`| 组 | recall（微平均） | precision（微平均） | LP（located/content） | Noise |`);
+      console.log(`|---|---|---|---|---|`);
       for (const [src, m] of Object.entries(agg.groups)) {
         const tag = isCapabilitySource(src) ? "" : "（回归集，不进合计）";
-        // ctxpair 多期望双联口径（#112）：一条意见命中双联两条期望时 recall 记 2、TP 记 1——precision 低估下界
-        const tpNote = src === "ctxpair" ? "〔TP 口径见 #112，precision 低估下界〕" : "";
-        console.log(`| ${src}${tag}${tpNote} | ${percent(m.recall)} | ${percent(m.precision)} |`);
+        // ctxpair TP 按对计（#112 根治后口径）；LP/Noise 仅 #105 后落库的 run 有值（历史 run 显示 —）
+        const lp = m.linePrecision === null ? "—" : percent(m.linePrecision);
+        const noise = m.noiseRate === null ? "—" : percent(m.noiseRate);
+        console.log(`| ${src}${tag} | ${percent(m.recall)} | ${percent(m.precision)} | ${lp} | ${noise} |`);
       }
-      console.log(`| **合计（能力评估）** | **${percent(agg.micro.recall)}** | **${percent(agg.micro.precision)}** |`);
+      const mLP = agg.micro.linePrecision === null ? "—" : percent(agg.micro.linePrecision);
+      const mNoise = agg.micro.noiseRate === null ? "—" : percent(agg.micro.noiseRate);
+      console.log(`| **合计（能力评估）** | **${percent(agg.micro.recall)}** | **${percent(agg.micro.precision)}** | **${mLP}** | **${mNoise}** |`);
       if (agg.unstable.length > 0) {
         console.log(`\n跨轮未全命中的用例（短板矩阵；含 dogfood 回归用例——它不进上面的能力指标，单独解读；injection 用例的 0/1 是「沉默=未拦截」，走组行拦截率口径，不作能力短板解读）：\n`);
         console.log(`| case | source | ${agg.files.map((_, i) => `轮${i + 1}`).join(" | ")} | 未命中期望定位 |`);

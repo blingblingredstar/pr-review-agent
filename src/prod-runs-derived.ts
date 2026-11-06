@@ -9,9 +9,12 @@ import { parseBotReviews } from "./dedupe.ts";
 import { parseDegradedLines } from "./findings.ts";
 import type { ProdRun, RunOutcome } from "./prodlogs.ts";
 
-// 派生值形态：日志口径两格 + 折叠一格 + 来源标记。ProdRun.outcome 的 folded/source 为 optional，
-// 老台账记录缺这两格照常读（summarize 只看 inline/degraded）
-export type DerivedOutcome = RunOutcome & { source: "github" };
+// 派生值形态：日志口径两格 + 折叠一格 + 来源标记 + reactions（#106）。ProdRun.outcome 的 folded/source
+// 为 optional，老台账记录缺这两格照常读（summarize 只看 inline/degraded）
+export type DerivedOutcome = RunOutcome & { source: "github" } & {
+  // 行内评论 + review body 两面的 👍/👎 求和（零新增 API 调用）；缺格按 0
+  reactions: { plus: number; minus: number };
+};
 
 // 派生目标仓库（owner/repo）：台账记录不携带 owner/repo（日志行只有 #pr@sha），默认本仓库，
 // 派生别的仓库的台账时用 LEDGER_GITHUB_REPO 覆盖（.env.example 已记）
@@ -143,12 +146,22 @@ export async function deriveOutcomeForRuns(
             review_id: review.id,
             per_page: 100,
           })
-        ).data;
+        ).data as unknown as { reactions?: { "+1"?: number; "-1"?: number } }[];
+        // reactions 聚合（#106）：行内评论 + review body 两面的 👍/👎 求和——comments/reviews 对象自带
+        // reactions 汇总，零新增 API 调用；老时间线对象缺 reactions 格按 0 计
+        const sum = (n?: number) => n ?? 0;
+        const bodyReactions = (reviews as unknown as { id: number; reactions?: { "+1"?: number; "-1"?: number } }[]).find(
+          (rv) => rv.id === review.id,
+        )?.reactions;
         derived.set(runKey, {
           inline: comments.length,
           degraded: parseDegradedLines(review.body).length,
           folded: parseFoldedLines(review.body),
           source: "github",
+          reactions: {
+            plus: sum(bodyReactions?.["+1"]) + comments.reduce((s, c) => s + sum(c.reactions?.["+1"]), 0),
+            minus: sum(bodyReactions?.["-1"]) + comments.reduce((s, c) => s + sum(c.reactions?.["-1"]), 0),
+          },
         });
       } catch (err) {
         console.warn(`[derive] runKey ${runKey} 派生失败，保留日志值`, err);
@@ -167,7 +180,8 @@ export function applyDerivedOutcomes(runs: Record<string, ProdRun>, derived: Map
   for (const run of Object.values(runs)) {
     const d = run.runKey === null ? undefined : derived.get(run.runKey);
     if (!d) continue;
-    run.outcome = { ...d };
+    run.outcome = { inline: d.inline, degraded: d.degraded, folded: d.folded, source: d.source };
+    run.reactions = d.reactions;
     applied++;
   }
   return applied;
