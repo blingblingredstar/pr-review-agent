@@ -269,6 +269,18 @@ async function main() {
   // confidence 分布合计（#100）：口径与汇总行一致 = 能力评估组（synthetic + real）
   const confidenceTotal = confidenceDist(capability.flatMap((r) => r.score.commentConfidences));
 
+  // confidence × TP 交叉统计（#100 闸门 2 的数据出口，bot major：分布串不构成校准闭环）——
+  // 逐意见 commentConfidences × commentTps 配对（score.ts 对齐记录），各档 TP 率 + low 在 miss 中的占比；
+  // 汇总行当场可读，跨 run 校准表落 report.md 由报告层汇总
+  const calibPairs = capability.flatMap((r) => r.score.commentConfidences.map((conf, i) => ({ conf, tp: r.score.commentTps[i] })));
+  const calibCell = (label: string, want: string | null) => {
+    const cell = calibPairs.filter((p) => (want === null ? p.conf === null : p.conf === want));
+    const tp = cell.filter((p) => p.tp).length;
+    return `${label} ${tp}/${cell.length}${cell.length ? `（${((tp / cell.length) * 100).toFixed(0)}%）` : ""}`;
+  };
+  const missLow = calibPairs.filter((p) => !p.tp);
+  const missLowRate = missLow.length ? `${missLow.filter((p) => p.conf === "low").length}/${missLow.length}（${((missLow.filter((p) => p.conf === "low").length / missLow.length) * 100).toFixed(0)}%）` : "—";
+
   const tableLines = [
     `| case | source | kind | 期望命中 | recall | 意见数 | TP | precision | echo违规 | tokens 入/出 | 耗时s | confidence |`,
     `|---|---|---|---|---|---|---|---|---|---|---|---|`,
@@ -305,6 +317,7 @@ async function main() {
       : []),
     `- 汇总（能力评估 = synthetic + real）：recall ${percent(recall)}（${totalHits}/${totalExpect}），precision ${precision === null ? "—" : percent(precision)}（${totalTp}/${totalComments}），失败用例 ${failed}（不计入指标），总耗时 ${(totalMs / 1000 / 60).toFixed(1)} 分钟`,
     `- confidence 分布（能力组合计，#100；H/M/L = 模型自评条数，null = 意见未带）：${confidenceTotal}`,
+    `- confidence × TP 校准（能力组逐意见交叉，#100 闸门 2）：${calibCell("high", "high")} / ${calibCell("medium", "medium")} / ${calibCell("low", "low")} / ${calibCell("未标注", null)}；miss 意见中 low 占比 ${missLowRate}`,
     `- token 用量（成功用例求和${failed > 0 ? `，失败 ${failed} 例未计量` : ""}）：${usageKnown ? `输入 ${fmtTok(usageTotal.inputTokens)} / 输出 ${fmtTok(usageTotal.outputTokens)} / 合计 ${fmtTok(usageTotal.totalTokens)}` : "端点未返回 usage"}`,
     ``,
     ...groupLines,
