@@ -810,3 +810,19 @@
 - **会话 46 续（加班批，2026-11-07 晚，用户指令「能做的都做」）**：PR #115（双口径 LP/Noise **#105 关** + TP 口径终局定性 **#112 关** + reactions 派生 **#106 关**）/ #116（npm audit 4 high 清零，lock-only）/ #117（台账 95 run，#106 首批 reactions 数据 31 run 0/0）。**bot 今晚累计抓 4 条真 major 全闭环**（framing id 映射 / 校准闭环缺交叉 / compare 守卫恒真出假 100% / 对计 precision 200% 破比例）——最后一条直接否掉了 #112 方案 1 的实现，issue 以「precision 意见级 by design + commentHitCounts 对计出口」终局定性关闭（aacr 同款口径，原文已核对）。#99 池化挂账因 prompt 换代转 framing 新 prompt 观察点：**b 权威预设三轮全满分**（与「权威软化」假设稳定反方向），a 中性反而波动最大。剩给白天：#107（等 #69 触发）、#105-#107 之外无新增，晨起三裁定不变。
 
 - **会话 46 续二（裁定批，2026-11-07 晚深）**：晨起三裁定按用户委托落定——①cheap-pair **暂停立项**（recall +3.8pp 硬事实；corr 合并 50% 优于生产 30% 排除反对；flash 单模型演进观察升级优先验证项，复活条件随演进坐实），终局 comment 在 #82、D036 补记二在 decisions.md；②.env 之谜破案——mtime 10-29 实证**无漂移**，是本地 .env 从未随 D033 切换 + 夜批快照未验证的错误判断，已对齐 D033 口径（含 DECISION_MODEL）；③校准「无信号」维持落档。G 轨清单转跟踪 issue **#119**（C1-C6 绑时点，C4 时点随 cheap-pair 暂停消失）。framing 新 prompt 3 轮池化锚点落 report（b 权威 6/6 全面最强、a 中性 3/6 最弱——两个 framing 假设全部不成立，#99 闸门 4 复核不触发）。
+## 2026-11-06 · 会话 47：GitHub 同类仓库全面对标——D040 定论 + 新立 #105/#106/#107 + 6 issue 补参考
+
+- **目标**：用户「GitHub 全面搜索同类仓库，看有什么可借鉴的」→ 搜索 + 分析 + 落库；用户点名用 worktree 规避并行会话。
+- **完成**：
+  - GitHub Search API 10 组关键词扫描（ai code review / code review llm / pr review agent / code-review-bot / topic:code-review / topic:ai-code-review / chatgpt code review / code review benchmark / github app code review / agentic code review），12 仓 README 深读
+  - **D040 落库**（原编号 D039，撞夜批 #65 gate 3 预分配，按 overnight-execution-2026-11-07.md 顺序约束改号）：借鉴点映射既有 roadmap（#73/#74/#75/#80/#82/#100 各补一条参考评论）、指标口径对齐（新立 #105）、reaction 回执（新立 #106）、外部 golden 子集转译（新立 #107）、三项不追（pr-af 重型管线 / 多平台 / 产品面）+ LLM-as-judge 不引入
+  - **PR（本分支）**：decisions D040（原编 D039，见上）+ journal 本条，走独立 worktree（pr-review-agent-wt-c）基于 origin/main
+- **发现 / 坑**：
+  - **格局变化**：Qodo 把 PR-Agent 捐给社区 org（The-PR-Agent），主产品闭源化——「上游持续演进」前提失效，D035/#82 借鉴结论以 2026-11-05 源码精读为准
+  - **三个公开基准涌现**（withmartian offline+online 双轨 / aacr-bench / ReviewBench by GitHub）——PR 审查评测正在标准化；我们 eval 体系差异化确认，可借标准不自建（D040 结论 4）
+  - alibaba/open-code-review（49.5k）= 本轮最大发现：混合架构（确定性工程 × agent）、文件捆绑分治、外部定位/反思模块、1/9 tokens 换 precision 优先——「确定性护栏包住 LLM」与仓库既有威胁模型/确定性过滤（D020/D024）思路同向
+  - anthropics/claude-code-security-review 自认未做注入加固（只审可信 PR）——我们 9 条 canary 是真实差异点
+  - 并行会话纪律实践：另一会话在 -wt-a/-wt-b 做 #99/#80 实现（分支零提交、未动 docs），本会话全走独立 worktree + origin/main 基线 + 精确 add，零接触主树脏文件（ledger.json）
+- **下一步**：
+  1. 后续批次全景（#105 最小可先做 / #82·D036·G 轨裁定驱动 / #106·#107·#67 观察项 / #73·#74·#75 排期队列）见 `docs/plans/followup-plan-2026-11-07.md`（随本 PR 落库）
+  2. 并行会话 #99/#80 收尾合并；#65 加严 3 轮 + D036 cheap-pair 复验同批（夜批顺序不变）
