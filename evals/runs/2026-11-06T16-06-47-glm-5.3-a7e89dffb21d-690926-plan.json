@@ -1,0 +1,306 @@
+{
+  "startedAt": "2026-11-06T16:06:47.502Z",
+  "model": "glm-5.3",
+  "llmBaseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+  "llmExtraBody": "{\"thinking\":{\"type\":\"enabled\"},\"reasoning_effort\":\"low\"}",
+  "promptHash": "a7e89dffb21d",
+  "evalOnly": [
+    "repo"
+  ],
+  "capabilityScope": "synthetic+real",
+  "schemaVersion": 1,
+  "planArm": {
+    "enabled": true,
+    "injected": 7,
+    "failed": 0,
+    "skipped": 0,
+    "routerMs": 40230
+  },
+  "runs": [
+    {
+      "caseId": "repo-01-rename-residual-ref",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/utils/slug.ts",
+          "line": 1,
+          "severity": "major",
+          "body": "重命名导出 `slugify` → `slugifyText` 后未同步调用方：src/render/summary.ts 第 1 行仍 `import { slugify } from \"../utils/slug.ts\"` 并在第 4 行调用，运行时会因 `slugify` 未定义而抛错（或模块解析失败）。需要把调用方一并改名，或保留旧名作为别名导出。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4419,
+        "outputTokens": 140,
+        "totalTokens": 4559
+      },
+      "durationMs": 5189,
+      "score": {
+        "caseId": "repo-01-rename-residual-ref",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/utils/slug.ts",
+              "line": 1,
+              "mustMention": [
+                "summary.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-02-removed-export-still-used",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/config/limits.ts",
+          "line": 2,
+          "severity": "blocker",
+          "body": "删除了 `MAX_QUEUE_DEPTH` 的导出，但 src/queue/publisher.ts:1 仍在 `import { MAX_QUEUE_DEPTH } from \"../config/limits.ts\"` 并在第 4 行返回它，运行时将抛出模块导入错误（或得到 undefined 导致队列深度限制失效）。需要同步更新 publisher.ts 的导入与实现，或恢复该配置项。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4353,
+        "outputTokens": 139,
+        "totalTokens": 4492
+      },
+      "durationMs": 6502,
+      "score": {
+        "caseId": "repo-02-removed-export-still-used",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/config/limits.ts",
+              "line": 3,
+              "mustMention": [
+                "publisher.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-03-lexical-dry-copy",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/api/size.ts",
+          "line": 7,
+          "severity": "minor",
+          "body": "formatBytes 与 src/shared/format.ts 中的 formatFileSize 逐字符重复（注释明确写着报表与日志共用）。应在 API 层复用 shared 的 formatFileSize 而不是复制一份；两处副本将来修 bug（如单位边界）时会不同步。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4603,
+        "outputTokens": 135,
+        "totalTokens": 4738
+      },
+      "durationMs": 5397,
+      "score": {
+        "caseId": "repo-03-lexical-dry-copy",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/api/size.ts",
+              "line": 7,
+              "mustMention": [
+                "format.ts",
+                "formatFileSize"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-04-string-key-residual",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/events/bus.ts",
+          "line": 2,
+          "severity": "major",
+          "body": "常量值从 \"sync:done\" 改为 \"sync:complete\"，但 src/ui/progress.ts:4 仍用字符串字面量 `getBus().on(\"sync:done\", ...)` 订阅旧事件名，订阅方将永远收不到该事件。应将 progress.ts 改为使用 EVT_SYNC_DONE 常量（或同步更新该字面量为 \"sync:complete\"）。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4231,
+        "outputTokens": 151,
+        "totalTokens": 4382
+      },
+      "durationMs": 5194,
+      "score": {
+        "caseId": "repo-04-string-key-residual",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/events/bus.ts",
+              "line": 2,
+              "mustMention": [
+                "progress.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-05-clean-complete-rename",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 4644,
+        "outputTokens": 73,
+        "totalTokens": 4717
+      },
+      "durationMs": 4934,
+      "score": {
+        "caseId": "repo-05-clean-complete-rename",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-06-clean-similar-but-different",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/export/csv.ts",
+          "line": 7,
+          "severity": "minor",
+          "body": "新增 parseCsvExport 与 src/import/csv.ts 的 parseCsvImport 是复制粘贴的同构副本，仅分隔符不同（; 与 ,），且仓库内导出侧原本没有解析需求（csvHeader 只做 join）。导出模块的 parse 函数缺乏明确用途；若确需在导出侧回读，建议与导入侧共用一个带分隔符参数的实现，避免两份解析逻辑日后各自演化不一致。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4502,
+        "outputTokens": 146,
+        "totalTokens": 4648
+      },
+      "durationMs": 6110,
+      "score": {
+        "caseId": "repo-06-clean-similar-but-different",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-07-dynamic-access-residual",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 4317,
+        "outputTokens": 51,
+        "totalTokens": 4368
+      },
+      "durationMs": 5449,
+      "score": {
+        "caseId": "repo-07-dynamic-access-residual",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/commands/registry.ts",
+              "line": 3,
+              "mustMention": [
+                "main.ts"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    }
+  ],
+  "summary": {
+    "recall": 0,
+    "precision": null,
+    "totalExpect": 0,
+    "totalHits": 0,
+    "totalComments": 0,
+    "totalTp": 0,
+    "failed": 0,
+    "usage": {
+      "inputTokens": 31069,
+      "outputTokens": 835,
+      "totalTokens": 31904
+    },
+    "groups": {
+      "repo": {
+        "recall": 0.8,
+        "precision": 0.8,
+        "expectN": 5,
+        "hits": 4,
+        "comments": 5,
+        "tp": 4,
+        "runs": 7,
+        "failed": 0
+      }
+    }
+  }
+}

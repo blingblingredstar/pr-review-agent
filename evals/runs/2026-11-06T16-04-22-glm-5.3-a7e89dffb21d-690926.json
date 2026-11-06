@@ -1,0 +1,292 @@
+{
+  "startedAt": "2026-11-06T16:04:22.069Z",
+  "model": "glm-5.3",
+  "llmBaseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+  "llmExtraBody": "{\"thinking\":{\"type\":\"enabled\"},\"reasoning_effort\":\"low\"}",
+  "promptHash": "a7e89dffb21d",
+  "evalOnly": [
+    "repo"
+  ],
+  "capabilityScope": "synthetic+real",
+  "schemaVersion": 1,
+  "planArm": null,
+  "runs": [
+    {
+      "caseId": "repo-01-rename-residual-ref",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/utils/slug.ts",
+          "line": 1,
+          "severity": "blocker",
+          "body": "导出函数从 slugify 改名为 slugifyText，但调用方未同步：src/render/summary.ts 第 1 行仍以 `import { slugify } from \"../utils/slug.ts\"` 导入并在第 4 行调用，改名后该模块解析/运行时将直接失败。需一并更新 summary.ts 中的导入名与调用点，或保留旧名作为别名导出。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3786,
+        "outputTokens": 146,
+        "totalTokens": 3932
+      },
+      "durationMs": 6384,
+      "score": {
+        "caseId": "repo-01-rename-residual-ref",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/utils/slug.ts",
+              "line": 1,
+              "mustMention": [
+                "summary.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-02-removed-export-still-used",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/config/limits.ts",
+          "line": 2,
+          "severity": "blocker",
+          "body": "删除了导出常量 MAX_QUEUE_DEPTH，但 src/queue/publisher.ts 第 1 行仍然 `import { MAX_QUEUE_DEPTH } from \"../config/limits.ts\"` 并在第 4 行返回它。这是具名导入，模块解析/加载时会直接抛错（Deno 下 unresolved named import 是运行时错误），队列发布路径会崩。需要同步更新 publisher.ts：要么恢复该常量，要么改为使用其他限额值。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3735,
+        "outputTokens": 166,
+        "totalTokens": 3901
+      },
+      "durationMs": 10949,
+      "score": {
+        "caseId": "repo-02-removed-export-still-used",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/config/limits.ts",
+              "line": 3,
+              "mustMention": [
+                "publisher.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-03-lexical-dry-copy",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 3844,
+        "outputTokens": 217,
+        "totalTokens": 4061
+      },
+      "durationMs": 8493,
+      "score": {
+        "caseId": "repo-03-lexical-dry-copy",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/api/size.ts",
+              "line": 7,
+              "mustMention": [
+                "format.ts",
+                "formatFileSize"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-04-string-key-residual",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 3698,
+        "outputTokens": 111,
+        "totalTokens": 3809
+      },
+      "durationMs": 5486,
+      "score": {
+        "caseId": "repo-04-string-key-residual",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/events/bus.ts",
+              "line": 2,
+              "mustMention": [
+                "progress.ts"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-05-clean-complete-rename",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 3920,
+        "outputTokens": 33,
+        "totalTokens": 3953
+      },
+      "durationMs": 6696,
+      "score": {
+        "caseId": "repo-05-clean-complete-rename",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-06-clean-similar-but-different",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/export/csv.ts",
+          "line": 9,
+          "severity": "major",
+          "body": "parseCsvExport 无法正确处理带引号的 CSV 字段：trim() 会把字段内合法的首尾空格也去掉；正则 /^\"|\"$/g 只能去掉字段两端各一个引号，且当字段本身含分号而被整体加引号（如 \"a;b\"）时，先按 ; 切分会把字段切碎，解析结果错误。对称的导出端（csvExport）如果会对含分号字段加引号，则这两个函数对同一份数据不是往返一致的。修法：解析时先识别带引号字段（或至少在有引号字段存在时走带状态的解析逻辑），而不是简单 split。"
+        },
+        {
+          "file": "src/export/csv.ts",
+          "line": 10,
+          "severity": "minor",
+          "body": "text.split(\"\\n\") 会把末尾换行产生的空字符串也压入 rows，返回值多出一个空行数组；同时与 csvExport 输出的 \\r\\n（若存在）不兼容，\\r 会残留在字段里靠 trim 掩盖。建议先按 /\\r?\\n/ 切分并过滤末尾空行。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3770,
+        "outputTokens": 483,
+        "totalTokens": 4253
+      },
+      "durationMs": 15331,
+      "score": {
+        "caseId": "repo-06-clean-similar-but-different",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 2,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-07-dynamic-access-residual",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 3761,
+        "outputTokens": 73,
+        "totalTokens": 3834
+      },
+      "durationMs": 4982,
+      "score": {
+        "caseId": "repo-07-dynamic-access-residual",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/commands/registry.ts",
+              "line": 3,
+              "mustMention": [
+                "main.ts"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    }
+  ],
+  "summary": {
+    "recall": 0,
+    "precision": null,
+    "totalExpect": 0,
+    "totalHits": 0,
+    "totalComments": 0,
+    "totalTp": 0,
+    "failed": 0,
+    "usage": {
+      "inputTokens": 26514,
+      "outputTokens": 1229,
+      "totalTokens": 27743
+    },
+    "groups": {
+      "repo": {
+        "recall": 0.4,
+        "precision": 0.5,
+        "expectN": 5,
+        "hits": 2,
+        "comments": 4,
+        "tp": 2,
+        "runs": 7,
+        "failed": 0
+      }
+    }
+  }
+}

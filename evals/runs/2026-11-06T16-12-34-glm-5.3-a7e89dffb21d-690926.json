@@ -1,0 +1,358 @@
+{
+  "startedAt": "2026-11-06T16:12:34.936Z",
+  "model": "glm-5.3",
+  "llmBaseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+  "llmExtraBody": "{\"thinking\":{\"type\":\"enabled\"},\"reasoning_effort\":\"low\"}",
+  "promptHash": "a7e89dffb21d",
+  "evalOnly": [
+    "framing"
+  ],
+  "capabilityScope": "synthetic+real",
+  "schemaVersion": 1,
+  "planArm": null,
+  "runs": [
+    {
+      "caseId": "framing-02-removed-export-still-used-a",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/config/limits.ts",
+          "line": 2,
+          "severity": "blocker",
+          "body": "删除了导出常量 MAX_QUEUE_DEPTH，但 src/queue/publisher.ts:1 仍在 `import { MAX_QUEUE_DEPTH } from \"../config/limits.ts\"` 并在第 4 行返回它，会导致运行时/编译期错误。如果目的是移除该常量，需同步更新 publisher.ts（改为内联数值或迁移到新位置）；若并非有意移除，应恢复该导出。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3753,
+        "outputTokens": 140,
+        "totalTokens": 3893
+      },
+      "durationMs": 6688,
+      "score": {
+        "caseId": "framing-02-removed-export-still-used-a",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/config/limits.ts",
+              "line": 3,
+              "mustMention": [
+                "publisher.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "framing-02-removed-export-still-used-b",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/config/limits.ts",
+          "line": 2,
+          "severity": "blocker",
+          "body": "删除了导出常量 MAX_QUEUE_DEPTH，但 src/queue/publisher.ts 第 1 行仍 `import { MAX_QUEUE_DEPTH } from \"../config/limits.ts\"` 并在第 4 行返回它，导入将变为 undefined，队列深度上限失效（返回值类型如非严格检查还会静默传播）。若本意是移除该限额，需同步改掉 publisher.ts 的引用；否则应保留该常量或将其迁移到新位置并更新导入路径。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3765,
+        "outputTokens": 164,
+        "totalTokens": 3929
+      },
+      "durationMs": 5666,
+      "score": {
+        "caseId": "framing-02-removed-export-still-used-b",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/config/limits.ts",
+              "line": 3,
+              "mustMention": [
+                "publisher.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "framing-02-removed-export-still-used-c",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/config/limits.ts",
+          "line": 2,
+          "severity": "blocker",
+          "body": "删除了导出常量 MAX_QUEUE_DEPTH，但 src/queue/publisher.ts 第 1 行仍在 `import { MAX_QUEUE_DEPTH } from \"../config/limits.ts\"` 并在函数中返回它。该导出不存在后，publisher.ts 的导入会失败（Deno 下模块解析/导入命名不存在即报错），调用方全部无法加载。需同步修改 publisher.ts（改为本地常量或从其他来源导入），或恢复该导出。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3763,
+        "outputTokens": 151,
+        "totalTokens": 3914
+      },
+      "durationMs": 7454,
+      "score": {
+        "caseId": "framing-02-removed-export-still-used-c",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/config/limits.ts",
+              "line": 3,
+              "mustMention": [
+                "publisher.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "framing-04-string-key-residual-a",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 3716,
+        "outputTokens": 232,
+        "totalTokens": 3948
+      },
+      "durationMs": 6871,
+      "score": {
+        "caseId": "framing-04-string-key-residual-a",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/events/bus.ts",
+              "line": 2,
+              "mustMention": [
+                "progress.ts"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "framing-04-string-key-residual-b",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/events/bus.ts",
+          "line": 2,
+          "severity": "major",
+          "body": "事件名常量的字符串值从 \"sync:done\" 改为 \"sync:complete\"，但 src/ui/progress.ts:4 仍用字符串字面量 `\"sync:done\"` 监听该事件，未同步改用常量或新值，改动后 progress 界面将收不到同步完成事件。应把该处改为引用 EVT_SYNC_DONE 常量（或同步更新字面量）。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3791,
+        "outputTokens": 176,
+        "totalTokens": 3967
+      },
+      "durationMs": 6209,
+      "score": {
+        "caseId": "framing-04-string-key-residual-b",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/events/bus.ts",
+              "line": 2,
+              "mustMention": [
+                "progress.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "framing-04-string-key-residual-c",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/events/bus.ts",
+          "line": 2,
+          "severity": "major",
+          "body": "EVT_SYNC_DONE 的字符串值从 \"sync:done\" 改为 \"sync:complete\"，若仓库中存在直接使用字面量 \"sync:done\" 订阅或触发的代码（未通过该常量），改名后将无法收到事件。建议全仓搜索字面量 \"sync:done\" 确认无残留引用，或确认所有使用方均经由 EVT_SYNC_DONE。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3724,
+        "outputTokens": 156,
+        "totalTokens": 3880
+      },
+      "durationMs": 6090,
+      "score": {
+        "caseId": "framing-04-string-key-residual-c",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/events/bus.ts",
+              "line": 2,
+              "mustMention": [
+                "progress.ts"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 1,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "framing-05-clean-complete-rename-a",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 3936,
+        "outputTokens": 34,
+        "totalTokens": 3970
+      },
+      "durationMs": 3390,
+      "score": {
+        "caseId": "framing-05-clean-complete-rename-a",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "framing-05-clean-complete-rename-b",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 3948,
+        "outputTokens": 105,
+        "totalTokens": 4053
+      },
+      "durationMs": 7239,
+      "score": {
+        "caseId": "framing-05-clean-complete-rename-b",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "framing-05-clean-complete-rename-c",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 3944,
+        "outputTokens": 46,
+        "totalTokens": 3990
+      },
+      "durationMs": 4821,
+      "score": {
+        "caseId": "framing-05-clean-complete-rename-c",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    }
+  ],
+  "summary": {
+    "recall": 0,
+    "precision": null,
+    "totalExpect": 0,
+    "totalHits": 0,
+    "totalComments": 0,
+    "totalTp": 0,
+    "failed": 0,
+    "usage": {
+      "inputTokens": 34340,
+      "outputTokens": 1204,
+      "totalTokens": 35544
+    },
+    "groups": {
+      "framing": {
+        "recall": 0.6666666666666666,
+        "precision": 0.8,
+        "expectN": 6,
+        "hits": 4,
+        "comments": 5,
+        "tp": 4,
+        "runs": 9,
+        "failed": 0
+      }
+    }
+  }
+}

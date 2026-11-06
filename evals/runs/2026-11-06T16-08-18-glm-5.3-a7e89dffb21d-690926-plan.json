@@ -1,0 +1,306 @@
+{
+  "startedAt": "2026-11-06T16:08:18.919Z",
+  "model": "glm-5.3",
+  "llmBaseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+  "llmExtraBody": "{\"thinking\":{\"type\":\"enabled\"},\"reasoning_effort\":\"low\"}",
+  "promptHash": "a7e89dffb21d",
+  "evalOnly": [
+    "repo"
+  ],
+  "capabilityScope": "synthetic+real",
+  "schemaVersion": 1,
+  "planArm": {
+    "enabled": true,
+    "injected": 7,
+    "failed": 0,
+    "skipped": 0,
+    "routerMs": 40036
+  },
+  "runs": [
+    {
+      "caseId": "repo-01-rename-residual-ref",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/utils/slug.ts",
+          "line": 1,
+          "severity": "major",
+          "body": "本次改动将 `slugify` 重命名为 `slugifyText`，但仓库内既有调用方未同步：src/render/summary.ts 第 1 行仍 `import { slugify } from \"../utils/slug.ts\"`，第 4 行仍调用 `slugify(title)`，改名后该模块解析/编译会直接失败（或运行时报 undefined is not a function）。需要同步修改 summary.ts 的导入与调用，或保留 `slugify` 作为别名导出。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4427,
+        "outputTokens": 176,
+        "totalTokens": 4603
+      },
+      "durationMs": 8417,
+      "score": {
+        "caseId": "repo-01-rename-residual-ref",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/utils/slug.ts",
+              "line": 1,
+              "mustMention": [
+                "summary.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-02-removed-export-still-used",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/config/limits.ts",
+          "line": 2,
+          "severity": "blocker",
+          "body": "删除了 MAX_QUEUE_DEPTH 的导出，但 src/queue/publisher.ts:1 仍然 `import { MAX_QUEUE_DEPTH } from \"../config/limits.ts\"`（publisher.ts:4 还在使用它），该导入会解析失败导致模块加载报错，队列发布路径直接不可用。若意图是取消队列深度限制，需同步清理 publisher.ts 中的导入与使用并调整相应逻辑；若不是，应恢复该导出。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4321,
+        "outputTokens": 150,
+        "totalTokens": 4471
+      },
+      "durationMs": 7511,
+      "score": {
+        "caseId": "repo-02-removed-export-still-used",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/config/limits.ts",
+              "line": 3,
+              "mustMention": [
+                "publisher.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-03-lexical-dry-copy",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/api/size.ts",
+          "line": 7,
+          "severity": "minor",
+          "body": "formatBytes 与 src/shared/format.ts 中的 formatFileSize 逐行相同（含单位表与循环逻辑），是同语义副本。文件树显示 shared/format.ts 注释表明该函数是报表与日志共用的通用格式化，此处应直接 import formatFileSize 而非复制实现；否则后续修 bug 或调精度时两处会失同步。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4639,
+        "outputTokens": 145,
+        "totalTokens": 4784
+      },
+      "durationMs": 6101,
+      "score": {
+        "caseId": "repo-03-lexical-dry-copy",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/api/size.ts",
+              "line": 7,
+              "mustMention": [
+                "format.ts",
+                "formatFileSize"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-04-string-key-residual",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/events/bus.ts",
+          "line": 2,
+          "severity": "major",
+          "body": "EVT_SYNC_DONE 的值从 \"sync:done\" 改为 \"sync:complete\"，但 src/ui/progress.ts:4 仍以字符串字面量 \"sync:done\" 监听该事件（而非使用常量），改名后监听将永远不触发。应将 progress.ts 改为引用 EVT_SYNC_DONE，或同步更新该字面量。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4250,
+        "outputTokens": 155,
+        "totalTokens": 4405
+      },
+      "durationMs": 4969,
+      "score": {
+        "caseId": "repo-04-string-key-residual",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/events/bus.ts",
+              "line": 2,
+              "mustMention": [
+                "progress.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-05-clean-complete-rename",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 4632,
+        "outputTokens": 80,
+        "totalTokens": 4712
+      },
+      "durationMs": 5919,
+      "score": {
+        "caseId": "repo-05-clean-complete-rename",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-06-clean-similar-but-different",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 4606,
+        "outputTokens": 151,
+        "totalTokens": 4757
+      },
+      "durationMs": 6247,
+      "score": {
+        "caseId": "repo-06-clean-similar-but-different",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-07-dynamic-access-residual",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/commands/registry.ts",
+          "line": 2,
+          "severity": "blocker",
+          "body": "子命令名从 build 改为 compile，但 src/cli/main.ts:3 仍定义 `const DEFAULT_CMD = \"build\"`，而 main.ts:7 通过 `handlers[cmd]?.()` 分发——默认命令 build 现在在 handlers 中不存在，静默返回 undefined 且不执行任何命令，CLI 无参数运行时什么都不做也不报错。需将 DEFAULT_CMD 同步改为 compile（或在 build 失效时给出未知命令提示）。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4357,
+        "outputTokens": 168,
+        "totalTokens": 4525
+      },
+      "durationMs": 5967,
+      "score": {
+        "caseId": "repo-07-dynamic-access-residual",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/commands/registry.ts",
+              "line": 3,
+              "mustMention": [
+                "main.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    }
+  ],
+  "summary": {
+    "recall": 0,
+    "precision": null,
+    "totalExpect": 0,
+    "totalHits": 0,
+    "totalComments": 0,
+    "totalTp": 0,
+    "failed": 0,
+    "usage": {
+      "inputTokens": 31232,
+      "outputTokens": 1025,
+      "totalTokens": 32257
+    },
+    "groups": {
+      "repo": {
+        "recall": 1,
+        "precision": 1,
+        "expectN": 5,
+        "hits": 5,
+        "comments": 5,
+        "tp": 5,
+        "runs": 7,
+        "failed": 0
+      }
+    }
+  }
+}

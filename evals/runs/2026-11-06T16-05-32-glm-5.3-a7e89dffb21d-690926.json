@@ -1,0 +1,299 @@
+{
+  "startedAt": "2026-11-06T16:05:32.702Z",
+  "model": "glm-5.3",
+  "llmBaseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+  "llmExtraBody": "{\"thinking\":{\"type\":\"enabled\"},\"reasoning_effort\":\"low\"}",
+  "promptHash": "a7e89dffb21d",
+  "evalOnly": [
+    "repo"
+  ],
+  "capabilityScope": "synthetic+real",
+  "schemaVersion": 1,
+  "planArm": null,
+  "runs": [
+    {
+      "caseId": "repo-01-rename-residual-ref",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/utils/slug.ts",
+          "line": 1,
+          "severity": "blocker",
+          "body": "将导出函数 `slugify` 重命名为 `slugifyText`，但 `src/render/summary.ts` 第 1 行仍以旧名 `slugify` 导入本模块，本次改动会直接导致该模块解析/编译失败（或运行时 undefined 调用报错）。调用方 `summary.ts:1` 与 `:4` 需同步改为 `slugifyText`（或保留 `slugify` 旧名导出以兼容）。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3786,
+        "outputTokens": 152,
+        "totalTokens": 3938
+      },
+      "durationMs": 6124,
+      "score": {
+        "caseId": "repo-01-rename-residual-ref",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/utils/slug.ts",
+              "line": 1,
+              "mustMention": [
+                "summary.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-02-removed-export-still-used",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 3692,
+        "outputTokens": 66,
+        "totalTokens": 3758
+      },
+      "durationMs": 4387,
+      "score": {
+        "caseId": "repo-02-removed-export-still-used",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/config/limits.ts",
+              "line": 3,
+              "mustMention": [
+                "publisher.ts"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-03-lexical-dry-copy",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/api/size.ts",
+          "line": 8,
+          "severity": "major",
+          "body": "循环条件 `unit < units.length - 1` 会在 value 仍 ≥1024 且已到 TB 时提前终止——但终止后不再换算是对的；真正的问题在浮点边界：如 1023.9999999 因 `n < 1024` 走单字节分支显示 `1024.0 B`（精度丢失如 0.1*3 类计算不会出现于此，但 `value.toFixed(1)` 对恰好整数值如 1048576 会显示 `1024.0 KB` 而非 `1.0 MB`——不，1048576/1024=1024 会继续进位，此处无问题）。撤回前述分析。"
+        },
+        {
+          "file": "src/api/size.ts",
+          "line": 9,
+          "severity": "minor",
+          "body": "units 数组首项为 KB 但当 n 在 [1024, 1048576) 时显示正确；当 n 恰为 1024*1024*1024*1024*1024（>1PB）时，value 停留在 TB 且数值巨大（如 1024.0 TB），超过 TB 后无 PB 单位，属预期截断，可不修。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3844,
+        "outputTokens": 417,
+        "totalTokens": 4261
+      },
+      "durationMs": 15744,
+      "score": {
+        "caseId": "repo-03-lexical-dry-copy",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/api/size.ts",
+              "line": 7,
+              "mustMention": [
+                "format.ts",
+                "formatFileSize"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 2,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-04-string-key-residual",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 3698,
+        "outputTokens": 405,
+        "totalTokens": 4103
+      },
+      "durationMs": 10748,
+      "score": {
+        "caseId": "repo-04-string-key-residual",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/events/bus.ts",
+              "line": 2,
+              "mustMention": [
+                "progress.ts"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-05-clean-complete-rename",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 3920,
+        "outputTokens": 52,
+        "totalTokens": 3972
+      },
+      "durationMs": 3788,
+      "score": {
+        "caseId": "repo-05-clean-complete-rename",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-06-clean-similar-but-different",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/export/csv.ts",
+          "line": 9,
+          "severity": "minor",
+          "body": "text 以换行结尾（常见于文件导出）时 split(\"\\n\") 会产生末尾空串，被压成一个 [\"\"] 空行返回，破坏与导出侧的往返对称。跳过最后为空的行（或 filter 掉空行）即可。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3795,
+        "outputTokens": 351,
+        "totalTokens": 4146
+      },
+      "durationMs": 14605,
+      "score": {
+        "caseId": "repo-06-clean-similar-but-different",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-07-dynamic-access-residual",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/commands/registry.ts",
+          "line": 3,
+          "severity": "blocker",
+          "body": "将键 `build` 改名为 `compile` 后，CLI 入口未同步：src/cli/main.ts:3 的 `DEFAULT_CMD = \"build\"` 仍指向旧键名，第 7 行 `handlers[cmd]?.()` 会静默返回 undefined（可选链吞掉错误），默认路径什么都不执行也不报错。若要改名，需同步更新 DEFAULT_CMD（并确认 `build` 命令没有其他调用方/文档引用，本 diff 内未见）。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3811,
+        "outputTokens": 166,
+        "totalTokens": 3977
+      },
+      "durationMs": 6957,
+      "score": {
+        "caseId": "repo-07-dynamic-access-residual",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/commands/registry.ts",
+              "line": 3,
+              "mustMention": [
+                "main.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    }
+  ],
+  "summary": {
+    "recall": 0,
+    "precision": null,
+    "totalExpect": 0,
+    "totalHits": 0,
+    "totalComments": 0,
+    "totalTp": 0,
+    "failed": 0,
+    "usage": {
+      "inputTokens": 26546,
+      "outputTokens": 1609,
+      "totalTokens": 28155
+    },
+    "groups": {
+      "repo": {
+        "recall": 0.4,
+        "precision": 0.4,
+        "expectN": 5,
+        "hits": 2,
+        "comments": 5,
+        "tp": 2,
+        "runs": 7,
+        "failed": 0
+      }
+    }
+  }
+}
