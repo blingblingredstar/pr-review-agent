@@ -80,11 +80,11 @@ function parseDiff(diff: string): { files: Set<string>; newLineRanges: Map<strin
   return { files, newLineRanges, errors };
 }
 
-test("用例集：73 个、id 唯一、synthetic 20（bug/linked 各 10）+ real 15 + dogfood 2 + injection 9 + repo 7 + correlation 10 + incremental 10", async () => {
+test("用例集：82 个、id 唯一、synthetic 20（bug/linked 各 10）+ real 15 + dogfood 2 + injection 9 + repo 7 + correlation 10 + incremental 10 + framing 9", async () => {
   const cases = await loadCases();
-  assert.equal(cases.length, 73, `应有 73 个用例，实际 ${cases.length}`);
+  assert.equal(cases.length, 82, `应有 82 个用例，实际 ${cases.length}`);
   const ids = cases.map((c) => c.id);
-  assert.equal(new Set(ids).size, 73, "id 有重复");
+  assert.equal(new Set(ids).size, 82, "id 有重复");
   const synthetic = cases.filter((c) => (c.source ?? "synthetic") === "synthetic");
   assert.equal(synthetic.length, 20, "synthetic 应 20 个");
   assert.equal(synthetic.filter((c) => c.kind === "bug").length, 10, "synthetic bug 类应 10 个");
@@ -95,6 +95,7 @@ test("用例集：73 个、id 唯一、synthetic 20（bug/linked 各 10）+ real
   assert.equal(cases.filter((c) => c.source === "repo").length, 7, "repo 应 7 个");
   assert.equal(cases.filter((c) => c.source === "correlation").length, 10, "correlation 应 10 个");
   assert.equal(cases.filter((c) => c.source === "incremental").length, 10, "incremental 应 10 个");
+  assert.equal(cases.filter((c) => (c.source as string) === "framing").length, 9, "framing 应 9 个");
   // 增量对照组（D032 开放问题②）：full/delta 成对（5 fixture × 2 口径）；id 前缀防漏写；
   // repo 快照必带（head 态模拟生产 zipball，两口径共用同一快照——对照的唯一变量是 diff 区间）
   const incIds = cases.filter((c) => c.source === "incremental").map((c) => c.id);
@@ -110,7 +111,7 @@ test("用例集：73 个、id 唯一、synthetic 20（bug/linked 各 10）+ real
     if (c.source === "injection") {
       assert.ok(c.id.startsWith("inj-"), `${c.id} source=injection 但 id 前缀不符`);
       assert.ok(c.noEcho && c.noEcho.length >= 1 && c.noEcho.every((n) => n.length >= 6), `${c.id} noEcho 缺失或特征串过短（易误命中普通措辞）`);
-      // taskContext 是 inj-07 专属通路（D029）：只有注入组可带，能力组带任务块即破坏裸路径红线
+      // taskContext 是注入通路（D029，inj-07 首用）：能力组带任务块即破坏裸路径红线；framing 组（#99）经同通路换措辞
       if (c.taskContext !== undefined) {
         assert.ok(typeof c.taskContext === "string" && c.taskContext.length > 0, `${c.id} taskContext 必须是非空字符串`);
       }
@@ -118,21 +119,30 @@ test("用例集：73 个、id 唯一、synthetic 20（bug/linked 各 10）+ real
       if (c.previousFindings !== undefined) {
         assert.ok(typeof c.previousFindings === "string" && c.previousFindings.length > 0, `${c.id} previousFindings 必须是非空字符串`);
       }
+    } else if ((c.source as string) === "framing") {
+      // framing 组（#99）：taskContext 是组的自变量（三变体全带），非空校验同 injection 款；previousFindings 仍为 injection 专属
+      assert.ok(typeof c.taskContext === "string" && c.taskContext.length > 0, `${c.id} taskContext 必带且须为非空字符串（framing 组自变量）`);
+      assert.equal(c.previousFindings, undefined, `${c.id} framing 用例不得携带 previousFindings（裸路径红线）`);
     } else {
-      assert.equal(c.taskContext, undefined, `${c.id} 非 injection 用例不得携带 taskContext（能力组裸路径红线）`);
+      assert.equal(c.taskContext, undefined, `${c.id} 非 injection/framing 用例不得携带 taskContext（能力组裸路径红线）`);
       assert.equal(c.previousFindings, undefined, `${c.id} 非 injection 用例不得携带 previousFindings（裸路径红线）`);
     }
     // repo fixture 组（D031）：source=repo ⇔ repo 字段成对出现，id 前缀防漏写
     if (c.source === "repo") {
       assert.ok(c.id.startsWith("repo-"), `${c.id} source=repo 但 id 前缀不符`);
       assert.ok(c.repo && Object.keys(c.repo).length > 0, `${c.id} source=repo 但缺 repo fixture`);
-    } else if (c.source !== "incremental") {
-      assert.equal(c.repo, undefined, `${c.id} 非 repo/incremental 组不得携带 repo fixture（裸路径红线）`);
+    } else if (c.source !== "incremental" && (c.source as string) !== "framing") {
+      assert.equal(c.repo, undefined, `${c.id} 非 repo/incremental/framing 组不得携带 repo fixture（裸路径红线）`);
     }
     // 增量对照组：repo 必带（head 态快照是两口径共用的前提，缺快照 delta 用例退化为裸路径、对照失效）
     if (c.source === "incremental") {
       assert.ok(c.id.startsWith("inc-"), `${c.id} source=incremental 但 id 前缀不符`);
       assert.ok(c.repo && Object.keys(c.repo).length > 0, `${c.id} source=incremental 但缺 repo fixture`);
+    }
+    // framing 组（#99）：id 前缀防漏写；repo 复用原 repo 用例快照、必带（缺快照则对照退化为裸路径）
+    if ((c.source as string) === "framing") {
+      assert.ok(c.id.startsWith("framing-"), `${c.id} source=framing 但 id 前缀不符`);
+      assert.ok(c.repo && Object.keys(c.repo).length > 0, `${c.id} framing 用例缺 repo fixture（须复用原 repo 用例快照）`);
     }
     // 对抗性关联组（路线图第 1 项）：id 前缀防漏写；describe 里的 provenance（引入/修复 commit）随 description 必填，
     // 防止「手写想当然用例」混进组里（D015 教训：底料必须可追溯到真实仓库配对）
@@ -149,8 +159,8 @@ test("用例集：73 个、id 唯一、synthetic 20（bug/linked 各 10）+ real
   }
 });
 
-test("repo/incremental 组 fixture 结构：diff 触及文件都在快照中（head 态）、非 diff 文件 ≥2（答案文件 + 诱饵）", async () => {
-  const cases = (await loadCases()).filter((c) => c.source === "repo" || c.source === "incremental");
+test("repo/incremental/framing 组 fixture 结构：diff 触及文件都在快照中（head 态）、非 diff 文件 ≥2（答案文件 + 诱饵）", async () => {
+  const cases = (await loadCases()).filter((c) => c.source === "repo" || c.source === "incremental" || (c.source as string) === "framing");
   assert.ok(cases.length >= 6, "repo 组应有足够用例");
   for (const c of cases) {
     const repo = c.repo!;
@@ -163,6 +173,33 @@ test("repo/incremental 组 fixture 结构：diff 触及文件都在快照中（h
       nonDiff.length >= 2,
       `${c.id} 非 diff 文件仅 ${nonDiff.length} 个——至少要有答案文件（漏改/被重复方）+ 诱饵文件（路径名像答案但不含答案，防路径名泄底）`,
     );
+  }
+});
+
+test("framing 组（#99）：fixture 三变体成对（-a/-b/-c），同 fixture 的 diff/kind/expect/expectClean/repo 组内一致（只差 taskContext 措辞）", async () => {
+  const cases = (await loadCases()).filter((c) => (c.source as string) === "framing");
+  assert.equal(cases.length, 9, "framing 应 9 个");
+  const byBase = new Map<string, EvalCase[]>();
+  for (const c of cases) {
+    const base = c.id.replace(/-(a|b|c)$/, "");
+    assert.notEqual(base, c.id, `${c.id} id 缺 -a/-b/-c 变体后缀`);
+    byBase.set(base, [...(byBase.get(base) ?? []), c]);
+  }
+  const all = await loadCases();
+  for (const [base, trio] of byBase) {
+    assert.equal(trio.length, 3, `${base} 变体数应为 3（a/b/c），实际 ${trio.length}`);
+    const [a, b, c] = trio;
+    // 同 diff 同快照同 verdicts 是组间可比的前提（#99）：防改漏一例
+    assert.deepEqual([a.diff, a.kind, a.expect, a.expectClean, a.repo], [b.diff, b.kind, b.expect, b.expectClean, b.repo], `${base} a/b 字段漂移`);
+    assert.deepEqual([a.diff, a.kind, a.expect, a.expectClean, a.repo], [c.diff, c.kind, c.expect, c.expectClean, c.repo], `${base} a/c 字段漂移`);
+    assert.equal(new Set(trio.map((x) => x.taskContext)).size, 3, `${base} 三变体 taskContext 应互不相同（全同则对照退化）`);
+    // 与原 repo 用例的一致性（对照的有效性前提）：原用例修订时 framing 副本必须跟随，否则对照静默失效。
+    // framing id = 原 id 去 repo- 前缀，故映射回 repo-*
+    const origin = all.find((x) => x.id === base.replace(/^framing-/, "repo-"));
+    assert.ok(origin, `${base} 找不到原 repo 用例`);
+    if (origin) {
+      assert.deepEqual([a.diff, a.kind, a.expect, a.expectClean, a.repo], [origin.diff, origin.kind, origin.expect, origin.expectClean, origin.repo], `${base} 与原用例 ${origin.id} 漂移（原用例修订后 framing 副本未跟随）`);
+    }
   }
 });
 
