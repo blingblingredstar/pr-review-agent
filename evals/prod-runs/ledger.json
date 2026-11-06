@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-11-06T04:40:08.344Z",
+  "fetchedAt": "2026-11-06T16:35:08.753Z",
   "runs": {
     "5b54d-1793814736038-33f8a89f2211": {
       "startedAt": "2026-11-04T17:52:17.107Z",
@@ -1733,6 +1733,533 @@
       },
       "timeout": false,
       "deploymentId": "dpl_9iSMTVbBN8bmCoLV7dVHsJiqGatU",
+      "environment": "production"
+    },
+    "nq647-1793982644563-2c5cf0c5f8bb": {
+      "startedAt": "2026-11-06T16:30:45.772Z",
+      "finishedAt": "2026-11-06T16:30:45.772Z",
+      "durationMs": 0,
+      "pr": 113,
+      "headSha": "cea7b9b",
+      "runKey": "#113@cea7b9b",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_78pamh5AXQ89R4g1GWBxeNBMw18y",
+      "environment": "production"
+    },
+    "btqx5-1793982613534-cf49e4f643c7": {
+      "startedAt": "2026-11-06T16:30:14.274Z",
+      "finishedAt": "2026-11-06T16:30:44.544Z",
+      "durationMs": 30270,
+      "pr": 113,
+      "headSha": "cea7b9b",
+      "runKey": "#113@cea7b9b",
+      "routerTokens": {
+        "in": 7587,
+        "out": 438
+      },
+      "probeTokens": {
+        "in": 42557,
+        "out": 187
+      },
+      "reviewTokens": {
+        "in": 85130,
+        "out": 600,
+        "total": 85730
+      },
+      "toolRequests": "search 无 / read 无（预算 2）",
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_78pamh5AXQ89R4g1GWBxeNBMw18y",
+      "environment": "production"
+    },
+    "9xqqp-1793982608785-2eec4158d039": {
+      "startedAt": "2026-11-06T16:30:12.274Z",
+      "finishedAt": "2026-11-06T16:30:13.515Z",
+      "durationMs": 1241,
+      "pr": 113,
+      "headSha": "cea7b9b",
+      "runKey": "#113@cea7b9b",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": "任务块注入：关联 1 个 issue（#100） / 1316 字符（预算 4000）",
+      "context": "上下文注入：触及 7 个文件 / 快照 366 个文件 / 86753 字符（预算 100000）",
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_78pamh5AXQ89R4g1GWBxeNBMw18y",
+      "environment": "production"
+    },
+    "pvh7n-1793982186145-082ea23629c8": {
+      "startedAt": "2026-11-06T16:23:07.187Z",
+      "finishedAt": "2026-11-06T16:23:07.187Z",
+      "durationMs": 0,
+      "pr": 113,
+      "headSha": "a11ef6d",
+      "runKey": "#113@a11ef6d",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_78pamh5AXQ89R4g1GWBxeNBMw18y",
+      "environment": "production"
+    },
+    "h7q72-1793982151126-a05767b82305": {
+      "startedAt": "2026-11-06T16:22:31.739Z",
+      "finishedAt": "2026-11-06T16:23:06.125Z",
+      "durationMs": 34386,
+      "pr": 113,
+      "headSha": "a11ef6d",
+      "runKey": "#113@a11ef6d",
+      "routerTokens": {
+        "in": 7495,
+        "out": 433
+      },
+      "probeTokens": {
+        "in": 41829,
+        "out": 427
+      },
+      "reviewTokens": {
+        "in": 83674,
+        "out": 674,
+        "total": 84348
+      },
+      "toolRequests": "search 无 / read 无（预算 2）",
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_78pamh5AXQ89R4g1GWBxeNBMw18y",
+      "environment": "production"
+    },
+    "swvsb-1793982147053-e4fdb98e1580": {
+      "startedAt": "2026-11-06T16:22:29.631Z",
+      "finishedAt": "2026-11-06T16:22:31.101Z",
+      "durationMs": 1470,
+      "pr": 113,
+      "headSha": "a11ef6d",
+      "runKey": "#113@a11ef6d",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": "任务块注入：关联 1 个 issue（#100） / 1316 字符（预算 4000）",
+      "context": "上下文注入：触及 7 个文件 / 快照 360 个文件 / 83790 字符（预算 100000）",
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_78pamh5AXQ89R4g1GWBxeNBMw18y",
+      "environment": "production"
+    },
+    "j9v8d-1793981955913-d1520dde52dc": {
+      "startedAt": "2026-11-06T16:19:16.931Z",
+      "finishedAt": "2026-11-06T16:19:21.313Z",
+      "durationMs": 4382,
+      "pr": 113,
+      "headSha": "037cabb",
+      "runKey": "#113@037cabb",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [
+        "[github] REQUEST_CHANGES 被拒（422 自家 PR 或行号非法），回退 COMMENT"
+      ],
+      "outcome": {
+        "inline": 1,
+        "degraded": 0,
+        "folded": 1,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_78pamh5AXQ89R4g1GWBxeNBMw18y",
+      "environment": "production"
+    },
+    "vkg46-1793981895426-d96bcdbc0657": {
+      "startedAt": "2026-11-06T16:18:16.058Z",
+      "finishedAt": "2026-11-06T16:19:15.897Z",
+      "durationMs": 59839,
+      "pr": 113,
+      "headSha": "037cabb",
+      "runKey": "#113@037cabb",
+      "routerTokens": {
+        "in": 7485,
+        "out": 297
+      },
+      "probeTokens": {
+        "in": 39678,
+        "out": 698
+      },
+      "reviewTokens": {
+        "in": 79372,
+        "out": 1970,
+        "total": 81342
+      },
+      "toolRequests": "search 无 / read 无（预算 2）",
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 1,
+        "degraded": 0,
+        "folded": 1,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_78pamh5AXQ89R4g1GWBxeNBMw18y",
+      "environment": "production"
+    },
+    "4vs5p-1793981892228-74dcb63e2b28": {
+      "startedAt": "2026-11-06T16:18:14.417Z",
+      "finishedAt": "2026-11-06T16:18:15.400Z",
+      "durationMs": 983,
+      "pr": 113,
+      "headSha": "037cabb",
+      "runKey": "#113@037cabb",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": "任务块注入：关联 1 个 issue（#100） / 1316 字符（预算 4000）",
+      "context": "上下文注入：触及 6 个文件 / 快照 360 个文件 / 82122 字符（预算 100000）",
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 1,
+        "degraded": 0,
+        "folded": 1,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_78pamh5AXQ89R4g1GWBxeNBMw18y",
+      "environment": "production"
+    },
+    "gqn77-1793981516406-9dab06fe9862": {
+      "startedAt": "2026-11-06T16:11:57.433Z",
+      "finishedAt": "2026-11-06T16:11:57.433Z",
+      "durationMs": 0,
+      "pr": 111,
+      "headSha": "71805ad",
+      "runKey": "#111@71805ad",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_3AicFzWM8PNN6eDduBsm66EuWGnA",
+      "environment": "production"
+    },
+    "spm9l-1793981504629-0fd037096381": {
+      "startedAt": "2026-11-06T16:11:45.263Z",
+      "finishedAt": "2026-11-06T16:11:56.391Z",
+      "durationMs": 11128,
+      "pr": 111,
+      "headSha": "71805ad",
+      "runKey": "#111@71805ad",
+      "routerTokens": {
+        "in": 7514,
+        "out": 218
+      },
+      "probeTokens": {
+        "in": 19202,
+        "out": 21
+      },
+      "reviewTokens": {
+        "in": 38420,
+        "out": 41,
+        "total": 38461
+      },
+      "toolRequests": "search 无 / read 无（预算 2）",
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_3AicFzWM8PNN6eDduBsm66EuWGnA",
+      "environment": "production"
+    },
+    "rvbp6-1793981501053-46d6cc957bd0": {
+      "startedAt": "2026-11-06T16:11:43.765Z",
+      "finishedAt": "2026-11-06T16:11:44.614Z",
+      "durationMs": 849,
+      "pr": 111,
+      "headSha": "71805ad",
+      "runKey": "#111@71805ad",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": "任务块注入：关联 1 个 issue（#80） / 1163 字符（预算 4000）",
+      "context": "上下文注入：触及 2 个文件 / 快照 364 个文件 / 42036 字符（预算 100000）",
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_3AicFzWM8PNN6eDduBsm66EuWGnA",
+      "environment": "production"
+    },
+    "sjtvn-1793981481611-d84ec032891d": {
+      "startedAt": "2026-11-06T16:11:22.566Z",
+      "finishedAt": "2026-11-06T16:11:22.566Z",
+      "durationMs": 0,
+      "pr": 110,
+      "headSha": "cf43afb",
+      "runKey": "#110@cf43afb",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_3AicFzWM8PNN6eDduBsm66EuWGnA",
+      "environment": "production"
+    },
+    "cgw7q-1793981473767-34aac94d6ce6": {
+      "startedAt": "2026-11-06T16:11:15.462Z",
+      "finishedAt": "2026-11-06T16:11:21.592Z",
+      "durationMs": 6130,
+      "pr": 110,
+      "headSha": "cf43afb",
+      "runKey": "#110@cf43afb",
+      "routerTokens": {
+        "in": 7313,
+        "out": 71
+      },
+      "probeTokens": {
+        "in": 14672,
+        "out": 7
+      },
+      "reviewTokens": {
+        "in": 29360,
+        "out": 14,
+        "total": 29374
+      },
+      "toolRequests": "search 无 / read 无（预算 2）",
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_3AicFzWM8PNN6eDduBsm66EuWGnA",
+      "environment": "production"
+    },
+    "967vt-1793981470142-abf5d9f19a9c": {
+      "startedAt": "2026-11-06T16:11:13.037Z",
+      "finishedAt": "2026-11-06T16:11:13.749Z",
+      "durationMs": 712,
+      "pr": 110,
+      "headSha": "cf43afb",
+      "runKey": "#110@cf43afb",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": "无关联 issue（closing keywords 未命中），不注入任务块",
+      "context": "上下文注入：触及 1 个文件 / 快照 351 个文件 / 26280 字符（预算 100000）",
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 0,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_3AicFzWM8PNN6eDduBsm66EuWGnA",
+      "environment": "production"
+    },
+    "vxjfl-1793981310014-df016693ebce": {
+      "startedAt": "2026-11-06T16:08:31.062Z",
+      "finishedAt": "2026-11-06T16:08:31.062Z",
+      "durationMs": 0,
+      "pr": 111,
+      "headSha": "4326f98",
+      "runKey": "#111@4326f98",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 1,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_3AicFzWM8PNN6eDduBsm66EuWGnA",
+      "environment": "production"
+    },
+    "7xnm2-1793981235133-3521400c638e": {
+      "startedAt": "2026-11-06T16:07:15.904Z",
+      "finishedAt": "2026-11-06T16:08:29.997Z",
+      "durationMs": 74093,
+      "pr": 111,
+      "headSha": "4326f98",
+      "runKey": "#111@4326f98",
+      "routerTokens": {
+        "in": 7640,
+        "out": 505
+      },
+      "probeTokens": null,
+      "reviewTokens": {
+        "in": 44814,
+        "out": 2717,
+        "total": 47531
+      },
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": null,
+      "context": null,
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 1,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_3AicFzWM8PNN6eDduBsm66EuWGnA",
+      "environment": "production"
+    },
+    "c284p-1793981232258-fd126083cf6a": {
+      "startedAt": "2026-11-06T16:07:14.080Z",
+      "finishedAt": "2026-11-06T16:07:15.107Z",
+      "durationMs": 1027,
+      "pr": 111,
+      "headSha": "4326f98",
+      "runKey": "#111@4326f98",
+      "routerTokens": null,
+      "probeTokens": null,
+      "reviewTokens": null,
+      "toolRequests": null,
+      "toolCalls": [],
+      "task": "任务块注入：关联 1 个 issue（#80） / 1163 字符（预算 4000）",
+      "context": "上下文注入：触及 9 个文件 / 快照 364 个文件 / 79101 字符（预算 100000）",
+      "truncation": null,
+      "warnings": [],
+      "outcome": {
+        "inline": 0,
+        "degraded": 0,
+        "folded": 1,
+        "source": "github"
+      },
+      "timeout": false,
+      "deploymentId": "dpl_3AicFzWM8PNN6eDduBsm66EuWGnA",
       "environment": "production"
     }
   }

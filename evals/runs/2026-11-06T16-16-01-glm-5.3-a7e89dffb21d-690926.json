@@ -1,0 +1,352 @@
+{
+  "startedAt": "2026-11-06T16:16:01.971Z",
+  "model": "glm-5.3",
+  "llmBaseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+  "llmExtraBody": "{\"thinking\":{\"type\":\"enabled\"},\"reasoning_effort\":\"low\"}",
+  "promptHash": "a7e89dffb21d",
+  "evalOnly": [
+    "ctxpair"
+  ],
+  "capabilityScope": "synthetic+real",
+  "schemaVersion": 1,
+  "planArm": null,
+  "contextArm": null,
+  "runs": [
+    {
+      "caseId": "ctx-01-error-wrap-invoice",
+      "kind": "linked",
+      "source": "ctxpair",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/invoice/notify.ts",
+          "line": 14,
+          "severity": "major",
+          "body": "`notifyOverdue` 中调用 `pushNotice(invoiceId)` 缺少 `await`，返回的 Promise 被丢弃：函数在通知实际投递前就 resolve，调用方无法感知投递结果或失败；若过程中抛错会变成 unhandled rejection 被吞掉。应改为 `await pushNotice(invoiceId);`。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1067,
+        "outputTokens": 102,
+        "totalTokens": 1169
+      },
+      "durationMs": 5088,
+      "score": {
+        "caseId": "ctx-01-error-wrap-invoice",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/invoice/notify.ts",
+              "line": 13,
+              "mustMention": [
+                "await",
+                "未等待",
+                "异步",
+                "竞态"
+              ],
+              "kind": "structural"
+            },
+            "hit": true
+          },
+          {
+            "expect": {
+              "file": "src/invoice/audit-export.ts",
+              "line": 14,
+              "mustMention": [
+                "包装",
+                "统一错误",
+                "errors.ts",
+                "原生",
+                "裸抛"
+              ],
+              "kind": "convention"
+            },
+            "hit": false
+          }
+        ],
+        "hits": 1,
+        "recall": 0.5,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "ctx-02-log-facade-token",
+      "kind": "linked",
+      "source": "ctxpair",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/broker/introspect.ts",
+          "line": 17,
+          "severity": "major",
+          "body": "`issued.get(jti)` 查不到时返回 `undefined`，随后 `rec.revoked` 直接抛 TypeError，`checkRevocation` 对任何未登记过的 jti（正常主流情况）都会崩溃。应先判空：`if (rec?.revoked)`，或明确未登记时的语义（视为未撤销返回 false）。"
+        },
+        {
+          "file": "src/broker/introspect.ts",
+          "line": 25,
+          "severity": "minor",
+          "body": "同一文件中其他日志走 `log.info`，这里 `auditDump` 用裸 `console.log` 输出整个 Introspection 对象，绕过统一日志管道且可能把令牌相关字段打进 stdout。建议改用 log 并确认 result 中无敏感字段。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 935,
+        "outputTokens": 224,
+        "totalTokens": 1159
+      },
+      "durationMs": 6439,
+      "score": {
+        "caseId": "ctx-02-log-facade-token",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/broker/introspect.ts",
+              "line": 19,
+              "mustMention": [
+                "undefined",
+                "判空",
+                "空值",
+                "不存在",
+                "未找到"
+              ],
+              "kind": "structural"
+            },
+            "hit": true
+          },
+          {
+            "expect": {
+              "file": "src/broker/introspect.ts",
+              "line": 27,
+              "mustMention": [
+                "门面",
+                "统一日志",
+                "裸调",
+                "绕过"
+              ],
+              "kind": "convention"
+            },
+            "hit": true
+          }
+        ],
+        "hits": 2,
+        "recall": 1,
+        "agentComments": 2,
+        "truePositives": 2,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "ctx-03-const-naming-catalog",
+      "kind": "linked",
+      "source": "ctxpair",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/catalog/exporter.ts",
+          "line": 14,
+          "severity": "minor",
+          "body": "循环条件用了 `i <= rows.length`，当 rows.length 恰好是 defaultPageSize 的整数倍时会多 push 一个空切片（如 length=50 时 i=50 满足条件，slice(50,100) 为空数组）。若下游按 chunk 数量计数或写入文件会产生多余的空块。改为 `i < rows.length` 即可。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 909,
+        "outputTokens": 104,
+        "totalTokens": 1013
+      },
+      "durationMs": 3705,
+      "score": {
+        "caseId": "ctx-03-const-naming-catalog",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/catalog/exporter.ts",
+              "line": 15,
+              "mustMention": [
+                "空",
+                "多一",
+                "末尾",
+                "越界"
+              ],
+              "kind": "structural"
+            },
+            "hit": true
+          },
+          {
+            "expect": {
+              "file": "src/catalog/exporter.ts",
+              "line": 11,
+              "mustMention": [
+                "大写",
+                "全大写",
+                "DEFAULT_PAGE_SIZE",
+                "应改为",
+                "不符"
+              ],
+              "kind": "convention"
+            },
+            "hit": false
+          }
+        ],
+        "hits": 1,
+        "recall": 0.5,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "ctx-04-internal-boundary-metrics",
+      "kind": "linked",
+      "source": "ctxpair",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/report/summary.ts",
+          "line": 14,
+          "severity": "major",
+          "body": "`totalWeight` 是一个以返回合计值为目的的纯读函数，却通过 `rawBump` 向全局计数器写入副作用。每次调用都会累加 counter，第二次调用同一组 rows 时返回值会翻倍，结果不确定且依赖调用次数；若多处调用此函数，计数器语义也被污染。应改为直接 `rows.reduce((acc, r) => acc + r.weight, 0)` 求和，把计数（若有必要）放到明确的埋点位置。另外 reduce 缺少初始值 0，rows 为空时 reduce 会抛 TypeError（虽然分母 Math.max 兜底了除零，但求和本身先崩了）。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 946,
+        "outputTokens": 233,
+        "totalTokens": 1179
+      },
+      "durationMs": 7118,
+      "score": {
+        "caseId": "ctx-04-internal-boundary-metrics",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/report/summary.ts",
+              "line": 18,
+              "mustMention": [
+                "初始值",
+                "空数组",
+                "reduce",
+                "TypeError"
+              ],
+              "kind": "structural"
+            },
+            "hit": false
+          },
+          {
+            "expect": {
+              "file": "src/report/summary.ts",
+              "line": 1,
+              "mustMention": [
+                "边界",
+                "越界",
+                "封装",
+                "不该",
+                "对外暴露"
+              ],
+              "kind": "convention"
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 1,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "ctx-05-spec-companion-retry",
+      "kind": "linked",
+      "source": "ctxpair",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/retry/backoff.ts",
+          "line": 12,
+          "severity": "major",
+          "body": "describeAttempt 只替换了第一个 %s，第二个 %s 会原样留在输出里（String.replace 不带 /g 只替换首个匹配），日志会变成 \"[relay] attempt 2 of %s failed\"。应改用 replaceAll 或模板字符串直接拼接：`[relay] attempt ${n} of ${total} failed`。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 913,
+        "outputTokens": 138,
+        "totalTokens": 1051
+      },
+      "durationMs": 4977,
+      "score": {
+        "caseId": "ctx-05-spec-companion-retry",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/retry/backoff.ts",
+              "line": 12,
+              "mustMention": [
+                "只替换",
+                "第一个",
+                "replaceAll",
+                "两处"
+              ],
+              "kind": "structural"
+            },
+            "hit": true
+          },
+          {
+            "expect": {
+              "file": "src/retry/backoff.ts",
+              "line": 1,
+              "mustMention": [
+                "单测",
+                "用例",
+                "覆盖",
+                "配套"
+              ],
+              "kind": "convention"
+            },
+            "hit": false
+          }
+        ],
+        "hits": 1,
+        "recall": 0.5,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    }
+  ],
+  "summary": {
+    "recall": 0,
+    "precision": null,
+    "totalExpect": 0,
+    "totalHits": 0,
+    "totalComments": 0,
+    "totalTp": 0,
+    "failed": 0,
+    "usage": {
+      "inputTokens": 4770,
+      "outputTokens": 801,
+      "totalTokens": 5571
+    },
+    "groups": {
+      "ctxpair": {
+        "recall": 0.5,
+        "precision": 0.8333333333333334,
+        "expectN": 10,
+        "hits": 5,
+        "comments": 6,
+        "tp": 5,
+        "runs": 5,
+        "failed": 0
+      }
+    }
+  }
+}

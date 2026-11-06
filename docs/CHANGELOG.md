@@ -384,3 +384,20 @@
 - `npm run prodlogs` 台账汇总新增意见落点三计数：行内 / 降级 / 折叠（folded 为 #89 派生口径独有，此前系统性缺席会低估产出）+ 派生覆盖 run 数
 - 首轮消融实跑（EVAL_ONLY=repo 7 例 × 2 臂，生产口径镜像 glm-5.3@low + glm-5.3-flash）：plan 臂 recall +20pp / precision −8.3pp，单轮信号不构成裁决（±1 条意见即 ±20pp），读数与 runs 归档 `evals/report.md`「路由计划消融首轮」一节
 - 单测 255（prodlogs 三计数、compare planArm 分组各 1 组新增）
+
+### Added（夜间批量五号：framing 对照组 + ctxpair 双联组，#99/#80，2026-11-07）
+
+- framing 对照组 9 例（3 fixture × a 中性 / b 权威预设 / c 轻视性）：同 diff 换 `taskContext` 措辞的行为级对照（D029 通路），diff/repo/expect 原样复制、单测红线豁免集扩 framing + 三变体 deepEqual 一致断言；首轮读数：触发判据未触发（C 变体意见数不低于 A），clean 例三变体全沉默
+- ctxpair 双联组 5 例（structural + convention 双联缺陷，约定藏非触及文件）+ `EVAL_CONTEXT=1` 消融臂（EVAL_PLAN 同款三件套：`-ctx` 后缀 + `contextArm` 字段 + compare 分组键）；bare 臂真 diff-only 裸跑（caseOpts 特判不注入工具）；防循环性红线（convention mustMention 不复用约定文档原词，机械弱断言 + 阴性对照）；首轮 Δrecall −10pp 噪声级——D023 形态不携带约定文档正文，工具对照期（D027/D031）才是完整读数；多期望 TP 口径注记 + 根治 issue #112
+- `Expectation` 加 optional `kind: "structural" | "convention"`（ctxpair 专用）；eval 用例 73 → 87；单测 255 → 262（framing 成对断言 + confidence 组）
+
+### Added（意见置信度结构化，#100，2026-11-07）
+
+- `reviewResultSchema` comments 项加 optional `confidence: "high"|"medium"|"low"`；`prompts/review.md` 意见输出规则加一行自评（**promptHash 基线换新**，`a7e89dffb21d` → 新值）；发布面不渲染（白名单式组装核对 + github.ts/worker.ts confidence tripwire 测试）
+- eval 校准链路：CaseScore 加 `commentConfidences` + `commentTps`（逐意见对齐记录，交叉表数据出口零重算）；run per-case 分布串 + 汇总 confidence × TP 交叉统计行（各档 TP 率 + miss 意见中 low 占比）；JSON 模式 `prompts/json-output.md` 形状同步
+
+### Changed（#65 闸门 3 裁决 D039：保留 DECISION_MODEL，2026-11-07）
+
+- 路由计划消融加严（repo 7 例 × 2 臂 × 3 轮池化）：EVAL_PLAN 臂 93.3%/87.5% vs baseline 33.3%/45.5%——**Δrecall +60pp 且 Δprecision +42pp 双升**，退出判据完全不触发，`DECISION_MODEL` 保留（D039，#65 关闭）；首轮单轮的 precision −8.3pp 风险未复现
+- D036 cheap-pair 新基线复验（3+3 轮池化）：glm-flash 单模型 88.6/90.5 双超维持（端点演进观察项两轮确证）；课程四步合并 89.5/91.6 双超维持但 recall 幅度 +3.8pp 落 +5pp 闸门线下——灰区晨起裁定；corr 短板复确认（前置③数据齐，#82 comment 已贴）；`analyze-cross-review.ts` 清单切新基线 6 run
+- 仓库重构评估（G 轨）：目录重组维持否决（D030），局部收敛清单 6 条全绑自然时点（C1/C2 挂 #82 双指纹去重动工窗口），`docs/plans/refactor-assessment-2026-11-07.md`

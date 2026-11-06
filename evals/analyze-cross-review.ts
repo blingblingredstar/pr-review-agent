@@ -300,18 +300,20 @@ const DS_HIGH_FILE = "2026-11-04T17-42-24-deepseek-flash.json";
 // D036 触发 run（2026-11-06 夜补数据）：DeepSeek@low 全量新鲜 run，意见 body 完整——主对（GLM@low × DS@low）消融解锁。
 // promptHash 7be33f4d6fbc 与三档实验同口径（LLM_JSON_MODE 适配）；extraBody = enabled + reasoning_effort:low（低思考档）
 const DS_LOW_FRESH_FILE = "2026-11-05T15-52-26-deepseek-flash-7be33f4d6fbc-690926.json";
-// cheap-pair（用户提案：glm-flash + deepseek-flash，2026-11-06 夜）：两侧均便宜档、均旧 prompt 时代
-//（GLM flash cd5353f4688c 无 json-mode / DS disabled 7be33f4d6fbc 有 json-mode 适配——混杂因素同 §混杂），
-// 各 3 轮（GLM flash: 16-22/16-36/16-48；DS disabled: 16-16/16-36/16-48——r2 同秒启动不同模型名不互覆）
+// cheap-pair（用户提案：glm-flash + deepseek-flash，2026-11-06 夜首测旧基线读数已落档 report.md；
+// 2026-11-07 夜复验切换 = D036 重议前置①「新 prompt 基线复验」）：两侧均便宜档、同 prompts/review.md 版本
+//（GLM flash a7e89dffb21d 无 json-mode / DS disabled ca68f5ffb2df 有 json-mode 适配——混杂因素同 §混杂，
+// 端点不支持 json_schema 不可消除，照首测同型记档）。各 3 轮（GLM flash: 15-08/15-20/15-32；
+// DS disabled: 15-08/15-14/15-19），73 例集（vs 存档基线 71 例交集，口径见下）
 const GLM_FLASH_FILES = [
-  "2026-11-05T16-22-50-glm-5.3-flash-cd5353f4688c-b5870a.json",
-  "2026-11-05T16-36-46-glm-5.3-flash-cd5353f4688c-b5870a.json",
-  "2026-11-05T16-48-23-glm-5.3-flash-cd5353f4688c-b5870a.json",
+  "2026-11-06T15-08-50-glm-5.3-flash-a7e89dffb21d-b5870a.json",
+  "2026-11-06T15-20-40-glm-5.3-flash-a7e89dffb21d-b5870a.json",
+  "2026-11-06T15-32-48-glm-5.3-flash-a7e89dffb21d-b5870a.json",
 ];
 const DS_DISABLED_FILES = [
-  "2026-11-05T16-16-46-deepseek-flash-7be33f4d6fbc-b5870a.json",
-  "2026-11-05T16-36-46-deepseek-flash-7be33f4d6fbc-b5870a.json",
-  "2026-11-05T16-48-23-deepseek-flash-7be33f4d6fbc-b5870a.json",
+  "2026-11-06T15-08-50-deepseek-flash-ca68f5ffb2df-b5870a.json",
+  "2026-11-06T15-14-06-deepseek-flash-ca68f5ffb2df-b5870a.json",
+  "2026-11-06T15-19-12-deepseek-flash-ca68f5ffb2df-b5870a.json",
 ];
 
 const glmRuns = GLM_FILES.map((f) => loadRun(`runs/${f}`));

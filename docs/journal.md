@@ -784,3 +784,25 @@
   1. 本 PR 过闸门合并后：#65 闸门 2 收口（口径设计 + 消融表已落 report.md），剩余 = 3 轮池化加严 → gate 3 decision 记录（退出判据 |Δ|<3pp）
   2. D036 cheap-pair 重议前置仍排队：新基线 a7e89dffb21d 复验 3 轮（与 #65 加严可同批跑，省一轮）
   3. #82 生产观察 / #65 台账勤回收照旧
+
+## 会话 46（2026-11-06 晚 → 11-07 晨）：夜间批量五号——A/B/C/D/G 五轨全落地，三个 issue 关闭
+
+- **目标**：按 `docs/plans/overnight-execution-2026-11-07.md`（preflight 补强版）无人值守执行：#99 framing / #80 ctxpair / #65 加严 + D036 复验 / #100 置信度 / G 轨重构评估。
+- **完成**（PR 全过双 required check + bot 意见三处核对闭环，串行合并）：
+  - #102 计划 preflight 补强（四阻塞闭：红线修订清单 / 精确 env / issue 规格内联 / analyze 清单工作项）+ #103 台账回收 + #104 G 轨补白天裁定输入
+  - **#109 framing 9 例（Closes #99）**：bot 先抓 minor（副本与原用例一致性断言缺失）→ 修复引入 id 映射 bug → **bot 增量审查抓 major** → 修复闭环。首轮读数：触发判据未触发（C 变体意见数不低于 A），b 权威预设报得最多且全中（与「权威预设软化报告」假设相反），clean 例三变体全沉默
+  - **#111 ctxpair 5 例 + EVAL_CONTEXT 臂（Closes #80）**：rebase 调和 5 处 test 冲突（总数 87）；bot minor 抓多期望 TP 口径 → 注记闭环 + **#112 根治 issue**。首轮 Δrecall −10pp 噪声级——D023 形态不注入约定文档正文（结构性上限），完整读数挂 D027/D031 工具对照期
+  - **#110 重构评估（G 轨）**：目录重组维持否决（D030），局部收敛清单 6 条全绑自然时点；白天裁定两点精确化修正落档；bot minor（文档条数自相矛盾）修复
+  - **#113 confidence 结构化（Closes #100）**：bot major 抓校准闭环缺口（只落分布串没落交叉表）→ commentTps 逐意见对齐 + run 汇总交叉统计 + json-output.md 形状同步；**新基线全量 run 校准表：low 档零样本（0/35）——无信号可判，标注保留不撤**，生产观察 low 出现率（report.md「置信度校准首轮」节）
+  - eval 批：C④ cheap-pair 复验 3+3 轮（双超维持，recall +3.8pp 灰区晨起裁定）；C① 加严 3+3 → **D039：保留 DECISION_MODEL（plan 臂 93.3/87.5 vs base 33.3/45.5，+60/+42 双升，#65 关闭）**；C②③ 首轮锚点；analyze-cross-review.ts 清单切新基线；runs 16 个落库
+- **发现/坑**：
+  1. **`.env` 漂移**：`LLM_MODEL=glm-5.3-flash`（应为 glm-5.3，改动来源不明，晨起核实）——C① 首跑 6 轮 + 新基线首跑口径全错（run JSON model 字段可查，plan 臂 DECISION_MODEL 未设 router 全败 injected=0），精确删除后 inline 全套口径重跑。**教训：eval 命令永远 inline 全套口径，起跑后核对首行 model 字段**
+  2. #113 `mergeable_state=dirty` 静默跳过 review-threads workflow（机制坑三度实证）——rebase 解冲突后 clean 恢复
+  3. bot 对已修 commit 逐字重报旧代码状态的 major（审 1480aca 引用 2721a65 的代码）——D035 行为活标本，处置 = 回应引用修复 commit + resolve
+  4. worker.test.ts 时间敏感断言 flaky 一次（router 100ms 扣除；单跑/复跑全过，与改动无关）
+  5. #103/#104 审查日志 30 分钟窗蒸发（2 笔台账行损失）；后续 4 个 PR 窗内回收挽回（台账 59 → 77 run，#89 派生 25/26）
+  6. npm audit 4 high（zod→@vercel/cli-config→@vercel/oidc→@vercel/functions 链，audit fix 零代码改动可修——G 轨评估附注）
+- **下一步**：
+  1. 晨起三裁定：cheap-pair 灰区三选一（#82 comment 已贴选项）/ `.env` 漂移来源核实 / 校准「无信号」结论复核
+  2. 白天候选：#105/#106/#107（并行会话新立，D040 预分配）/ #112 TP 口径根治 / npm audit fix chore
+  3. 观察项：glm-flash@新 prompt（`16-34-02` run）与 glm-5.3@新 prompt（`16-57-38`）同期对照数据已就位——端点演进观察项的第一笔新基线可比对

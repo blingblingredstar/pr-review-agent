@@ -1,0 +1,313 @@
+{
+  "startedAt": "2026-11-06T16:09:56.546Z",
+  "model": "glm-5.3",
+  "llmBaseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+  "llmExtraBody": "{\"thinking\":{\"type\":\"enabled\"},\"reasoning_effort\":\"low\"}",
+  "promptHash": "a7e89dffb21d",
+  "evalOnly": [
+    "repo"
+  ],
+  "capabilityScope": "synthetic+real",
+  "schemaVersion": 1,
+  "planArm": {
+    "enabled": true,
+    "injected": 7,
+    "failed": 0,
+    "skipped": 0,
+    "routerMs": 33194
+  },
+  "runs": [
+    {
+      "caseId": "repo-01-rename-residual-ref",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/utils/slug.ts",
+          "line": 1,
+          "severity": "major",
+          "body": "导出符号由 `slugify` 改名为 `slugifyText`，但既有调用方未同步：`src/render/summary.ts:1` 仍 `import { slugify } from \"../utils/slug.ts\"` 并在第 4 行调用，改名后该导入在运行时/类型检查都会失败（模块无此导出）。若 slug-legacy.ts 也从 slug.ts 导入旧名，需一并更新。修法：同步更新所有导入，或保留旧名作 re-export 别名（`export { slugifyText as slugify }`）。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4298,
+        "outputTokens": 207,
+        "totalTokens": 4505
+      },
+      "durationMs": 6192,
+      "score": {
+        "caseId": "repo-01-rename-residual-ref",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/utils/slug.ts",
+              "line": 1,
+              "mustMention": [
+                "summary.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-02-removed-export-still-used",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/config/limits.ts",
+          "line": 2,
+          "severity": "major",
+          "body": "删除了 MAX_QUEUE_DEPTH 的定义，但 src/queue/publisher.ts 第 1 行仍 `import { MAX_QUEUE_DEPTH } from \"../config/limits.ts\"`，该命名导出已不存在，模块加载即抛错（或运行时得到 undefined，取决于运行环境），限流逻辑失效。应同步更新 publisher.ts（改用其他来源或内置默认值）或恢复该常量。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4301,
+        "outputTokens": 136,
+        "totalTokens": 4437
+      },
+      "durationMs": 8877,
+      "score": {
+        "caseId": "repo-02-removed-export-still-used",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/config/limits.ts",
+              "line": 3,
+              "mustMention": [
+                "publisher.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-03-lexical-dry-copy",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/api/size.ts",
+          "line": 7,
+          "severity": "minor",
+          "body": "仓库 src/shared/format.ts 已有功能相同的字节单位格式化实现（含相同的 units 数组），此处又新写了一份。两份实现今后易出现单位换算或精度不一致，建议复用 shared 层函数，而不是在 api 层重复实现。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4478,
+        "outputTokens": 138,
+        "totalTokens": 4616
+      },
+      "durationMs": 5450,
+      "score": {
+        "caseId": "repo-03-lexical-dry-copy",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/api/size.ts",
+              "line": 7,
+              "mustMention": [
+                "format.ts",
+                "formatFileSize"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-04-string-key-residual",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/events/bus.ts",
+          "line": 2,
+          "severity": "major",
+          "body": "常量值从 \"sync:done\" 改为 \"sync:complete\"，但订阅方 src/ui/progress.ts:4 仍用字符串字面量 `.on(\"sync:done\", ...)` 监听旧事件名，改后该监听器将永远收不到事件（且无人监听 \"sync:complete\"）。应把 progress.ts 改为引用 EVT_SYNC_DONE 常量，或同步更新该字面量。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4238,
+        "outputTokens": 164,
+        "totalTokens": 4402
+      },
+      "durationMs": 6226,
+      "score": {
+        "caseId": "repo-04-string-key-residual",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/events/bus.ts",
+              "line": 2,
+              "mustMention": [
+                "progress.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-05-clean-complete-rename",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 4466,
+        "outputTokens": 54,
+        "totalTokens": 4520
+      },
+      "durationMs": 7851,
+      "score": {
+        "caseId": "repo-05-clean-complete-rename",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-06-clean-similar-but-different",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/export/csv.ts",
+          "line": 7,
+          "severity": "minor",
+          "body": "parseCsvExport 对含 \";\"、\"\\\"\" 或换行的字段无法正确还原：csvHeader 用 \";\" 拼接且不加引号转义，parseCsvExport 再按 \";\" 拆分会把字段内容切碎，replace 去引号也会破坏字段内部合法的引号。即导出→解析往返在字段含分隔符或引号时结果错误。若字段来源可能含这些字符，应在 csvHeader 侧做转义（含 \";\" 或引号的字段用引号包裹、内部引号翻倍），并在此解析器里处理转义还原；若字段已被约束为不含这些字符，建议加断言或注释明确契约。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4590,
+        "outputTokens": 395,
+        "totalTokens": 4985
+      },
+      "durationMs": 13568,
+      "score": {
+        "caseId": "repo-06-clean-similar-but-different",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-07-dynamic-access-residual",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/commands/registry.ts",
+          "line": 3,
+          "severity": "blocker",
+          "body": "将命令键从 `build` 改名为 `compile`，但 CLI 入口的默认命令仍是 `\"build\"`（src/cli/main.ts:3），且分发处 `handlers[cmd]?.()`（src/cli/main.ts:7）在用户不带子命令运行时会得到 undefined，默认命令静默失效且无任何提示。需将 DEFAULT_CMD 同步改为 `\"compile\"`，或确认其他调用方无 `build` 残留。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4368,
+        "outputTokens": 152,
+        "totalTokens": 4520
+      },
+      "durationMs": 6288,
+      "score": {
+        "caseId": "repo-07-dynamic-access-residual",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/commands/registry.ts",
+              "line": 3,
+              "mustMention": [
+                "main.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    }
+  ],
+  "summary": {
+    "recall": 0,
+    "precision": null,
+    "totalExpect": 0,
+    "totalHits": 0,
+    "totalComments": 0,
+    "totalTp": 0,
+    "failed": 0,
+    "usage": {
+      "inputTokens": 30739,
+      "outputTokens": 1246,
+      "totalTokens": 31985
+    },
+    "groups": {
+      "repo": {
+        "recall": 1,
+        "precision": 0.8333333333333334,
+        "expectN": 5,
+        "hits": 5,
+        "comments": 6,
+        "tp": 5,
+        "runs": 7,
+        "failed": 0
+      }
+    }
+  }
+}

@@ -1,0 +1,279 @@
+{
+  "startedAt": "2026-11-06T16:03:04.825Z",
+  "model": "glm-5.3",
+  "llmBaseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+  "llmExtraBody": "{\"thinking\":{\"type\":\"enabled\"},\"reasoning_effort\":\"low\"}",
+  "promptHash": "a7e89dffb21d",
+  "evalOnly": [
+    "repo"
+  ],
+  "capabilityScope": "synthetic+real",
+  "schemaVersion": 1,
+  "planArm": null,
+  "runs": [
+    {
+      "caseId": "repo-01-rename-residual-ref",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/utils/slug.ts",
+          "line": 1,
+          "severity": "blocker",
+          "body": "导出函数从 slugify 改名为 slugifyText，但调用方未同步：src/render/summary.ts 第 1 行仍在 `import { slugify } from \"../utils/slug.ts\"`，第 4 行仍调用 `slugify(title)`。这会导致模块解析失败或运行时 ReferenceError（取决于加载方式），summary 渲染直接不可用。需要同步更新 summary.ts 的导入与调用，或保留 `export const slugify = slugifyText` 兼容别名。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3786,
+        "outputTokens": 157,
+        "totalTokens": 3943
+      },
+      "durationMs": 5873,
+      "score": {
+        "caseId": "repo-01-rename-residual-ref",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/utils/slug.ts",
+              "line": 1,
+              "mustMention": [
+                "summary.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-02-removed-export-still-used",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 3692,
+        "outputTokens": 545,
+        "totalTokens": 4237
+      },
+      "durationMs": 15337,
+      "score": {
+        "caseId": "repo-02-removed-export-still-used",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/config/limits.ts",
+              "line": 3,
+              "mustMention": [
+                "publisher.ts"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-03-lexical-dry-copy",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 3844,
+        "outputTokens": 289,
+        "totalTokens": 4133
+      },
+      "durationMs": 9859,
+      "score": {
+        "caseId": "repo-03-lexical-dry-copy",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/api/size.ts",
+              "line": 7,
+              "mustMention": [
+                "format.ts",
+                "formatFileSize"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-04-string-key-residual",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 3698,
+        "outputTokens": 168,
+        "totalTokens": 3866
+      },
+      "durationMs": 9149,
+      "score": {
+        "caseId": "repo-04-string-key-residual",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/events/bus.ts",
+              "line": 2,
+              "mustMention": [
+                "progress.ts"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-05-clean-complete-rename",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 3920,
+        "outputTokens": 35,
+        "totalTokens": 3955
+      },
+      "durationMs": 3594,
+      "score": {
+        "caseId": "repo-05-clean-complete-rename",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-06-clean-similar-but-different",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/export/csv.ts",
+          "line": 8,
+          "severity": "minor",
+          "body": "parseCsvExport 无法正确解析含 `;` 或引号的字段：csvExport 导出时既不对字段内的分号转义，也不加引号包裹，这里却按 `;` 拆分并剥离首尾引号，含分号的字段会被拆成多列，含引号的字段会丢字符，round-trip 有损。若定位是通用 CSV 解析，需先让 csvExport 对特殊字符加引号/转义并在此处配对处理；若只解析自家导出且数据保证不含分号，建议在注释中写明该约束。"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3770,
+        "outputTokens": 430,
+        "totalTokens": 4200
+      },
+      "durationMs": 13025,
+      "score": {
+        "caseId": "repo-06-clean-similar-but-different",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0
+      }
+    },
+    {
+      "caseId": "repo-07-dynamic-access-residual",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 3762,
+        "outputTokens": 48,
+        "totalTokens": 3810
+      },
+      "durationMs": 7914,
+      "score": {
+        "caseId": "repo-07-dynamic-access-residual",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/commands/registry.ts",
+              "line": 3,
+              "mustMention": [
+                "main.ts"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0
+      }
+    }
+  ],
+  "summary": {
+    "recall": 0,
+    "precision": null,
+    "totalExpect": 0,
+    "totalHits": 0,
+    "totalComments": 0,
+    "totalTp": 0,
+    "failed": 0,
+    "usage": {
+      "inputTokens": 26472,
+      "outputTokens": 1672,
+      "totalTokens": 28144
+    },
+    "groups": {
+      "repo": {
+        "recall": 0.2,
+        "precision": 0.5,
+        "expectN": 5,
+        "hits": 1,
+        "comments": 2,
+        "tp": 1,
+        "runs": 7,
+        "failed": 0
+      }
+    }
+  }
+}
