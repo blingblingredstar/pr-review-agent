@@ -11,7 +11,7 @@
 3. `docs/decisions.md` — 已定决策（不要重新讨论已关闭的问题）
 4. `docs/journal.md` 末尾条目 — 上次会话做到哪、遗留什么
 5. GitHub Issues（label `roadmap`）— 活任务唯一源（D034）：待办 / 进行中 / 观察项 / 触发条件与验收闸门。一行命令：
-   `curl -s -H "Authorization: Bearer $(security find-generic-password -s github.com -w)" "https://api.github.com/repos/blingblingredstar/pr-review-agent/issues?labels=roadmap&state=open"`
+   `curl -s -H "Authorization: Bearer $(security find-internet-password -s github.com -w)" "https://api.github.com/repos/blingblingredstar/pr-review-agent/issues?labels=roadmap&state=open"`
 
 ## 改动追踪（必做）
 
