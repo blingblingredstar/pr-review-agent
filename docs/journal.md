@@ -836,7 +836,7 @@
   - **立项**：#122（roadmap，多仓 repo→PR→run 层级 + findings 语料收集）；鉴权两轮裁定——Vercel 账户体系打通（2026-09 起 Vercel Auth 产线保护全 plan 免费）→ 双项目拓扑
   - **安全审查**（sec-auditor，2026-11-10）：两个 P0 全数落进实现——①同仓双项目把 `/api/runs` 带到公开主项目（Vercel Auth per-project 挡不住）→ `RUNS_API_ENABLED` fail-closed 门；②findings.body 存储型 XSS（PR 作者可控经 LLM 回显入库）→ textContent-only 渲染 + CSP + no-store。P1 落地：OIDC 凭证（Blob 无只读静态 token）、dashboard env denylist、写侧 5s 硬超时、ttlDays 保留期。#122 正文 + comment 留痕全量更新
   - **实现**：`src/runs.ts`（RunRecord + buildRunRecord 显式 Result 不抛错 + 纵深校验 + 写/读 + API 门）+ `api/runs.ts` 薄壳 + `public/runs.html|js|css`（零内联）+ vercel.json CSP headers + worker publish 接入（postReview/status 之后，`state.startedAt` 贯通）+ `.env.example`/deployment.md 新节
-  - **质量**：typecheck ✓；单测 265 → 282 全绿；`npm audit --omit=dev` 4 high → 0（@vercel/blob 传递链 zod 4.1.11 命中 GHSA-mrhx-c7xc-m3w5，package.json overrides `zod ^4.6.7`，#116 同款手法）
+  - **质量**：typecheck ✓；单测 265 → 284 全绿；`npm audit --omit=dev` 4 high → 0（@vercel/blob 传递链 zod 4.1.11 命中 GHSA-mrhx-c7xc-m3w5，package.json overrides `zod ^4.6.7`，#116 同款手法）
 - **发现 / 坑**：
   - **SDK 2.9.0 原生 `ttlDays`（1-730）**——issue 原设想 prune 脚本的前提「Blob 无 TTL」不成立，保留期改平台级自动过期（省一个脚本 + 隐私兜底更强），偏差理由已记 D041 + issue comment
   - **审计反馈进实现的两处易漏点**：写超时不加会把 best-effort 写成可用性回归（Blob 挂起吃满 285s 墙钟 → race 兜底误标 failure）；Blob 写失败日志若打 record 内容/put 返回值等于多开外泄面（findings 将来是私有仓代码片段）

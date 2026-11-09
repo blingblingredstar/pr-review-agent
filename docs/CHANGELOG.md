@@ -418,4 +418,4 @@
 - **鉴权拓扑**：双项目 + Vercel Authentication 产线保护（Hobby 免费档，2026-09 起可用）；dashboard env denylist（`WEBHOOK_SECRET`/`GITHUB_TOKEN`/`LLM_*`/`WORKER_BASE_URL` 绝不配置）——部署步骤见 docs/deployment.md 新节
 - **保留期**：SDK 原生 `ttlDays` 默认 730 天（`RUNS_TTL_DAYS` 可调 / 0 关闭），prune 脚本省掉（issue 原前提「Blob 无 TTL」与 SDK 2.9.0 现状不符）
 - **依赖**：`@vercel/blob@2.9.0`；package.json `overrides` 强制 `zod ^4.6.7`（传递链 4.1.11 命中 GHSA-mrhx-c7xc-m3w5，audit 4 high → 0）
-- 单测 265 → 282（runs 模型/校验/写入失败隔离/API 门 + worker 接线 startedAt 贯通/失败不连坐）；D041 落档
+- 单测 265 → 284（runs 模型/校验/写入失败隔离/API 门 + worker 接线 startedAt 贯通/失败不连坐）；D041 落档

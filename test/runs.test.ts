@@ -245,3 +245,47 @@ test("handleRunsApi：门开 + GET → JSON（no-store）；非 GET → 405", as
     assert.equal(notGet.status, 405);
   });
 });
+
+test("listRunRecords：有限并发分批（bot major #123）——在途上界 10、结果保序、全量回收", async () => {
+  const total = 25;
+  const records: RunRecord[] = Array.from({ length: total }, (_, i) => ({ ...SAMPLE, pr: i + 1 }));
+  const paths = records.map((r) => runBlobPath(r));
+  let inFlight = 0;
+  let maxInFlight = 0;
+  const { runs, skipped } = await listRunRecords({
+    list: async () => ({ blobs: paths.map((pathname) => ({ pathname })) }),
+    get: async (pathname) => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      inFlight -= 1;
+      const hit = records.find((r) => runBlobPath(r) === pathname);
+      if (!hit) return null;
+      const body = JSON.stringify(hit);
+      return {
+        statusCode: 200 as const,
+        stream: new ReadableStream<Uint8Array>({
+          start(c) {
+            c.enqueue(new TextEncoder().encode(body));
+            c.close();
+          },
+        }),
+        headers: new Headers(),
+        blob: { pathname, contentType: "application/json", size: body.length },
+      };
+    },
+  });
+  assert.equal(runs.length, total, "25 条全部回收");
+  assert.equal(skipped, 0);
+  assert.ok(maxInFlight <= 10, `并发上界 10，实测 ${maxInFlight}`);
+  assert.equal(runs[0]!.pr, 1, "结果保序（按 blob 顺序）");
+  assert.equal(runs[runs.length - 1]!.pr, total);
+});
+
+test("handleRunsApi：405 带 Allow: GET 头（bot nit #123，与 webhook 405 先例一致）", async () => {
+  withEnv({ RUNS_API_ENABLED: "1" }, async () => {
+    const notGet = await handleRunsApi("DELETE", fakeListGet([SAMPLE]));
+    assert.equal(notGet.status, 405);
+    assert.deepEqual(notGet.headers, { Allow: "GET" });
+  });
+});

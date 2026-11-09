@@ -216,24 +216,25 @@ export async function listRunRecords(
   deps?: RunsListGet,
 ): Promise<{ runs: RunRecord[]; skipped: number }> {
   const page = await (deps?.list ?? (list as unknown as RunsListFn))({ prefix: "runs/", limit: RUNS_LIST_CAP });
+  // 有限并发分批（bot major #123）：逐条串行 get 在几百条记录时会逼近 Hobby 300s 函数墙钟，
+  // 面板会系统性超时——10 路一批 allSettled，单条失败/坏记录计 skipped 不炸整页
+  const GET_CONCURRENCY = 10;
+  const fetchOne = async (pathname: string): Promise<RunRecord | null> => {
+    const res = await (deps?.get ?? (get as unknown as RunsGetFn))(pathname, { access: "private" });
+    if (!res || res.statusCode !== 200) return null;
+    const text = await new Response(res.stream).text();
+    const parsed: unknown = JSON.parse(text);
+    return isRunRecord(parsed) ? parsed : null;
+  };
+  const blobs = page.blobs;
   const runs: RunRecord[] = [];
   let skipped = 0;
-  for (const blob of page.blobs) {
-    try {
-      const res = await (deps?.get ?? (get as unknown as RunsGetFn))(blob.pathname, { access: "private" });
-      if (!res || res.statusCode !== 200) {
-        skipped += 1;
-        continue;
-      }
-      const text = await new Response(res.stream).text();
-      const parsed: unknown = JSON.parse(text);
-      if (isRunRecord(parsed)) {
-        runs.push(parsed);
-      } else {
-        skipped += 1;
-      }
-    } catch {
-      skipped += 1;
+  for (let i = 0; i < blobs.length; i += GET_CONCURRENCY) {
+    const batch = blobs.slice(i, i + GET_CONCURRENCY);
+    const settled = await Promise.allSettled(batch.map((b) => fetchOne(b.pathname)));
+    for (const s of settled) {
+      if (s.status === "fulfilled" && s.value) runs.push(s.value);
+      else skipped += 1;
     }
   }
   return { runs, skipped };
@@ -251,12 +252,16 @@ export type RunsApiResponse = {
   contentType: "text/plain" | "application/json";
   body: string;
   noStore: boolean;
+  headers?: Record<string, string>;
 };
 
 // /api/runs 逻辑（api/runs.ts 薄壳的委托目标）：门 → 方法 → 列表。list 失败上抛由薄壳 500
 export async function handleRunsApi(method: string, deps?: RunsListGet): Promise<RunsApiResponse> {
   if (!runsApiEnabled()) return { status: 404, contentType: "text/plain", body: "not found", noStore: false };
-  if (method !== "GET") return { status: 405, contentType: "text/plain", body: "method not allowed", noStore: false };
+  if (method !== "GET") {
+    // 405 带 Allow: GET——与 api/webhook.ts 405 的同仓先例一致（bot nit #123）
+    return { status: 405, contentType: "text/plain", body: "method not allowed", noStore: false, headers: { Allow: "GET" } };
+  }
   const { runs, skipped } = await listRunRecords(deps);
   return {
     status: 200,

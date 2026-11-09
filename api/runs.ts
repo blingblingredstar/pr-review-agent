@@ -9,6 +9,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     const outcome = await handleRunsApi(req.method ?? "GET");
     res.setHeader("Content-Type", outcome.contentType);
     if (outcome.noStore) res.setHeader("Cache-Control", "no-store");
+    for (const [key, value] of Object.entries(outcome.headers ?? {})) res.setHeader(key, value);
     res.statusCode = outcome.status;
     res.end(outcome.body);
   } catch (err) {
