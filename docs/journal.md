@@ -828,3 +828,20 @@
   2. 并行会话 #99/#80 收尾合并；#65 加严 3 轮 + D036 cheap-pair 复验同批（夜批顺序不变）
 
 - **会话 46 续三（#108 合并 + #67 关闭，2026-11-07 深夜）**：①**#108（D040 对标落库）合并**——D039 撞号解局：并行会话 47 原编 D039 与夜批预分配撞号，按 overnight-execution-2026-11-07.md 顺序约束在 rebase 时改号 D040（decisions/journal/PR 标题三处 + bot 抓出 journal 漏改一处闭环）；docs 尾部连环冲突两轮调和。②**#67 关闭（结论：保留，不启用回退分支）**——今晚 12 PR / 20+ push 是 D032 的天然实验场：增量审查（base 推导正确）、force-push 自动回退全量、折叠段 minor 六个 PR 零漏处理，三闸门全过，样本落 #67/#82 comment（可回放）；日志侧增量决策行随 30 分钟窗蒸发，GitHub 侧 sha:base 标记作代理证据。③#82 落两笔：D035 逐字重报生产行为样本（含「忠实于旧意见文本、不重读代码」边界 case——暂不升级状态机）；**confidence 狗粮首批**（bot 自审意见全 high，与 eval 分布一致）。台账 104 run（reactions 34 run 0/0）。
+
+## 2026-11-10 · 会话 48：观测面板立项 + 安全评审 + 落地（#122 / D041）
+
+- **目标**：用户「做一个能看到日志/运行状态/token 消耗的页面」→ 方案收敛（4 轮问答 + AskUserQuestion 两轮裁定）→ sec-auditor 安全审查 → 当日实现。
+- **完成**：
+  - **立项**：#122（roadmap，多仓 repo→PR→run 层级 + findings 语料收集）；鉴权两轮裁定——Vercel 账户体系打通（2026-09 起 Vercel Auth 产线保护全 plan 免费）→ 双项目拓扑
+  - **安全审查**（sec-auditor，2026-11-10）：两个 P0 全数落进实现——①同仓双项目把 `/api/runs` 带到公开主项目（Vercel Auth per-project 挡不住）→ `RUNS_API_ENABLED` fail-closed 门；②findings.body 存储型 XSS（PR 作者可控经 LLM 回显入库）→ textContent-only 渲染 + CSP + no-store。P1 落地：OIDC 凭证（Blob 无只读静态 token）、dashboard env denylist、写侧 5s 硬超时、ttlDays 保留期。#122 正文 + comment 留痕全量更新
+  - **实现**：`src/runs.ts`（RunRecord + buildRunRecord 显式 Result 不抛错 + 纵深校验 + 写/读 + API 门）+ `api/runs.ts` 薄壳 + `public/runs.html|js|css`（零内联）+ vercel.json CSP headers + worker publish 接入（postReview/status 之后，`state.startedAt` 贯通）+ `.env.example`/deployment.md 新节
+  - **质量**：typecheck ✓；单测 265 → 284 全绿；`npm audit --omit=dev` 4 high → 0（@vercel/blob 传递链 zod 4.1.11 命中 GHSA-mrhx-c7xc-m3w5，package.json overrides `zod ^4.6.7`，#116 同款手法）
+- **发现 / 坑**：
+  - **SDK 2.9.0 原生 `ttlDays`（1-730）**——issue 原设想 prune 脚本的前提「Blob 无 TTL」不成立，保留期改平台级自动过期（省一个脚本 + 隐私兜底更强），偏差理由已记 D041 + issue comment
+  - **审计反馈进实现的两处易漏点**：写超时不加会把 best-effort 写成可用性回归（Blob 挂起吃满 285s 墙钟 → race 兜底误标 failure）；Blob 写失败日志若打 record 内容/put 返回值等于多开外泄面（findings 将来是私有仓代码片段）
+  - `get()` 返回 stream 不自动缓冲——读侧 `new Response(stream).text()` 聚合
+  - @vercel/cli-config 精确钉死 zod 版本（非 range），`npm audit fix` 无效，overrides 是唯一通路
+- **下一步**：
+  1. 合并后部署动作（docs/deployment.md 新节五步：主项目接 Blob OIDC / dashboard 项目 + `RUNS_API_ENABLED=1` / Vercel Auth Standard / 保留期 / 三条验证）
+  2. 验收闸门 1（生产 run 落 Blob）需等下一个真实 PR 自然触发

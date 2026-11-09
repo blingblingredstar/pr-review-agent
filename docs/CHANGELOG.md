@@ -408,3 +408,14 @@
 - TP 口径终局定性（#112）：**precision 意见级 by design**（上界 1 恒成立，aacr 同款）；对计方案被 bot major 否（200% 破比例）；对计数保留 run JSON `commentHitCounts` 供 recall 维度分析
 - 台账 reactions 派生（#106）：`npm run prodlogs` 按 runKey 聚合行内评论 + review body 的 👍/👎（零新增 API 调用），summarize 好评率行；首批 31 run 全 0/0（随生产使用积累）
 - npm audit 4 high → 0（@vercel/functions 链，lock-only）
+
+### Added（运行观测面板：Run 写时持久化 + dashboard，#122 / D041，2026-11-10）
+
+- **RunRecord 写时持久化**：publish 成功路径（postReview + status 落定之后）best-effort 写 run 记录（repo/pr/sha、tokens、意见落点三计数、findings 全 severity 发布快照含 confidence）到私有 Vercel Blob——多仓 runKey `repo#pr@sha` 防撞号；`state.startedAt` 随信封贯通（prepare issuedAt → 记录起点）；两层取数原则（resolve/reactions 等会变的数据实时拉 GitHub 不入库）；失败/中断 run 不落，prodlogs 台账 harvest 继续覆盖
+- **写入面 best-effort 三件套**：确定性 pathname `runs/<owner>/<repo>/<pr>-<sha>.json` + `allowOverwrite: false`（append-only）；`AbortSignal.timeout(5s)` 硬超时（防吃满阶段墙钟把已成功 run 误标 failure）；日志只打 err 对象（record 内容与 store URL 不落日志）
+- **`/api/runs` 读取面**：`RUNS_API_ENABLED` fail-closed 门（仅 dashboard 项目配置，缺失一律 404 与路由不存在无区别——同仓双项目部署下主项目域名的唯一代码防线，sec-auditor P0-1）；`Cache-Control: no-store`；`runs/` 前缀锁 + cap 1000
+- **观测面板静态页** `public/runs.html|js|css`：repo→PR→run 层级 + findings 全量可过滤（severity 勾选 + 文本子串）+ 顶部汇总（runs/tokens/severity 分布）；渲染硬约束 textContent-only + CSP headers（vercel.json `/runs.html`）——findings.body 存储型 XSS 的双闸（sec-auditor P0-2）
+- **鉴权拓扑**：双项目 + Vercel Authentication 产线保护（Hobby 免费档，2026-09 起可用）；dashboard env denylist（`WEBHOOK_SECRET`/`GITHUB_TOKEN`/`LLM_*`/`WORKER_BASE_URL` 绝不配置）——部署步骤见 docs/deployment.md 新节
+- **保留期**：SDK 原生 `ttlDays` 默认 730 天（`RUNS_TTL_DAYS` 可调 / 0 关闭），prune 脚本省掉（issue 原前提「Blob 无 TTL」与 SDK 2.9.0 现状不符）
+- **依赖**：`@vercel/blob@2.9.0`；package.json `overrides` 强制 `zod ^4.6.7`（传递链 4.1.11 命中 GHSA-mrhx-c7xc-m3w5，audit 4 high → 0）
+- 单测 265 → 284（runs 模型/校验/写入失败隔离/API 门 + worker 接线 startedAt 贯通/失败不连坐）；D041 落档

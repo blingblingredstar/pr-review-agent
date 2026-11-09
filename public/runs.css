@@ -1,0 +1,51 @@
+/* 运行观测面板样式（零内联——CSP style-src 'self'，所有样式走本文件类选择器） */
+:root {
+  --fg: #1f2328;
+  --muted: #6e7781;
+  --line: #d8dee4;
+  --bg: #ffffff;
+  --bg-soft: #f6f8fa;
+  --blocker: #cf222e;
+  --major: #bc4c00;
+  --minor: #9a6700;
+  --nit: #6e7781;
+}
+* { box-sizing: border-box; }
+body {
+  font: 14px/1.6 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: var(--fg);
+  background: var(--bg);
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+h1 { font-size: 20px; margin: 0 0 8px; }
+h2 { font-size: 16px; margin: 32px 0 12px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+.muted { color: var(--muted); font-size: 12px; }
+.summary { display: flex; flex-wrap: wrap; gap: 16px; margin: 8px 0 4px; }
+.stat { color: var(--muted); font-size: 13px; }
+.stat b { color: var(--fg); font-size: 13px; }
+.filters { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 12px; }
+.filters-label { color: var(--muted); font-size: 13px; }
+.filters label { font-size: 13px; display: inline-flex; align-items: center; gap: 4px; }
+#filter-text { padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; min-width: 220px; font-size: 13px; }
+.finding-wrap { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
+.finding-meta { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
+.finding-meta a { color: #0969da; text-decoration: none; font-size: 13px; }
+.finding-head { display: flex; gap: 10px; align-items: baseline; margin-bottom: 4px; }
+.finding-body { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
+.badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; color: #fff; }
+.sev-blocker { background: var(--blocker); }
+.sev-major { background: var(--major); }
+.sev-minor { background: var(--minor); }
+.sev-nit { background: var(--nit); }
+.badge-delta { background: var(--bg-soft); color: var(--muted); border: 1px solid var(--line); }
+.badge-full { background: var(--bg-soft); color: var(--muted); border: 1px solid var(--line); }
+details.repo, details { margin: 6px 0; }
+summary { cursor: pointer; font-size: 14px; padding: 4px 0; }
+summary a { color: #0969da; text-decoration: none; }
+.run-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: baseline; background: var(--bg-soft); border-radius: 6px; padding: 8px 10px; margin: 6px 0; }
+.run-findings { padding: 0 4px; }
+.error { background: #ffebe9; border: 1px solid #ff818266; color: var(--blocker); border-radius: 8px; padding: 12px 16px; margin-top: 24px; }
+footer { margin-top: 40px; }

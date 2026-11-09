@@ -24,6 +24,7 @@ import {
   type ReviewOutcome,
 } from "./review.ts";
 import { decisionModel, diffSkeleton, runReviewRouter, type ReviewPlan } from "./router.ts";
+import { buildRunRecord, writeRunRecord, type RunRecord } from "./runs.ts";
 
 export type WorkerStage = "prepare" | "review" | "publish";
 
@@ -71,6 +72,9 @@ export type WorkerDeps = {
   review: (diff: string, context?: string, opts?: ReviewDiffOpts) => Promise<ReviewOutcome>;
   chain: (envelope: WorkerEnvelope) => Promise<void>;
   route: (args: { tree: string; skeleton: string }) => Promise<ReviewPlan | null>;
+  // Run 写时持久化（#122 / D041）：默认 writeRunRecord（内部吞错 + 凭证门），测试传 spy 观察；
+  // 写入点在 postReview + status 落定之后（P1-5 顺序约束），失败绝不影响已成功的审查
+  writeRun: (record: RunRecord) => Promise<void>;
   fetchImpl: typeof fetch;
   chainRetryDelayMs: number;
   chainTimeoutMs: number;
@@ -86,6 +90,7 @@ export function defaultWorkerDeps(): WorkerDeps {
     review: reviewDiff,
     chain: chainWorker,
     route: runReviewRouter,
+    writeRun: writeRunRecord,
     fetchImpl: fetch,
     chainRetryDelayMs: 2_000,
     chainTimeoutMs: CHAIN_TIMEOUT_MS,
@@ -263,7 +268,8 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
         hop: envelope.hop + 1,
         ref,
         issuedAt: Date.now(),
-        state: { diff, context, taskContext, incrementalBase, previousFindings },
+        // startedAt：run 起点随信封贯通到 publish（RunRecord.startedAt 来源，#122）；state 累积传递自然到达
+        state: { diff, context, taskContext, incrementalBase, previousFindings, startedAt: envelope.issuedAt },
       });
       return;
     }
@@ -360,7 +366,12 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
       }
       return;
     }
-    const state = (envelope.state ?? {}) as { diff?: string; result?: ReviewOutcome; incrementalBase?: string | null };
+    const state = (envelope.state ?? {}) as {
+      diff?: string;
+      result?: ReviewOutcome;
+      incrementalBase?: string | null;
+      startedAt?: number;
+    };
     if (typeof state.diff !== "string" || !Array.isArray(state.result?.comments)) {
       throw new Error("publish 信封缺 state.diff / state.result");
     }
@@ -387,6 +398,26 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
       );
     } catch (statusErr) {
       console.error(`[worker] ${key} success status 写失败`, statusErr);
+    }
+    // Run 写时持久化（#122 / D041，best-effort）：在 postReview + status 落定**之后**（P1-5 顺序约束），
+    // 构造失败只跳过并落日志——已成功的审查绝不被观测写入连坐。deps.writeRun 内部吞错，
+    // 这里 try/catch 只兜自定义注入抛出的意外；失败日志只打 err 对象（不含 record 内容）
+    const built = buildRunRecord(
+      ref,
+      state.result,
+      posted,
+      state.incrementalBase ?? null,
+      typeof state.startedAt === "number" ? state.startedAt : null,
+      Date.now(),
+    );
+    if (built.ok) {
+      try {
+        await deps.writeRun(built.record);
+      } catch (writeErr) {
+        console.error(`[runs] ${key} 写入失败`, writeErr);
+      }
+    } else {
+      console.error(`[runs] ${key} 记录构造失败，跳过写入：${built.reason}`);
     }
   } catch (err) {
     // failure status 落定独立于任何其他动作成败；isTimeoutError 随 runReview 迁入，超时语义不变（D011）
