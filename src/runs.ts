@@ -168,13 +168,15 @@ export type RunsPut = (
 // （含 store URL）（P1-5 日志卫生）
 export async function writeRunRecord(record: RunRecord, deps?: { put?: RunsPut }): Promise<void> {
   if (!runsWriteEnabled()) return;
+  // ttl 只求值一次（bot nit #123 复审）：非法值场景 runsTtlDays() 的告警日志打两份且两次读 env
+  const ttl = runsTtlDays();
   try {
     await (deps?.put ?? put)(runBlobPath(record), JSON.stringify(record), {
       access: "private",
       addRandomSuffix: false,
       allowOverwrite: false,
       contentType: "application/json",
-      ...(runsTtlDays() !== undefined ? { ttlDays: runsTtlDays() } : {}),
+      ...(ttl !== undefined ? { ttlDays: ttl } : {}),
       abortSignal: AbortSignal.timeout(RUNS_WRITE_TIMEOUT_MS),
     });
   } catch (err) {
