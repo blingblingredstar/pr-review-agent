@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR Review Agent — 运行观测</title>
+<link rel="stylesheet" href="/runs.css">
+<script src="/runs.js" defer></script>
+</head>
+<body>
+<header>
+  <h1>运行观测面板</h1>
+  <div id="summary" class="summary"></div>
+</header>
+
+<section>
+  <h2>Findings 全量列表</h2>
+  <div class="filters">
+    <span class="filters-label">severity：</span>
+    <label><input type="checkbox" class="sev" value="blocker" checked> blocker</label>
+    <label><input type="checkbox" class="sev" value="major" checked> major</label>
+    <label><input type="checkbox" class="sev" value="minor" checked> minor</label>
+    <label><input type="checkbox" class="sev" value="nit" checked> nit</label>
+    <input id="filter-text" type="text" placeholder="按 body / 文件路径过滤" autocomplete="off">
+    <span id="findings-count" class="muted"></span>
+  </div>
+  <div id="findings"></div>
+</section>
+
+<section>
+  <h2>repo → PR → run</h2>
+  <div id="hierarchy"></div>
+</section>
+
+<div id="error" class="error" hidden></div>
+<footer class="muted">数据 = 发布瞬间快照（私有 Blob，ttlDays 自动过期）；resolve / reactions 等 live 状态见各 PR 页面</footer>
+</body>
+</html>

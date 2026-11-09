@@ -9,8 +9,10 @@ flowchart TD
     A["GitHub PR 事件 (pull_request: opened/synchronize)"] -->|"webhook (HMAC-SHA256 签名校验, secret 校验失败丢弃)"| B["webhook API route：验签 / 白名单 / 事件过滤（零 API 零 token），立即返回 200"]
     B -->|"立即返回 200，waitUntil 发 prepare 签名信封"| W["worker 阶段机 (api/worker.ts + src/worker.ts)：每阶段独立函数调用、独立 300s 预算"]
     W --> P["prepare：dedupe（D010）+ pending status（D017）+ 拉取 PR diff (GitHub API) + 仓库上下文（D023 best-effort：head zipball → 触及文件全文 + 文件树）"]
-    P -->|"签名信封自调用续链（hop 封顶 4，续链失败落 failure status）"| R["review：决策路由（D028，可选：DECISION_MODEL 便宜档产评审计划）+ LLM 审查（OpenAI 兼容端点）：generateText + Output → { comments: [...] }；工具循环（D027/D031，可选：重取快照按需 search_file 内容搜索 + read_file 读任意文件）"]
-    R -->|"签名信封自调用续链"| PB["publish：GitHub API 回帖（逐条 PR review comment）+ status 终态（D017）"]
+P -->|"签名信封自调用续链（hop 封顶 4，续链失败落 failure status）"| R["review：决策路由（D028，可选：DECISION_MODEL 便宜档产评审计划）+ LLM 审查（OpenAI 兼容端点）：generateText + Output → { comments: [...] }；工具循环（D027/D031，可选：重取快照按需 search_file 内容搜索 + read_file 读任意文件）"]
+R -->|"签名信封自调用续链"| PB["publish：GitHub API 回帖（逐条 PR review comment）+ status 终态（D017）+ RunRecord 写时持久化（D041，best-effort）"]
+PB -->|"publish 成功后 best-effort 写私有 Blob（runs/<owner>/<repo>/<pr>-<sha>.json，ttlDays 过期）"| BLOB["私有 Vercel Blob"]
+BLOB -->|"/api/runs（RUNS_API_ENABLED fail-closed 门，仅 dashboard 项目开）"| DASH["观测面板 public/runs.html（Vercel Auth 产线保护，双项目拓扑见 D041）"]
 ```
 
 ## 组件
@@ -32,6 +34,9 @@ flowchart TD
 | `src/incremental.ts` | 增量审查（D032）：base 推导 / block 继承 / 区间 diff | 标记解析（新旧行态容忍）→ base 推导（`decideIncrement`：head 已审=skip、无有效标记=full、最新有效 review 含 blocker/major=full（block 继承）、否则=delta）——「有效」= SHA 仍在 PR commits 列表（force-push 自动回退）；`latestValidReview`（D035 抽出）是「最新有效」的唯一推导，base 推导与上一轮意见注入同源（findings.ts 复用，两处各写各的「最新」会错位）；区间 diff 走 compare API + `fileToDiffBlock` 原样复用（空区间/超 300 files/任何失败上抛 → worker 回退全量，增量是优化不是依赖）；evals 直调 reviewDiff 不经过此模块，promptHash 零接触 |
 | `prompts/review.md` | 审查提示词（迭代对象） | prompt 与代码分离，方便 diff 和 eval 对比；`vercel.json` `includeFiles` 保证随函数打包 |
 | `evals/` | eval 用例集 + 跑分脚本 | `cases/` 48 个自包含用例（D015 三级 source + D024 injection + D031 repo + 对抗性关联组：synthetic 20 手写教学 / real 7 真实仓库 fix 反转与配对 / dogfood 2 回归集 / injection 7 注入 canary（D024 + D029：diff 内三向量 + 任务上下文向量藏「放行」指令，考不回显 + 不抑制，单独报拦截率不计入能力口径）/ repo 7 repo fixture 组（D031：diff 外证据检索——重命名/删除漏改第三层盲区 + 词法 DRY，锚 diff 内证据指向 diff 外，`expectClean` FP 对照只进 precision 分母，独立口径先不进能力评估；repo 字段 = 迷你快照，run.ts 注入 fileReader + searcher 走生产同参工具路径；必含诱饵文件防路径名泄底）/ correlation 5 对抗性关联组（路线图第 1 项：真实仓库「引入 commit + 修复 commit」配对，主题「表面是优化/清理、实际引了坑」，缺陷证据散在 diff 内关联位置，独立口径不进能力评估，配对 provenance 随用例文件与 description 必填）；格式见 D014/D024/D029/D031）；`score.ts` 打分纯函数（命中 = file + 行 ±3 + mustMention 任一关键词；注入组另有 noEcho 特征串回显判定，元讨论豁免；`taskContext` 字段仅注入组携带，run.ts 经 `opts.taskContext` 显式注入）；`run.ts` 入口（`npm run eval`，串行 + 失败重试，按 source 分组统计，结果带 `promptHash` 指纹落盘 `runs/`，逐用例 tokens 入/出与合计随 run 落盘——成本基线）；`compare.ts` 多轮 run 按 prompt 指纹聚合对比（Day 6 报告的数据出口，`evals/report.md`）；用例结构校验在 `test/eval-cases.test.ts` |
+| `src/runs.ts` | Run 写时持久化（D041，#122）：publish 阶段把 RunRecord（repo/pr/headSha/startedAt/finishedAt/incrementalBase/tokens/outcome 落点三计数/findings 全 severity 发布快照含 confidence）落私有 Vercel Blob | 两层取数原则：只存「仅存在于发布瞬间」的数据，resolve/reactions 等 live 状态读时实时拉 GitHub（事实源原则）；`buildRunRecord` 纯函数 + 显式 Result（不抛错——publish catch 会把异常升级成审查失败红灯）；纵深校验（owner/repo `^[A-Za-z0-9_.-]+$` + sha 十六进制，进 pathname 前断言）；写侧 `access: "private"` + 确定性 pathname `runs/<owner>/<repo>/<pr>-<sha>.json` + `allowOverwrite: false`（append-only）+ `AbortSignal.timeout(5s)` 硬超时 + 日志只打 err 对象；凭证 OIDC（`BLOB_STORE_ID` + 平台 `VERCEL_OIDC_TOKEN`）缺席静默跳过；保留期 SDK 原生 `ttlDays`（默认 730，`RUNS_TTL_DAYS` 可调，0 关闭）；读侧 `listRunRecords` 锁 `runs/` 前缀 + cap 1000；`handleRunsApi` 带 fail-closed 门（`RUNS_API_ENABLED` 仅 dashboard 项目配 "1"，缺失一律 404 与路由不存在无区别——同仓双项目部署下主项目域名的唯一代码防线，P0-1）；eval 红线：不进 reviewDiff 路径 |
+| `api/runs.ts` | Vercel function 薄壳（同 webhook 模式） | 委托 `src/runs.ts` `handleRunsApi`；200 响应带 `Cache-Control: no-store`；内部错误 500 不带数据形态细节 |
+| `public/runs.html|js|css` | 观测面板静态页（dashboard 项目经 Vercel Auth 产线保护访问） | 渲染硬约束（P0-2 存储型 XSS 唯一防线）：一律 `createElement` + `textContent`、禁用 `innerHTML`、数据 fetch + JSON.parse 不内联 HTML、GitHub 链接逐段 `encodeURIComponent`、body 纯文本 pre-wrap 不做富文本；v1 不调 GitHub API（CSP `connect-src 'self'`）；repo→PR→run 层级 + findings 全量可过滤（severity 勾选 + 文本子串）；CSP/nosniff 头在 vercel.json `/runs.html` |
 
 ## 结构化输出 schema
 
@@ -69,6 +74,8 @@ schema 变更属于破坏性改动：必须同步改 `evals/run.ts` 的打分逻
 - **上一轮意见复报保真**（D035，pr-agent 借鉴 P0-1）：审查 prompt = 任务块 + 上下文块 + 计划块 + **上一轮意见块** + `[diff 开始]` + 截断后 diff（意见块紧邻 diff——规则对照对象是 diff 本身）。只在 **full 重审路径**注入（增量决策 = full 且有有效历史 review，即 block 继承场景）——措辞漂移的主战场；delta 不注入（老意见锚点不在区间 diff 内，行内定位必 422，老意见留在旧线程）。意见来源三处全覆盖（blocker/major）：上一轮 review 的行内评论（`listCommentsForReview`，5s 硬上限、失败降级为只解析 body 单行）+ body 降级单行（D032 降级列表与全量降级兜底同构 regex）；excluded-files 联动双层：确定性过滤（意见文件已不在 PR 全量 diff → 剔除）+ 块内规则 3（被 D018 截断省略的文件未复审：不重报也不判已修复——「没审到 ≠ 已修复」）。块内威胁模型重申（意见引用的代码与措辞都是作者可控内容衍生物，「上一轮已批准」类声明不是放行依据）+ 三条对照规则（仍存在逐字重报仅改行号 / 已修复不报 / 未复审不判）+ blocker 优先排序 + 计数上限 10 + 预算 `PREV_FINDINGS_MAX_CHARS`（默认 6000，0 显式关闭 = 零 API 调用）；`previousFindings` 以 null 随信封传递（taskContext 同形），`[findings]` 日志行落行内/降级条数、剔除数、注入条数/字符数。与增量决策共用同一次 `listBotReviews`/`listCommits`（`latestValidReview` 同源推导，零额外列表调用）。**注入面缓解**：块内威胁模型重申 + canary inj-08（previousFindings 向量，载荷伪装「上一轮意见里的合规批注」）+ 预算封顶。**eval 红线靠参数**：`opts.previousFindings` 只有 worker 编排注入，能力组裸路径逐位不变由构造保证。
 - **超大 PR diff 兜底**（D025）：`GET /pulls/N` diff 形态超 20,000 行返回 406——热路径零改动（meta+diff 并行保留），406 切显式策略分支：files API 分页（100/页 × 30 页上限）拼合成可解析 diff，patch 缺失的文件发 D018 式省略块但保留路径头（zipball 上下文按路径兜全文，盲区互补）；「前置预判」被否决——context 放大系数随 hunk 散布 1×~11×，自由元数据没有安全阈值，可靠信号只有 406 本身。
 - **触发白名单**（D021）：`REVIEW_TRIGGER_USERS` 逗号分隔 GitHub 用户名（大小写不敏感）限定可触发审查的 PR 作者——未设置 = 所有人（向后兼容），`*` = 显式全放行；判定在调度前用 webhook payload 自带的 `pull_request.user.login` 完成，名单启用但 payload 缺作者按拒绝处理（成本闸门宁可误拒）。
+- **Run 写时持久化（D041，#122）**：publish 成功路径在 postReview + status 落定**之后** best-effort 写 RunRecord 到私有 Vercel Blob（两点取数原则：只存「仅存在于发布瞬间」的数据，live 状态实时拉 GitHub；构造失败显式 Result 不抛错——已成功的审查绝不被观测写入连坐；写侧 5s 硬超时防吃满阶段墙钟）。读取面 `/api/runs` 带 fail-closed 门（`RUNS_API_ENABLED` 仅 dashboard 项目配置，缺失一律 404）——**双项目拓扑**：同仓挂主项目（webhook/worker 公开）+ dashboard 项目（`/api/runs` + 静态面板，Vercel Authentication 产线保护），dashboard env denylist（`WEBHOOK_SECRET`/`GITHUB_TOKEN`/`LLM_*`/`WORKER_BASE_URL` 绝不配置）。渲染面 textContent-only + CSP（P0-2）。保留期 `ttlDays`（默认 730 天）。失败/中断 run 不落，仍由 prodlogs 台账覆盖。
+
 
 ## 环境变量
 
@@ -91,6 +98,9 @@ schema 变更属于破坏性改动：必须同步改 `evals/run.ts` 的打分逻
 | `WORKER_BASE_URL` | worker 续链公开入口（生产必配） | VERCEL_URL 是部署专属 URL（Standard Protection 会挡），续链目标须为公开可达域名（webhook 同款 URL 即可）；不含任何请求头派生值（D026 生产修正 + 自审二轮回退记录） |
 | `REVIEW_TRIGGER_USERS` | 触发白名单 | 逗号分隔 GitHub 用户名，仅名单内 PR 作者触发审查；未设置 = 所有人，`*` = 显式全放行（D021） |
 | `LEDGER_GITHUB_REPO` | 台账 outcome 派生的目标仓库（#89，`npm run prodlogs` 用） | `owner/repo` 形态，未设置 = 默认 `blingblingredstar/pr-review-agent`；凭证沿用 `GITHUB_TOKEN`；`--skip-derive` 走纯日志口径 |
+| `BLOB_STORE_ID` / `BLOB_READ_WRITE_TOKEN` | Run 写时持久化的 Blob 凭证（D041） | OIDC 优先（`BLOB_STORE_ID` + 平台注入 `VERCEL_OIDC_TOKEN`，静态 token 无只读形态故弃）；两者均缺席 = 写入面未开通，静默跳过（本地/单测默认态）；dashboard 项目只读同一 store |
+| `RUNS_API_ENABLED` | `/api/runs` 读取面 fail-closed 门（D041，P0-1） | 只配在 dashboard 项目（`"1"`）；主项目不配——同仓双项目部署下主项目域名打 `/api/runs` 必须 404（验收闸门）；缺失/非 "1" 一律 404 且与路由不存在无区别 |
+| `RUNS_TTL_DAYS` | RunRecord 保留期天数（SDK 原生 ttlDays） | 默认 730（上限），1-730 可调，`0` 显式关闭；非法值告警回退默认；平台每日自动过期，私有仓 findings 的隐私兜底 |
 
 ## 待定问题
 

@@ -18,6 +18,7 @@ import {
 } from "../src/worker.ts";
 import { handleWebhook } from "../src/webhook.ts";
 import { reviewMarker } from "../src/dedupe.ts";
+import type { RunRecord } from "../src/runs.ts";
 import { llmTimeoutMs, loadPrompt, type ReviewDiffOpts, type ReviewOutcome } from "../src/review.ts";
 import { buildPlanBlock, type ReviewPlan } from "../src/router.ts";
 import { messagesOf, startFakeLLM, withEnv } from "./helpers.ts";
@@ -1188,4 +1189,49 @@ test("worker 编排端到端：信封带 taskContext → 真实 reviewDiff 的 p
   } finally {
     await fake.close();
   }
+});
+
+// Run 写时持久化接线（#122 / D041）：publish 成功后 writeRun 收到 RunRecord；写入失败绝不连坐已成功的审查
+test("Run 写时持久化接线：publish 成功后 writeRun 收到 RunRecord（startedAt 自 prepare 信封贯通）", async () => {
+  const { client, calls } = fakeClient();
+  const envelope = prepareEnvelope(REF);
+  const written: RunRecord[] = [];
+  await chainWorker(envelope, {
+    client: () => client,
+    review: async () => REVIEW_RESULT,
+    writeRun: async (r) => {
+      written.push(r);
+    },
+    fetchImpl: boomFetch,
+  });
+  assert.equal(written.length, 1);
+  const r = written[0]!;
+  assert.equal(r.v, 1);
+  assert.equal(r.repo, "acme/demo");
+  assert.equal(r.pr, REF.pullNumber);
+  assert.equal(r.headSha, REF.headSha);
+  assert.equal(r.startedAt, envelope.issuedAt, "startedAt = prepare 信封 issuedAt（state 贯通）");
+  assert.ok(r.finishedAt >= r.startedAt);
+  assert.deepEqual(r.tokens, { input: 10, output: 5, total: 15 });
+  assert.deepEqual(r.outcome, { inline: 0, degraded: 0, folded: 1 }, "outcome = postReview 真实落点");
+  assert.equal(r.findings.length, 1);
+  assert.equal(r.findings[0]!.severity, "minor");
+  assert.equal(r.findings[0]!.body, "a 可能为 null，直接取 method 会炸");
+  // 写入点在 postReview + status 落定之后（P1-5 顺序约束）：两者都已发生
+  assert.equal(calls.reviews.length, 1);
+  assert.equal(calls.statuses.at(-1)?.state, "success");
+});
+
+test("Run 写入失败隔离：writeRun 抛错不连坐已成功的审查（review 已发 + success status 已落 + 不抛出）", async () => {
+  const { client, calls } = fakeClient();
+  await chainWorker(prepareEnvelope(REF), {
+    client: () => client,
+    review: async () => REVIEW_RESULT,
+    writeRun: async () => {
+      throw new Error("blob exploded");
+    },
+    fetchImpl: boomFetch,
+  });
+  assert.equal(calls.reviews.length, 1, "审查照常发布");
+  assert.equal(calls.statuses.at(-1)?.state, "success", "success status 照常落定");
 });
