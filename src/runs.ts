@@ -28,7 +28,7 @@ export type RunRecord = {
   startedAt: number | null; // prepare 信封 issuedAt（state.startedAt 贯通）；缺省 null 不猜测
   finishedAt: number; // publish 落库时刻
   incrementalBase: string | null; // D032 增量 base（null = 全量）
-  tokens: { input: number | null; output: number | null; total: number | null }; // 主评审 usage（端点不返回的字段为 null）
+  tokens: { input: number | null; output: number | null; total: number | null; cached: number | null }; // 主评审 usage（端点不返回的字段为 null；cached = 前缀缓存命中，#128）
   outcome: { inline: number; degraded: number; folded: number }; // postReview 真实落点计数（422 回落口径）
   findings: RunFinding[]; // 全 severity 全量快照（含折叠段 minor/nit——改进分析语料的主体）
 };
@@ -50,7 +50,7 @@ type PostOutcome = { inline: number; degraded: number; folded: number };
 // ReviewOutcome 与它结构兼容
 type ReviewOutcomeShape = {
   comments: unknown;
-  usage?: { inputTokens?: number | null; outputTokens?: number | null; totalTokens?: number | null };
+  usage?: { inputTokens?: number | null; outputTokens?: number | null; totalTokens?: number | null; cachedInputTokens?: number | null };
 };
 
 export function buildRunRecord(
@@ -86,6 +86,7 @@ export function buildRunRecord(
         input: result?.usage?.inputTokens ?? null,
         output: result?.usage?.outputTokens ?? null,
         total: result?.usage?.totalTokens ?? null,
+        cached: result?.usage?.cachedInputTokens ?? null,
       },
       outcome: { inline: posted.inline, degraded: posted.degraded, folded: posted.folded },
       findings,

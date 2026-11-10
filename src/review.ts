@@ -114,6 +114,10 @@ export type TokenUsage = {
   inputTokens: number | null;
   outputTokens: number | null;
   totalTokens: number | null;
+  // 前缀缓存命中 tokens（#128）：端点 usage.prompt_tokens_details.cached_tokens，AI SDK v7 经
+  // inputTokenDetails.cacheReadTokens 透传（provider 对未携带该块的端点回 0，usage 整体缺失才为 null）；
+  // 台账/eval 靠它读「命中 / 未命中」两线，成本口径不再被命中折扣污染
+  cachedInputTokens: number | null;
 };
 
 // reviewDiff 的完整返回：LLM 结构化输出 + 本次调用用量（eval 聚合进 run 落盘，生产走 console 日志）
@@ -173,6 +177,7 @@ export function sumUsage(usages: TokenUsage[]): TokenUsage {
     inputTokens: sum((u) => u.inputTokens),
     outputTokens: sum((u) => u.outputTokens),
     totalTokens: sum((u) => u.totalTokens),
+    cachedInputTokens: sum((u) => u.cachedInputTokens),
   };
 }
 
@@ -227,10 +232,11 @@ export async function reviewDiff(diff: string, context?: string, opts?: ReviewDi
     inputTokens: usage?.inputTokens ?? null,
     outputTokens: usage?.outputTokens ?? null,
     totalTokens: usage?.totalTokens ?? null,
+    cachedInputTokens: usage?.inputTokenDetails?.cacheReadTokens ?? null,
   };
   console.log(
     `[reviewDiff] tokens: in ${tokenUsage.inputTokens ?? "?"} / out ${tokenUsage.outputTokens ?? "?"}` +
-      ` / total ${tokenUsage.totalTokens ?? "?"}`,
+      ` / total ${tokenUsage.totalTokens ?? "?"} / cached ${tokenUsage.cachedInputTokens ?? "?"}`,
   );
   return { ...output, usage: tokenUsage };
 }
@@ -513,12 +519,18 @@ async function reviewDiffWithTools(
       inputTokens: probe.usage?.inputTokens ?? null,
       outputTokens: probe.usage?.outputTokens ?? null,
       totalTokens: probe.usage?.totalTokens ?? null,
+      cachedInputTokens: probe.usage?.inputTokenDetails?.cacheReadTokens ?? null,
     },
-    { inputTokens: usage?.inputTokens ?? null, outputTokens: usage?.outputTokens ?? null, totalTokens: usage?.totalTokens ?? null },
+    {
+      inputTokens: usage?.inputTokens ?? null,
+      outputTokens: usage?.outputTokens ?? null,
+      totalTokens: usage?.totalTokens ?? null,
+      cachedInputTokens: usage?.inputTokenDetails?.cacheReadTokens ?? null,
+    },
   ]);
   console.log(
     `[reviewDiff] tokens（两段合计）: in ${tokenUsage.inputTokens ?? "?"} / out ${tokenUsage.outputTokens ?? "?"}` +
-      ` / total ${tokenUsage.totalTokens ?? "?"}`,
+      ` / total ${tokenUsage.totalTokens ?? "?"} / cached ${tokenUsage.cachedInputTokens ?? "?"}`,
   );
   return { ...output, usage: tokenUsage };
 }

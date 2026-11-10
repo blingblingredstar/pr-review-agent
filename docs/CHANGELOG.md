@@ -425,3 +425,8 @@
 - View Deployment 落地（根路径 → /runs.html）即见「最新 run」置顶展开卡片——按钮 URL 由 Vercel 生成无法携带 PR 参数，点击场景里最新 run 即当次；30 秒自动刷新（后台标签页暂停）覆盖「点按钮时 run 还在跑」的窗口
 - `#pr<号>` 深链 + 层级视图快速定位框（PR 号/仓库名子串，命中展开未命中隐藏）；手动刷新按钮 + 最近更新时间
 - 渲染硬约束不变（textContent-only / CSP / 零内联）
+
+### Added（前缀缓存两线成本口径，2026-11-11，#128）
+
+- `TokenUsage.cachedInputTokens`：端点 `prompt_tokens_details.cached_tokens`（AI SDK v7 经 `inputTokenDetails.cacheReadTokens` 透传；provider 对未报缓存详情的端点回 0，usage 整体缺失才为 null）——「命中 / 未命中」两线读数，成本对比不再被缓存折扣隐形污染
+- 生产日志三行（`[reviewDiff]` / `[tools] probe` 不变 / `[router]`）与台账解析、eval run 汇总、RunRecord `tokens.cached`、面板 tokens 段（`命中 N`，旧记录显示 `—`）全链路打通；零调用结构改动，promptHash 红线不动

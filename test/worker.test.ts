@@ -46,7 +46,7 @@ const DIFF = [
 
 const REVIEW_RESULT: ReviewOutcome = {
   comments: [{ file: "src/demo.ts", line: 2, severity: "minor", body: "a 可能为 null，直接取 method 会炸" }],
-  usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+  usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15, cachedInputTokens: null },
 };
 
 function sig(body: string): string {
@@ -1212,7 +1212,7 @@ test("Run 写时持久化接线：publish 成功后 writeRun 收到 RunRecord（
   assert.equal(r.headSha, REF.headSha);
   assert.equal(r.startedAt, envelope.issuedAt, "startedAt = prepare 信封 issuedAt（state 贯通）");
   assert.ok(r.finishedAt >= r.startedAt);
-  assert.deepEqual(r.tokens, { input: 10, output: 5, total: 15 });
+  assert.deepEqual(r.tokens, { input: 10, output: 5, total: 15, cached: null });
   assert.deepEqual(r.outcome, { inline: 0, degraded: 0, folded: 1 }, "outcome = postReview 真实落点");
   assert.equal(r.findings.length, 1);
   assert.equal(r.findings[0]!.severity, "minor");

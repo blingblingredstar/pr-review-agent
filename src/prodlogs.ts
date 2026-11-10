@@ -86,8 +86,16 @@ export function parseLogLine(raw: string): VercelLogLine | null {
   };
 }
 
-const tokens = (i: string | undefined, o: string | undefined, t?: string) =>
-  i === undefined || o === undefined ? null : { in: Number(i), out: Number(o), ...(t !== undefined ? { total: Number(t) } : {}) };
+const tokens = (i: string | undefined, o: string | undefined, t?: string, c?: string) =>
+  i === undefined || o === undefined
+    ? null
+    : {
+        in: Number(i),
+        out: Number(o),
+        ...(t !== undefined ? { total: Number(t) } : {}),
+        // 前缀缓存命中（#128，两线口径）：端点已报 cached_tokens 时入账——折扣不再隐形
+        ...(c !== undefined ? { cached: Number(c) } : {}),
+      };
 
 // 逐行提取结构化字段；一行命中多个模式时各自生效（互不重叠）
 function applyMessage(run: ProdRun, line: VercelLogLine): void {
@@ -103,10 +111,10 @@ function applyMessage(run: ProdRun, line: VercelLogLine): void {
   }
   if (m.includes("审查超时") || m.includes("未返回，本次跳过")) run.timeout = true;
   if (line.level === "warn" || line.level === "error") run.warnings.push(m);
-  if ((x = m.match(/\[router\] tokens: in (\d+) \/ out (\d+)/))) run.routerTokens = tokens(x[1], x[2]);
+  if ((x = m.match(/\[router\] tokens: in (\d+) \/ out (\d+)(?: \/ cached (\d+))?/))) run.routerTokens = tokens(x[1], x[2], undefined, x[3]);
   if ((x = m.match(/\[tools\] probe tokens: in (\d+) \/ out (\d+)/))) run.probeTokens = tokens(x[1], x[2]);
-  if ((x = m.match(/\[reviewDiff\] tokens[^:]*: in (\d+) \/ out (\d+)(?: \/ total (\d+))?/))) {
-    run.reviewTokens = tokens(x[1], x[2], x[3]);
+  if ((x = m.match(/\[reviewDiff\] tokens[^:]*: in (\d+) \/ out (\d+)(?: \/ total (\d+))?(?: \/ cached (\d+))?/))) {
+    run.reviewTokens = tokens(x[1], x[2], x[3], x[4]);
   }
   if ((x = m.match(/\[tools\] 第一段工具请求：(.+)$/))) run.toolRequests = x[1]!;
   if ((x = m.match(/\[tools\] step (\d+): (search|read) (.+)$/))) {

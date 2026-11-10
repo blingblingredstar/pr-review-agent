@@ -40,7 +40,7 @@ test("buildRunRecord：全字段构造（repo/pr/sha、tokens、outcome、findin
   assert.equal(r.startedAt, 1700000000000);
   assert.equal(r.finishedAt, 1700000060000);
   assert.equal(r.incrementalBase, "base1234");
-  assert.deepEqual(r.tokens, { input: 100, output: 50, total: 150 });
+  assert.deepEqual(r.tokens, { input: 100, output: 50, total: 150, cached: null });
   assert.deepEqual(r.outcome, POSTED);
   assert.equal(r.findings.length, 2);
   assert.deepEqual(r.findings[0], { file: "src/demo.ts", line: 2, severity: "major", body: "问题 A", confidence: "high" });
@@ -50,7 +50,7 @@ test("buildRunRecord：全字段构造（repo/pr/sha、tokens、outcome、findin
 test("buildRunRecord：usage 缺字段 → null（端点不返回口径）", () => {
   const built = buildRunRecord(REF, { comments: [] }, POSTED, null, null, 1);
   assert.ok(built.ok);
-  if (built.ok) assert.deepEqual(built.record.tokens, { input: null, output: null, total: null });
+  if (built.ok) assert.deepEqual(built.record.tokens, { input: null, output: null, total: null, cached: null });
 });
 
 test("buildRunRecord：纵深校验拒绝非法 repo/sha/pr（P2-1，不抛错返回 reason）", () => {
@@ -174,7 +174,7 @@ const SAMPLE: RunRecord = {
   startedAt: null,
   finishedAt: 1,
   incrementalBase: null,
-  tokens: { input: null, output: null, total: null },
+  tokens: { input: null, output: null, total: null, cached: null },
   outcome: { inline: 0, degraded: 0, folded: 0 },
   findings: [],
 };

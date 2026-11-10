@@ -51,19 +51,20 @@ test("withExtraBody：非 JSON 请求体原样透传", async () => {
 });
 
 test("sumUsage：字段独立求和，null 不拖累其他字段、不虚构 0", () => {
-  assert.deepEqual(sumUsage([]), { inputTokens: null, outputTokens: null, totalTokens: null });
+  assert.deepEqual(sumUsage([]), { inputTokens: null, outputTokens: null, totalTokens: null, cachedInputTokens: null });
   assert.deepEqual(
     sumUsage([
-      { inputTokens: 100, outputTokens: 20, totalTokens: 120 },
-      { inputTokens: null, outputTokens: 30, totalTokens: null },
+      { inputTokens: 100, outputTokens: 20, totalTokens: 120, cachedInputTokens: 80 },
+      { inputTokens: null, outputTokens: 30, totalTokens: null, cachedInputTokens: null },
     ]),
-    { inputTokens: 100, outputTokens: 50, totalTokens: 120 },
+    { inputTokens: 100, outputTokens: 50, totalTokens: 120, cachedInputTokens: 80 },
   );
   // 端点全不返回 usage：保持 null，报告显示「—」而不是 0
-  assert.deepEqual(sumUsage([{ inputTokens: null, outputTokens: null, totalTokens: null }]), {
+  assert.deepEqual(sumUsage([{ inputTokens: null, outputTokens: null, totalTokens: null, cachedInputTokens: null }]), {
     inputTokens: null,
     outputTokens: null,
     totalTokens: null,
+    cachedInputTokens: null,
   });
 });
 
@@ -308,7 +309,7 @@ test("reviewDiff：fileReader 不注入 = 现状单调用（system/prompt 字节
         assert.equal(user.content, "CTX\n\n[diff 开始]\nDIFF_TEXT");
         assert.equal((body.response_format as { type?: string } | undefined)?.type, "json_schema", "结构化输出走 response_format");
         assert.deepEqual(out.comments, [{ file: "src/a.ts", line: 1, severity: "major", body: "b" }]);
-        assert.deepEqual(out.usage, { inputTokens: 583, outputTokens: 130, totalTokens: 713 });
+        assert.deepEqual(out.usage, { inputTokens: 583, outputTokens: 130, totalTokens: 713, cachedInputTokens: 0 }, "provider 对未报 cached 的端点回 0（#128：0 = 端点未报或零命中，null = usage 整体缺失）");
       },
     );
   } finally {
@@ -476,7 +477,7 @@ test("reviewDiff：fileReader 注入 = 两段协议（第一段 readRequests 无
         assert.ok(secondUser.content.endsWith("DIFF_TEXT"), "diff 保持在生成前最近位置（行号锚点原则）");
         assert.equal((secondUser.content.match(/=== read_file：/g) ?? []).length, 1, "写法变体去重后同一文件只注入一次");
         assert.deepEqual(out.comments, [{ file: "src/a.ts", line: 1, severity: "major", body: "b" }], "最终出 ReviewResult");
-        assert.deepEqual(out.usage, { inputTokens: 201, outputTokens: 31, totalTokens: 232 }, "usage 为两段合计");
+        assert.deepEqual(out.usage, { inputTokens: 201, outputTokens: 31, totalTokens: 232, cachedInputTokens: 0 }, "usage 为两段合计");
       },
     );
   } finally {
@@ -600,7 +601,7 @@ test("reviewDiff：opts.plan 注入 → 计划块进 prompt（context 之后 dif
         const user = messagesOf(body).find((m) => m.role === "user")!;
         assert.equal(sys.content, loadPrompt(), "system 不含 router prompt");
         assert.equal(user.content, `CTX\n\n${buildPlanBlock(PLAN)}\n\n[diff 开始]\nDIFF_TEXT`);
-        assert.deepEqual(out.usage, { inputTokens: 100, outputTokens: 10, totalTokens: 110 }, "usage 契约不变：仅主调用自身（router 用量只落 [router] 日志）");
+        assert.deepEqual(out.usage, { inputTokens: 100, outputTokens: 10, totalTokens: 110, cachedInputTokens: 0 }, "usage 契约不变：仅主调用自身（router 用量只落 [router] 日志）");
       },
     );
   } finally {

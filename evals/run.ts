@@ -329,7 +329,7 @@ async function main() {
     `- 汇总（能力评估 = synthetic + real）：recall ${percent(recall)}（${totalHits}/${totalExpect}），precision ${precision === null ? "—" : percent(precision)}（${totalTp}/${totalComments}），失败用例 ${failed}（不计入指标），总耗时 ${(totalMs / 1000 / 60).toFixed(1)} 分钟`,
     `- confidence 分布（能力组合计，#100；H/M/L = 模型自评条数，null = 意见未带）：${confidenceTotal}`,
     `- confidence × TP 校准（能力组逐意见交叉，#100 闸门 2）：${calibCell("high", "high")} / ${calibCell("medium", "medium")} / ${calibCell("low", "low")} / ${calibCell("未标注", null)}；miss 意见中 low 占比 ${missLowRate}`,
-    `- token 用量（成功用例求和${failed > 0 ? `，失败 ${failed} 例未计量` : ""}）：${usageKnown ? `输入 ${fmtTok(usageTotal.inputTokens)} / 输出 ${fmtTok(usageTotal.outputTokens)} / 合计 ${fmtTok(usageTotal.totalTokens)}` : "端点未返回 usage"}`,
+    `- token 用量（成功用例求和${failed > 0 ? `，失败 ${failed} 例未计量` : ""}）：${usageKnown ? `输入 ${fmtTok(usageTotal.inputTokens)} / 输出 ${fmtTok(usageTotal.outputTokens)} / 合计 ${fmtTok(usageTotal.totalTokens)}${usageTotal.cachedInputTokens !== null ? ` / 其中缓存命中 ${fmtTok(usageTotal.cachedInputTokens)}（前缀缓存两线口径，#128）` : ""}` : "端点未返回 usage"}`,
     ``,
     ...groupLines,
     ...(injLine ? [injLine] : []),
