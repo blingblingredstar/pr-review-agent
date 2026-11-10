@@ -99,15 +99,16 @@ webhook URL 公网可达，但审查只可能被合法事件触发：
 - webhook 重投 REST 端点要带 `/attempts` 后缀，不带 404
 - 401 连片 → 检查 Vercel 环境变量与 GitHub webhook 两处 secret 是否同值
 
-## 观测面板部署（D041，#122）：双项目拓扑
+## 观测面板部署（D041，#122）：双项目拓扑（已按实测走通，2026-11-10）
 
-面板 = 主项目写（publish 阶段 best-effort 落 Blob）+ dashboard 项目读（`/api/runs` + 静态页）。同仓挂两个 Vercel project：
+面板 = 主项目写（publish 阶段 best-effort 落 Blob）+ dashboard 项目读（`/api/runs` + 静态页）。同仓挂两个 Vercel project。生产已按下面步骤走通，保留作重放/重建参考：
 
-1. **主项目**（现有，零改动）：Vercel 控制台给项目接 Blob store——Storage → Create Blob Store（private）→ Connect to Project，**不勾「Add a read-write token env var」**（走 OIDC：`BLOB_STORE_ID` + 平台注入 `VERCEL_OIDC_TOKEN`，短-lived 自动轮换）
-2. **dashboard 项目**（新建）：同一仓库再 Import 一次为独立 project → 接同一个 Blob store（同样不勾 read-write token）→ 环境变量**逐项手填，只用一张卡**：`RUNS_API_ENABLED=1`（fail-closed 门，缺了 route 在主项目域名也是 404，闸门 6 用例）
-   - **env denylist（配了即破防，sec-auditor P1-3）**：`WEBHOOK_SECRET` / `GITHUB_TOKEN` / `LLM_*` / `DECISION_*` / `WORKER_BASE_URL` **绝不配置**——dashboard 被攻破时这些等于把信封签名密钥和 GitHub 写权限交出去；不配时 dashboard 项目上的 `/api/webhook`、`/api/worker` 确定性失败（inert，无害）
-3. **开产线保护**：dashboard 项目 → Settings → Deployment Protection → Vercel Authentication，选 **Standard（production + all previews）**——范围配窄会产生无鉴权的 preview 数据面（P1-2）。操作禁令：不开 Automation Bypass、不生成 Shareable Link、不加 Protection Exceptions；Access 列表保持只有 owner
-4. **保留期**：`RUNS_TTL_DAYS`（两项目任意一侧配置即可，写侧生效）：默认 730 天自动过期，`0` = 不过期
-5. **验证**：生产审查一个 PR → dashboard 项目域名 `/runs.html` 登录后可见该 run（闸门 1）；未登录访问重定向（闸门 5）；`curl https://<主项目域名>/api/runs` 返回 404（闸门 6）
+1. **store 与主项目凭证**（CLI 可全自动）：`vercel blob create-store pr-review-runs --access private -y`（自动连当前 link 的项目）；**CLI 默认连接形态给项目挂的是静态 `BLOB_READ_WRITE_TOKEN`——按 D041 移除**（`vercel env rm BLOB_READ_WRITE_TOKEN` 逐环境），改挂 `vercel env add BLOB_STORE_ID --environment production/preview/development`（值 = store id，`list-stores --all` 可查）。env 变更对已存在部署不生效，需 redeploy 主项目
+2. **dashboard 项目**（CLI 可全自动）：`vercel project create pr-review-agent-dashboard` → `vercel link --yes --project pr-review-agent-dashboard`（临时切换 link）→ 同样挂 `BLOB_STORE_ID` + `RUNS_API_ENABLED=1`（均三环境）→ `vercel git connect <仓库 URL> --yes`（同仓自动部署）→ 完成后恢复原 link（`.vercel/project.json` 拷回）
+   - **env denylist（配了即破防，sec-auditor P1-3）**：`WEBHOOK_SECRET` / `GITHUB_TOKEN` / `LLM_*` / `DECISION_*` / `WORKER_BASE_URL` **绝不配置**；不配时 dashboard 项目上的 `/api/webhook`、`/api/worker` 确定性失败（inert，无害）
+3. **产线保护（CLI 半自动）**：`vercel project protection enable --sso --yes`——注意 CLI 只给到 `prod_deployment_urls_and_all_previews`（固定生产域名豁免，P1-2 的坑位），须再用 REST API 补到全保护：`PATCH /v9/projects/{id}?teamId={teamId}`，body `{"ssoProtection":{"deploymentType":"all"}}`（token 取 CLI 凭证）。操作禁令同 P1-2：不开 Automation Bypass、不生成 Shareable Link、不加 Protection Exceptions；Access 列表保持只有 owner
+4. **首次部署**：link 在 dashboard 项目下 `vercel deploy --prod --yes`；此后同仓 push 自动部署（git connect 已接）
+5. **保留期**：`RUNS_TTL_DAYS`（写侧生效）：默认 730 天自动过期，`0` = 不过期；本次未显式配置
+6. **验证（闸门实测，2026-11-10）**：dashboard 固定域名（`pr-review-agent-dashboard-zeta.vercel.app`）与部署专属 URL 均未登录 302 → SSO 登录页（闸门 5 ✓）；`curl https://<主项目域名>/api/runs` 返回 404（闸门 6 ✓）；闸门 1（生产 run 落 Blob）等下一个真实 PR 触发
 
 面板页面在主项目域名也可访问（静态页随仓库部署），但 `/api/runs` 在主项目 404——页面显示「数据加载失败」空态，属设计内。
