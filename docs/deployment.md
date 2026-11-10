@@ -109,6 +109,6 @@ webhook URL 公网可达，但审查只可能被合法事件触发：
 3. **产线保护（CLI 半自动）**：`vercel project protection enable --sso --yes`——注意 CLI 只给到 `prod_deployment_urls_and_all_previews`（固定生产域名豁免，P1-2 的坑位），须再用 REST API 补到全保护：`PATCH /v9/projects/{id}?teamId={teamId}`，body `{"ssoProtection":{"deploymentType":"all"}}`（token 取 CLI 凭证）。操作禁令同 P1-2：不开 Automation Bypass、不生成 Shareable Link、不加 Protection Exceptions；Access 列表保持只有 owner
 4. **首次部署**：link 在 dashboard 项目下 `vercel deploy --prod --yes`；此后同仓 push 自动部署（git connect 已接）
 5. **保留期**：`RUNS_TTL_DAYS`（写侧生效）：默认 730 天自动过期，`0` = 不过期；本次未显式配置
-6. **验证（闸门实测，2026-11-10）**：dashboard 固定域名（`pr-review-agent-dashboard-zeta.vercel.app`）与部署专属 URL 均未登录 302 → SSO 登录页（闸门 5 ✓）；`curl https://<主项目域名>/api/runs` 返回 404（闸门 6 ✓）；闸门 1（生产 run 落 Blob）等下一个真实 PR 触发
+6. **验证（闸门实测，2026-11-10）**：dashboard 固定生产域名与部署专属 URL 均未登录 302 → SSO 登录页（闸门 5 ✓，域名按占位约定不落公开文档，实测记录见会话 journal 与 #122）；`curl https://<主项目域名>/api/runs` 返回 404（闸门 6 ✓）；闸门 1（生产 run 落 Blob）等下一个真实 PR 触发
 
 面板页面在主项目域名也可访问（静态页随仓库部署），但 `/api/runs` 在主项目 404——页面显示「数据加载失败」空态，属设计内。
