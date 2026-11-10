@@ -430,3 +430,10 @@
 
 - `TokenUsage.cachedInputTokens`：端点 `prompt_tokens_details.cached_tokens`（AI SDK v7 经 `inputTokenDetails.cacheReadTokens` 透传；provider 对未报缓存详情的端点回 0，usage 整体缺失才为 null）——「命中 / 未命中」两线读数，成本对比不再被缓存折扣隐形污染
 - 生产日志三行（`[reviewDiff]` / `[tools] probe` 不变 / `[router]`）与台账解析、eval run 汇总、RunRecord `tokens.cached`、面板 tokens 段（`命中 N`，旧记录显示 `—`）全链路打通；零调用结构改动，promptHash 红线不动
+
+### Added（按方面拆分消融基建 + A/B 定案，2026-11-11，#127 / D042）
+
+- `EVAL_PROMPT_SUFFIX` 臂：system 后缀 prompt 变体通路（`evals/prompts/<名>.md`），promptHash 计入后缀、run 文件名 `-asp-` 标记、JSON `aspectArm` 字段；基线不传时字节级现状（eval 红线由构造保证）
+- `evals/merge-rules.ts`：交叉合并（D036）与方面拆分共用判据与合并策略的单一实现源（自 analyze-cross-review.ts 抽出，回放数字逐位一致）
+- `evals/analyze-aspect-split.ts`：A vs B（N 遍 union/保守合并/课程四步折叠）四线分析，零 LLM 调用可重放
+- **定案（D042）**：B 不胜——recall 与单遍逐例持平、precision 反降、成本 3.30×；「单遍多方面 + reflect 按阶段拆」定案，#73 价值主张收敛到 precision 工程

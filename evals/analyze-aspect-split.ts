@@ -6,10 +6,11 @@
 //
 // 口径注意：injection 组不进 A/B 对照——B 臂的「其余方面不报」是设计内合法范围限定，注入组的期望意见会被它
 // 按设计压制（与注入攻击的抑制不可区分），对照读数会失真；echo 回显违规单独一行报告。
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 import { loadCases } from "./cases/index.ts";
 import { isCapabilitySource, scoreCase, sourceOf } from "./score.ts";
-import { mergeConservative, mergeCourse4, type RawComment } from "./analyze-cross-review.ts";
+import { mergeConservative, mergeCourse4, type RawComment } from "./merge-rules.ts";
 
 type StoredRun = {
   caseId: string;
@@ -20,8 +21,15 @@ type StoredRun = {
   score: { hits: number; agentComments: number; truePositives: number; echoViolations: number } | null;
 };
 
+// 路径解析：先按 cwd 相对（终端回放的自然形态），不存在再按 evals/ 相对（与 analyze-cross-review 同款）
+function runUrl(file: string): URL {
+  const cwdAttempt = pathToFileURL(`${process.cwd()}/${file}`);
+  if (existsSync(cwdAttempt)) return cwdAttempt;
+  return new URL(file, import.meta.url);
+}
+
 function loadRun(file: string): Map<string, StoredRun> {
-  const j = JSON.parse(readFileSync(new URL(file, import.meta.url), "utf8")) as { runs: StoredRun[]; aspectArm?: { name?: string } | null };
+  const j = JSON.parse(readFileSync(runUrl(file), "utf8")) as { runs: StoredRun[]; aspectArm?: { name?: string } | null };
   if (bSide(file) && !j.aspectArm?.name) throw new Error(`${file}: aspect run 缺 aspectArm 标记（传成基线 run 了？）`);
   const out = new Map<string, StoredRun>();
   for (const r of j.runs) out.set(r.caseId, r);
@@ -100,9 +108,14 @@ for (const l of lines) {
   const tok = l.tokensIn === null ? "—" : `${l.tokensIn}/${l.tokensOut}（cached ${l.tokensCached}）`;
   console.log(`| ${l.label} | ${pct(l.recall)} | ${pct(l.precision)} | ${pct(l.f1)} | ${l.expectN} | ${l.hits} | ${l.comments} | ${l.tp} | ${tok} |`);
 }
-const aJson = JSON.parse(readFileSync(new URL(aFile, import.meta.url), "utf8")) as { summary?: { usage?: { inputTokens?: number | null; outputTokens?: number | null; totalTokens?: number | null } } };
+// 成本倍数用全量口径（run JSON summary.usage 覆盖全部 87 例）——能力组口径只数能力用例，与 A 不对齐会得出假倍数
+const aJson = JSON.parse(readFileSync(runUrl(aFile), "utf8")) as { summary?: { usage?: { inputTokens?: number | null; outputTokens?: number | null; totalTokens?: number | null } } };
 const aTotal = aJson.summary?.usage?.totalTokens ?? null;
-const bTotal = lines[1].tokensIn !== null ? (lines[1].tokensIn ?? 0) + (lines[1].tokensOut ?? 0) : null;
-if (aTotal !== null && bTotal !== null) console.log(`\n成本倍数：A total ${aTotal}，B ${bFiles.length} 遍合计 ${bTotal}，= ${(bTotal / aTotal).toFixed(2)}×`);
+let bTotal = 0;
+for (const f of bFiles) {
+  const j = JSON.parse(readFileSync(runUrl(f), "utf8")) as { summary?: { usage?: { totalTokens?: number | null } } };
+  bTotal += j.summary?.usage?.totalTokens ?? 0;
+}
+if (aTotal !== null && bTotal > 0) console.log(`\n成本倍数（全量口径）：A total ${aTotal}，B ${bFiles.length} 遍合计 ${bTotal}，= ${(bTotal / aTotal).toFixed(2)}×`);
 console.log(`injection echo（口径外记档）：B 臂合计 ${echoTotal} 违规`);
 console.log("\n判读（#127 验收闸门）：B 显著胜 → 重开分发形态讨论（与 D036 cheap-pair 叠加评估）；B 不胜或胜幅小于成本倍数 → 「单遍多方面 + reflect 按阶段拆」定案。");

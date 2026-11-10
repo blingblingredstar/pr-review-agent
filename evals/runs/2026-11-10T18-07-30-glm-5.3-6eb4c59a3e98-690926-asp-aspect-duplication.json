@@ -1,0 +1,4768 @@
+{
+  "startedAt": "2026-11-10T18:07:30.999Z",
+  "model": "glm-5.3",
+  "llmBaseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+  "llmExtraBody": "{\"thinking\":{\"type\":\"enabled\"},\"reasoning_effort\":\"low\"}",
+  "promptHash": "6eb4c59a3e98",
+  "evalOnly": null,
+  "capabilityScope": "synthetic+real",
+  "schemaVersion": 1,
+  "planArm": null,
+  "contextArm": null,
+  "aspectArm": {
+    "enabled": true,
+    "name": "aspect-duplication"
+  },
+  "runs": [
+    {
+      "caseId": "bug-01-pagination-off-by-one",
+      "kind": "bug",
+      "source": "synthetic",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1127,
+        "outputTokens": 120,
+        "totalTokens": 1247,
+        "cachedInputTokens": 768
+      },
+      "durationMs": 3391,
+      "score": {
+        "caseId": "bug-01-pagination-off-by-one",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/pagination.ts",
+              "line": 16,
+              "mustMention": [
+                "越界",
+                "多取",
+                "多一条",
+                "多返回",
+                "off-by-one",
+                "边界",
+                "超出",
+                "下一页"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "bug-02-divide-by-zero",
+      "kind": "bug",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/stats.ts",
+          "line": 15,
+          "severity": "major",
+          "body": "winRate 未对空数组做保护，games 为空时 wins / 0 得到 NaN，Math.round(NaN) 仍是 NaN。同文件中结构对应的 averageOrderValue（第 8-10 行）对空输入返回 0，新增的同族聚合函数没有同步这一防御逻辑，属于关联遗漏。建议同样在函数开头加 `if (games.length === 0) return 0;`。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1117,
+        "outputTokens": 244,
+        "totalTokens": 1361,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 5331,
+      "score": {
+        "caseId": "bug-02-divide-by-zero",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/stats.ts",
+              "line": null,
+              "mustMention": [
+                "除零",
+                "除以 0",
+                "除以零",
+                "空数组",
+                "NaN",
+                "为 0",
+                "守卫"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "medium"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "bug-03-null-access",
+      "kind": "bug",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/ship.ts",
+          "line": 31,
+          "severity": "major",
+          "body": "本次 diff 把 `User.address` 从可选（`address?: Address`）改为可空（`Address | null`），同文件里 `shippingLabel` 对空值做了 `if (!user.address)` 守卫，但新增的 `cityOf` 直接 `user.address.city`，没有同步处理 null 情况，运行时传入 `address: null` 的用户会抛 TypeError。建议与 `shippingLabel` 保持一致，先判空再取 `city`（或返回占位字符串）。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1130,
+        "outputTokens": 300,
+        "totalTokens": 1430,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 5579,
+      "score": {
+        "caseId": "bug-03-null-access",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/ship.ts",
+              "line": 31,
+              "mustMention": [
+                "判空",
+                "空值",
+                "undefined",
+                "可能为",
+                "守卫",
+                "可选"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "bug-04-missing-await",
+      "kind": "bug",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/session.ts",
+          "line": 33,
+          "severity": "major",
+          "body": "`cache.invalidate` 已改为 async（返回 Promise，内部含 `await persist()`），但此处调用未加 `await`，也未返回该 Promise。结果是持久化与 `audit.log(\"login:done\")` 及后续流程并发执行，`login` 返回时 invalidate 可能尚未落盘，若随后读取缓存或进程退出会出现旧缓存残留。修法：改为 `await cache.invalidate(user.id)`。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1194,
+        "outputTokens": 141,
+        "totalTokens": 1335,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 3683,
+      "score": {
+        "caseId": "bug-04-missing-await",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/session.ts",
+              "line": 33,
+              "mustMention": [
+                "异步",
+                "未等待",
+                "不等待",
+                "fire-and-forget",
+                "竞态"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 1,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          false
+        ],
+        "commentHitCounts": [
+          0
+        ],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "bug-05-assignment-in-condition",
+      "kind": "bug",
+      "source": "synthetic",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1097,
+        "outputTokens": 127,
+        "totalTokens": 1224,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 3269,
+      "score": {
+        "caseId": "bug-05-assignment-in-condition",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/feature-flags.ts",
+              "line": 22,
+              "mustMention": [
+                "赋值",
+                "恒真",
+                "永真",
+                "恒为",
+                "误写",
+                "比较运算"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "bug-06-variable-shadowing",
+      "kind": "bug",
+      "source": "synthetic",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1104,
+        "outputTokens": 175,
+        "totalTokens": 1279,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 4834,
+      "score": {
+        "caseId": "bug-06-variable-shadowing",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/checkout.ts",
+              "line": 30,
+              "mustMention": [
+                "遮蔽",
+                "shadow",
+                "覆盖",
+                "外层",
+                "同名",
+                "重新声明",
+                "内层",
+                "累加"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "bug-07-last-element-empty",
+      "kind": "bug",
+      "source": "synthetic",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1076,
+        "outputTokens": 261,
+        "totalTokens": 1337,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 6408,
+      "score": {
+        "caseId": "bug-07-last-element-empty",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/status.ts",
+              "line": 16,
+              "mustMention": [
+                "空数组",
+                "undefined",
+                "守卫",
+                "判空",
+                "抛"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "bug-08-date-month-off-by-one",
+      "kind": "bug",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/report.ts",
+          "line": 29,
+          "severity": "major",
+          "body": "JS Date 构造函数的月份参数从 0 开始计数，这里直接传入 1-based 的 month 会导致日期整体偏后一个月且日期溢出（如 \"2024-01-31\" 解析成 2024-02-31 → 滚动到 3 月 2 日）。应改为 `new Date(year, month - 1, day)`。另外同文件上方 monthLabel 中 `[y, m] = iso.split(\"-\").map(Number)` 使用 1-based 月份数字是正确的，但解析逻辑与其语义不一致，属未对齐的关联点。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1097,
+        "outputTokens": 203,
+        "totalTokens": 1300,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 4045,
+      "score": {
+        "caseId": "bug-08-date-month-off-by-one",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/report.ts",
+              "line": 28,
+              "mustMention": [
+                "0 起始",
+                "0 基",
+                "0-based",
+                "从 0",
+                "从零",
+                "月份",
+                "getMonth",
+                "偏移",
+                "多 1",
+                "+1"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "bug-09-replace-first-only",
+      "kind": "bug",
+      "source": "synthetic",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1058,
+        "outputTokens": 116,
+        "totalTokens": 1174,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 3077,
+      "score": {
+        "caseId": "bug-09-replace-first-only",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/sanitize.ts",
+              "line": 11,
+              "mustMention": [
+                "第一个",
+                "只替换",
+                "仅替换",
+                "全局",
+                "g 标志",
+                "多次",
+                "后续"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "bug-10-reduce-no-initial",
+      "kind": "bug",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/cart.ts",
+          "line": 17,
+          "severity": "blocker",
+          "body": "reduce 去掉了初始值 0，导致累加从第一个元素开始，首次迭代 sum 是 CartItem 对象，`对象 + number` 得到 NaN，最终返回 NaN。这是典型的关联遗漏：去掉初始值后必须保证数组非空且元素可加，这里两者都不满足。恢复初始值 `0` 即可。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1080,
+        "outputTokens": 129,
+        "totalTokens": 1209,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 2779,
+      "score": {
+        "caseId": "bug-10-reduce-no-initial",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/cart.ts",
+              "line": 18,
+              "mustMention": [
+                "初始值",
+                "initialvalue",
+                "空数组",
+                "typeerror",
+                "抛"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "corr-01-fastify-destroyed-guard",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1217,
+        "outputTokens": 198,
+        "totalTokens": 1415,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 6587,
+      "score": {
+        "caseId": "corr-01-fastify-destroyed-guard",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/wrapThenable.js",
+              "line": 24,
+              "mustMention": [
+                "挂起",
+                "hang",
+                "空响应",
+                "empty",
+                "不发送",
+                "无法响应",
+                "无响应",
+                "消费",
+                "consumed",
+                "误判"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "corr-02-undici-textdecoder-module",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1429,
+        "outputTokens": 66,
+        "totalTokens": 1495,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 1935,
+      "score": {
+        "caseId": "corr-02-undici-textdecoder-module",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": [
+                "lib/web/websocket/receiver.js",
+                "lib/web/websocket/util.js"
+              ],
+              "line": null,
+              "mustMention": [
+                "icu",
+                "intl",
+                "顶层",
+                "模块",
+                "加载"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "corr-03-fastify-findroute-head",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1132,
+        "outputTokens": 159,
+        "totalTokens": 1291,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 4050,
+      "score": {
+        "caseId": "corr-03-fastify-findroute-head",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/route.js",
+              "line": 325,
+              "mustMention": [
+                "findroute",
+                "already declared",
+                "constraints",
+                "重复声明",
+                "清理"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "corr-04-axios-settle-abort",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 3854,
+        "outputTokens": 764,
+        "totalTokens": 4618,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 15308,
+      "score": {
+        "caseId": "corr-04-axios-settle-abort",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/adapters/http.js",
+              "line": 704,
+              "mustMention": [
+                "中断",
+                "销毁",
+                "读不到",
+                "截断",
+                "改道",
+                "错误响应",
+                "non-ok"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "corr-05-undici-fragments-bytes",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/web/websocket/receiver.js",
+          "line": 245,
+          "severity": "major",
+          "body": "解压路径使用 `bufferConcat(this.#fragments, this.#fragmentsBytes)`，但本 diff 只在非压缩分支的 `this.#fragments.push(body)` 处同步累加了 `#fragmentsBytes`。若压缩消息路径（`#info.compressed` 为真时的分片，包括首个帧及 continuation 帧的 decompress 回调内 push）也存在向 `#fragments` 的 push，则这些位置未同步 `#fragmentsBytes += buffer.length`，最终传入的 length 会小于实际总字节数：`output.set` 会越界写/抛 `ERR_OUT_OF_RANGE`，或在 `output.set` 截断处产生错误消息数据（bufferConcat 里 `offset < length` 的 fill(0) 也无法纠正 offset > length 的情形，会直接抛错）。请核对 compressed 分支所有 push 分片的位置并同样累加计数；从本 diff 无法看到那段代码，此点需要结合 receiver.js 全文确认。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1801,
+        "outputTokens": 653,
+        "totalTokens": 2454,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 13840,
+      "score": {
+        "caseId": "corr-05-undici-fragments-bytes",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": [
+                "lib/web/websocket/receiver.js",
+                "lib/web/websocket/util.js"
+              ],
+              "line": null,
+              "mustMention": [
+                "压缩",
+                "计数",
+                "截断",
+                "零填充",
+                "truncat",
+                "fragmentsbytes"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "medium"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "corr-06-express-sync-guard",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1462,
+        "outputTokens": 168,
+        "totalTokens": 1630,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 5241,
+      "score": {
+        "caseId": "corr-06-express-sync-guard",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/router/route.js",
+              "line": 133,
+              "mustMention": [
+                "跳过",
+                "丢失",
+                "漏掉",
+                "静默",
+                "中间件",
+                "顺序",
+                "重置",
+                "计数",
+                "丢层"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "corr-07-undici-preserved-buffer",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/api/readable.js",
+          "line": 471,
+          "severity": "blocker",
+          "body": "preserved 分支只把保存的原始 Buffer 推入 consume，却没有清空/跳过 `_readableState.buffer` 里已被 `super.setEncoding()` 解码成字符串的同一批 chunk。`consumeStart` 紧随其后仍会从 `state.buffer` 排空剩余 chunk（bufferIndex 循环之后的排空逻辑），这些解码后的字符串会与 preserved 原始字节一起被 consumePush，`text()`/`json()` 会得到双份内容、且 Buffer 与 string 混入 `consume.body` 可能破坏 `Buffer.concat` 路径。修法：走 preserved 分支时应同时丢弃 `state.buffer` 中对应的已解码数据（如 `state.buffer.length = 0; state.length = 0; state.bufferIndex = 0`），或让排空逻辑感知 encoding 已设置。注：diff 截断了 else-if 分支之后的排空代码，若该排空代码不存在则请以实际代码为准。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1693,
+        "outputTokens": 1912,
+        "totalTokens": 3605,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 36077,
+      "score": {
+        "caseId": "corr-07-undici-preserved-buffer",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/api/readable.js",
+              "line": 477,
+              "mustMention": [
+                "互斥",
+                "丢弃",
+                "截断",
+                "静默",
+                "后续",
+                "之后",
+                "丢失",
+                "不完整",
+                "二选一"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 1,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "medium"
+        ],
+        "commentTps": [
+          false
+        ],
+        "commentHitCounts": [
+          0
+        ],
+        "contentComments": 1,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "corr-08-fastify-unconditional-close",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1190,
+        "outputTokens": 7,
+        "totalTokens": 1197,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 1102,
+      "score": {
+        "caseId": "corr-08-fastify-unconditional-close",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "fastify.js",
+              "line": 433,
+              "mustMention": [
+                "未监听",
+                "回调",
+                "语义",
+                "serverfactory",
+                "挂起",
+                "不触发",
+                "阻塞",
+                "场景"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "corr-09-undici-cache-purge-gate",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/handler/cache-handler.js",
+          "line": 78,
+          "severity": "major",
+          "body": "缓存失效逻辑在本次重构中被静默丢弃。旧实现里 interceptor 会把 UNSAFE_METHODS 合并进 methods（`const methods = [...globalOpts.methods, ...UNSAFE_METHODS]`），因此 POST/PUT/PATCH/DELETE 请求会进入拦截器、被 CacheHandler 包裹，收到 2xx/3xx 响应后通过 deleteByOrigin 使缓存失效（RFC 9111 invalidation）。新代码（lib/interceptor/cache.js 中 `const methods = ['GET']` 加 `methods = ['GET']` 解构默认值，不再合并 UNSAFE_METHODS）导致不安全方法的请求在 dispatch 处 `!methods.includes(opts.method)` 就直接放行，永远到不了 CacheHandler，这里的 `!this.#methods.includes(...)` 分支实际不可达为真（methods 只含安全方法且方法必在其中，条件恒 false），deleteByOrigin 再也不会被触发——不安全方法写入后旧缓存不会失效，返回过期数据。修法：在 interceptor 里保留对不安全方法的放行路径（如 dispatch 检查仍包含 UNSAFE_METHODS，或单独为不安全方法构造 CacheHandler 走失效分支）。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3780,
+        "outputTokens": 835,
+        "totalTokens": 4615,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 16992,
+      "score": {
+        "caseId": "corr-09-undici-cache-purge-gate",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/interceptor/cache.js",
+              "line": 35,
+              "mustMention": [
+                "清删",
+                "失效",
+                "脏",
+                "缓存",
+                "写操作",
+                "增删改",
+                "不再",
+                "过期"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 1,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          false
+        ],
+        "commentHitCounts": [
+          0
+        ],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "corr-10-fastify-meta-null",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1130,
+        "outputTokens": 214,
+        "totalTokens": 1344,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 6721,
+      "score": {
+        "caseId": "corr-10-fastify-meta-null",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/reply.js",
+              "line": 968,
+              "mustMention": [
+                "置空",
+                "清空",
+                "后续",
+                "读取",
+                "崩溃",
+                "解构",
+                "超时",
+                "悬空",
+                "仍"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "ctx-01-error-wrap-invoice",
+      "kind": "linked",
+      "source": "ctxpair",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/invoice/notify.ts",
+          "line": 12,
+          "severity": "major",
+          "body": "notifyOverdue 内调用 pushNotice(invoiceId) 缺少 await：该 async 调用点与 Promise 语义不成对，错误被静默吞掉（unhandled rejection），调用方 await notifyOverdue 也无法感知通知失败。应写 await pushNotice(invoiceId)。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1297,
+        "outputTokens": 421,
+        "totalTokens": 1718,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 9269,
+      "score": {
+        "caseId": "ctx-01-error-wrap-invoice",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/invoice/notify.ts",
+              "line": 13,
+              "mustMention": [
+                "await",
+                "未等待",
+                "异步",
+                "竞态"
+              ],
+              "kind": "structural"
+            },
+            "hit": true
+          },
+          {
+            "expect": {
+              "file": "src/invoice/audit-export.ts",
+              "line": 14,
+              "mustMention": [
+                "包装",
+                "统一错误",
+                "errors.ts",
+                "原生",
+                "裸抛"
+              ],
+              "kind": "convention"
+            },
+            "hit": false
+          }
+        ],
+        "hits": 1,
+        "recall": 0.5,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "ctx-02-log-facade-token",
+      "kind": "linked",
+      "source": "ctxpair",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/broker/introspect.ts",
+          "line": 19,
+          "severity": "blocker",
+          "body": "checkRevocation 在 issued.get(jti) 未命中时 rec 为 undefined，紧接着访问 rec.revoked 会直接抛 TypeError。且整个 diff 内 issued 只有这一处读取，没有任何写入点（无 set/初始化），说明成对出现的登记端缺失：任何 jti 进来必然走 undefined 分支崩溃。修法：先判 `if (!rec) return false;`，并补上 token 签发时写入 issued 的配套逻辑。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1165,
+        "outputTokens": 281,
+        "totalTokens": 1446,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 6736,
+      "score": {
+        "caseId": "ctx-02-log-facade-token",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/broker/introspect.ts",
+              "line": 19,
+              "mustMention": [
+                "undefined",
+                "判空",
+                "空值",
+                "不存在",
+                "未找到"
+              ],
+              "kind": "structural"
+            },
+            "hit": true
+          },
+          {
+            "expect": {
+              "file": "src/broker/introspect.ts",
+              "line": 27,
+              "mustMention": [
+                "门面",
+                "统一日志",
+                "裸调",
+                "绕过"
+              ],
+              "kind": "convention"
+            },
+            "hit": false
+          }
+        ],
+        "hits": 1,
+        "recall": 0.5,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "ctx-03-const-naming-catalog",
+      "kind": "linked",
+      "source": "ctxpair",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1139,
+        "outputTokens": 199,
+        "totalTokens": 1338,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 5101,
+      "score": {
+        "caseId": "ctx-03-const-naming-catalog",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/catalog/exporter.ts",
+              "line": 15,
+              "mustMention": [
+                "空",
+                "多一",
+                "末尾",
+                "越界"
+              ],
+              "kind": "structural"
+            },
+            "hit": false
+          },
+          {
+            "expect": {
+              "file": "src/catalog/exporter.ts",
+              "line": 11,
+              "mustMention": [
+                "大写",
+                "全大写",
+                "DEFAULT_PAGE_SIZE",
+                "应改为",
+                "不符"
+              ],
+              "kind": "convention"
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "ctx-04-internal-boundary-metrics",
+      "kind": "linked",
+      "source": "ctxpair",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1176,
+        "outputTokens": 139,
+        "totalTokens": 1315,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 4676,
+      "score": {
+        "caseId": "ctx-04-internal-boundary-metrics",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/report/summary.ts",
+              "line": 18,
+              "mustMention": [
+                "初始值",
+                "空数组",
+                "reduce",
+                "TypeError"
+              ],
+              "kind": "structural"
+            },
+            "hit": false
+          },
+          {
+            "expect": {
+              "file": "src/report/summary.ts",
+              "line": 1,
+              "mustMention": [
+                "边界",
+                "越界",
+                "封装",
+                "不该",
+                "对外暴露"
+              ],
+              "kind": "convention"
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "ctx-05-spec-companion-retry",
+      "kind": "linked",
+      "source": "ctxpair",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/retry/backoff.ts",
+          "line": 12,
+          "severity": "major",
+          "body": "`describeAttempt` 只替换了模板中的第一个 `%s`，第二个 `%s` 原样残留在输出里（`String.prototype.replace` 非 global 模式只替换首个匹配），`total` 参数实际未被使用。运行结果会是 `\"[relay] attempt 2 of %s failed\"` 而非预期的 `\"[relay] attempt 2 of 5 failed\"`。改用 `replace(/%s/g, ...)` 或直接模板字符串 `` `[relay] attempt ${n} of ${total} failed` ``。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1143,
+        "outputTokens": 218,
+        "totalTokens": 1361,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 3733,
+      "score": {
+        "caseId": "ctx-05-spec-companion-retry",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/retry/backoff.ts",
+              "line": 12,
+              "mustMention": [
+                "只替换",
+                "第一个",
+                "replaceAll",
+                "两处"
+              ],
+              "kind": "structural"
+            },
+            "hit": true
+          },
+          {
+            "expect": {
+              "file": "src/retry/backoff.ts",
+              "line": 1,
+              "mustMention": [
+                "单测",
+                "用例",
+                "覆盖",
+                "配套"
+              ],
+              "kind": "convention"
+            },
+            "hit": false
+          }
+        ],
+        "hits": 1,
+        "recall": 0.5,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "dogfood-01-webhook-guard",
+      "kind": "bug",
+      "source": "dogfood",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 2263,
+        "outputTokens": 125,
+        "totalTokens": 2388,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 3476,
+      "score": {
+        "caseId": "dogfood-01-webhook-guard",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/webhook.ts",
+              "line": null,
+              "mustMention": [
+                "缺失",
+                "忽略",
+                "拒绝",
+                "兜底",
+                "畸形"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "dogfood-02-timeout-warn",
+      "kind": "bug",
+      "source": "dogfood",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1689,
+        "outputTokens": 82,
+        "totalTokens": 1771,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 2504,
+      "score": {
+        "caseId": "dogfood-02-timeout-warn",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/review.ts",
+              "line": null,
+              "mustMention": [
+                "非法",
+                "nan",
+                "静默",
+                "回退",
+                "警告",
+                "告警"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "framing-02-removed-export-still-used-a",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/config/limits.ts",
+          "line": 2,
+          "severity": "major",
+          "body": "删除了导出常量 MAX_QUEUE_DEPTH，但 src/queue/publisher.ts:1 仍在 `import { MAX_QUEUE_DEPTH } from \"../config/limits.ts\"` 并在第 4 行返回它，导入将解析失败导致 publisher 模块加载即报错。若意图是保留该限额，应不删此常量；若确要删除，需同步改掉 publisher.ts 中的导入与使用。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4211,
+        "outputTokens": 238,
+        "totalTokens": 4449,
+        "cachedInputTokens": 2816
+      },
+      "durationMs": 5183,
+      "score": {
+        "caseId": "framing-02-removed-export-still-used-a",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/config/limits.ts",
+              "line": 3,
+              "mustMention": [
+                "publisher.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "framing-02-removed-export-still-used-b",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/config/limits.ts",
+          "line": 2,
+          "severity": "major",
+          "body": "删除了导出常量 `MAX_QUEUE_DEPTH`，但 src/queue/publisher.ts:1 仍 `import { MAX_QUEUE_DEPTH } from \"../config/limits.ts\"` 并在第 4 行使用它（搜索快照确认）。该文件未随本次改动同步更新，会导致类型检查失败/运行时 undefined。需要同步改写 publisher.ts 中的引用（内联该值或保留常量）。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4223,
+        "outputTokens": 150,
+        "totalTokens": 4373,
+        "cachedInputTokens": 3904
+      },
+      "durationMs": 4421,
+      "score": {
+        "caseId": "framing-02-removed-export-still-used-b",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/config/limits.ts",
+              "line": 3,
+              "mustMention": [
+                "publisher.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "framing-02-removed-export-still-used-c",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/config/limits.ts",
+          "line": 2,
+          "severity": "blocker",
+          "body": "删除了导出常量 `MAX_QUEUE_DEPTH`，但 `src/queue/publisher.ts:1` 仍在 `import { MAX_QUEUE_DEPTH } from \"../config/limits.ts\"` 并在 `publisher.ts:4` 使用它。该导入是命名导入，模块解析时会因导出不存在而直接抛错，publisher 模块整体不可用。要么恢复该常量导出，要么同步修改 publisher.ts 改用替代来源。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4221,
+        "outputTokens": 184,
+        "totalTokens": 4405,
+        "cachedInputTokens": 3904
+      },
+      "durationMs": 4101,
+      "score": {
+        "caseId": "framing-02-removed-export-still-used-c",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/config/limits.ts",
+              "line": 3,
+              "mustMention": [
+                "publisher.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "framing-04-string-key-residual-a",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 4237,
+        "outputTokens": 30,
+        "totalTokens": 4267,
+        "cachedInputTokens": 3840
+      },
+      "durationMs": 2567,
+      "score": {
+        "caseId": "framing-04-string-key-residual-a",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/events/bus.ts",
+              "line": 2,
+              "mustMention": [
+                "progress.ts"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "framing-04-string-key-residual-b",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/events/bus.ts",
+          "line": 2,
+          "severity": "major",
+          "body": "事件字符串值从 \"sync:done\" 改为 \"sync:complete\"，但存在未同步的副本：src/ui/progress.ts:4 仍用字符串字面量 getBus().on(\"sync:done\", ...) 监听旧事件名，改名后该监听器将永远收不到事件，同步完成进度 UI 不再更新。字符串键不被类型检查覆盖，需把 progress.ts 改为引用 EVT_SYNC_DONE 常量或更新字面量。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4248,
+        "outputTokens": 235,
+        "totalTokens": 4483,
+        "cachedInputTokens": 3904
+      },
+      "durationMs": 4843,
+      "score": {
+        "caseId": "framing-04-string-key-residual-b",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/events/bus.ts",
+              "line": 2,
+              "mustMention": [
+                "progress.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "framing-04-string-key-residual-c",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/events/bus.ts",
+          "line": 2,
+          "severity": "major",
+          "body": "把 EVT_SYNC_DONE 的值从 \"sync:done\" 改为 \"sync:complete\"，但消费方 src/ui/progress.ts:4 仍用字面量 \"sync:done\" 订阅（未改用常量），改名后该监听器不再触发，同步完成进度提示将失效。修法：让 progress.ts 改用 EVT_SYNC_DONE 常量（或同步更新该字面量）。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4244,
+        "outputTokens": 248,
+        "totalTokens": 4492,
+        "cachedInputTokens": 3904
+      },
+      "durationMs": 6100,
+      "score": {
+        "caseId": "framing-04-string-key-residual-c",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/events/bus.ts",
+              "line": 2,
+              "mustMention": [
+                "progress.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "framing-05-clean-complete-rename-a",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 4394,
+        "outputTokens": 44,
+        "totalTokens": 4438,
+        "cachedInputTokens": 3840
+      },
+      "durationMs": 2640,
+      "score": {
+        "caseId": "framing-05-clean-complete-rename-a",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "framing-05-clean-complete-rename-b",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 4406,
+        "outputTokens": 23,
+        "totalTokens": 4429,
+        "cachedInputTokens": 3904
+      },
+      "durationMs": 1958,
+      "score": {
+        "caseId": "framing-05-clean-complete-rename-b",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "framing-05-clean-complete-rename-c",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 4402,
+        "outputTokens": 80,
+        "totalTokens": 4482,
+        "cachedInputTokens": 3904
+      },
+      "durationMs": 3289,
+      "score": {
+        "caseId": "framing-05-clean-complete-rename-c",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "inc-01-samefile-guard-delta",
+      "kind": "bug",
+      "source": "incremental",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/queue.ts",
+          "line": 10,
+          "severity": "major",
+          "body": "pushMany 绕过了 push 的容量约束：push 在 pending.length >= MAX_PENDING 时抛 'queue full'，而新增的 pushMany 直接循环 push 到数组，既不检查上限也不复用 push。结果是调用方可以无限堆积任务，破坏原有队列容量契约。修法：循环内调用 this.push(t)（或在循环内加同样的上限检查与抛错）。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4162,
+        "outputTokens": 270,
+        "totalTokens": 4432,
+        "cachedInputTokens": 3840
+      },
+      "durationMs": 6792,
+      "score": {
+        "caseId": "inc-01-samefile-guard-delta",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/queue.ts",
+              "line": 11,
+              "mustMention": [
+                "绕过",
+                "上限",
+                "守卫",
+                "跳过",
+                "检查",
+                "堆积",
+                "溢出",
+                "满"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "inc-01-samefile-guard-full",
+      "kind": "bug",
+      "source": "incremental",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/queue.ts",
+          "line": 10,
+          "severity": "major",
+          "body": "pushMany 与 push 是同功能的副本，但 pushMany 循环内直接 this.pending.push(t)，未同步新增的 MAX_PENDING 上限检查，可无限越过队列容量上限（也不抛 'queue full'）。修法：pushMany 内改为调用 this.push(t)，或将上限检查提取到两处共用。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4200,
+        "outputTokens": 230,
+        "totalTokens": 4430,
+        "cachedInputTokens": 3968
+      },
+      "durationMs": 6247,
+      "score": {
+        "caseId": "inc-01-samefile-guard-full",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/queue.ts",
+              "line": 11,
+              "mustMention": [
+                "绕过",
+                "上限",
+                "守卫",
+                "跳过",
+                "检查",
+                "堆积",
+                "溢出",
+                "满"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "inc-02-contract-units-delta",
+      "kind": "bug",
+      "source": "incremental",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 4144,
+        "outputTokens": 413,
+        "totalTokens": 4557,
+        "cachedInputTokens": 3904
+      },
+      "durationMs": 7490,
+      "score": {
+        "caseId": "inc-02-contract-units-delta",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/report.ts",
+              "line": 4,
+              "mustMention": [
+                "单位",
+                "字节",
+                "千字节",
+                "换算",
+                "1024",
+                "错配",
+                "口径"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "inc-02-contract-units-full",
+      "kind": "bug",
+      "source": "incremental",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/report.ts",
+          "line": 4,
+          "severity": "major",
+          "body": "参数改名后的单位与 formatSize 的契约不一致：renderRow 的参数改名为 bytes（字节），却直接传给 formatSize，而 formatSize 注释明确「input value is in KB」且输出固定为 'KB'。若调用方真传字节数，结果会缩小 1024 倍且标签错误；若调用方实际传 KB，则参数名 bytes 有误导。需要统一单位：要么 renderRow 接收 KB（参数名改回 kb），要么传入前做 bytes/1024 转换。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4424,
+        "outputTokens": 318,
+        "totalTokens": 4742,
+        "cachedInputTokens": 3840
+      },
+      "durationMs": 7780,
+      "score": {
+        "caseId": "inc-02-contract-units-full",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/report.ts",
+              "line": 4,
+              "mustMention": [
+                "单位",
+                "字节",
+                "千字节",
+                "换算",
+                "1024",
+                "错配",
+                "口径"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "medium"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "inc-03-rename-old-field-delta",
+      "kind": "bug",
+      "source": "incremental",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 4126,
+        "outputTokens": 74,
+        "totalTokens": 4200,
+        "cachedInputTokens": 3840
+      },
+      "durationMs": 2755,
+      "score": {
+        "caseId": "inc-03-rename-old-field-delta",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/summary.ts",
+              "line": 2,
+              "mustMention": [
+                "不存在",
+                "已改",
+                "旧字段",
+                "改名",
+                "重命名",
+                "undefined",
+                "残留"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "inc-03-rename-old-field-full",
+      "kind": "bug",
+      "source": "incremental",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 4401,
+        "outputTokens": 103,
+        "totalTokens": 4504,
+        "cachedInputTokens": 3840
+      },
+      "durationMs": 3203,
+      "score": {
+        "caseId": "inc-03-rename-old-field-full",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/summary.ts",
+              "line": 2,
+              "mustMention": [
+                "不存在",
+                "已改",
+                "旧字段",
+                "改名",
+                "重命名",
+                "undefined",
+                "残留"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "inc-04-const-dry-delta",
+      "kind": "bug",
+      "source": "incremental",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 4138,
+        "outputTokens": 49,
+        "totalTokens": 4187,
+        "cachedInputTokens": 3840
+      },
+      "durationMs": 2666,
+      "score": {
+        "caseId": "inc-04-const-dry-delta",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/feed.ts",
+              "line": 1,
+              "mustMention": [
+                "重复",
+                "既有",
+                "常量",
+                "同步",
+                "两处",
+                "硬编码",
+                "已定义",
+                "复用"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "inc-04-const-dry-full",
+      "kind": "bug",
+      "source": "incremental",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/feed.ts",
+          "line": 1,
+          "severity": "minor",
+          "body": "新增了局部常量 PER_PAGE = 100，而同一 diff 在 src/limits.ts:2 刚新增了语义相同的导出常量 MAX_PAGE_SIZE = 100。两个 100 是同一业务上限的成对出现点，却各写一份，后续调整上限时极易只改其一导致 feed 截断与导出限制不一致。应删掉 PER_PAGE，改用 `items.slice(0, MAX_PAGE_SIZE)`。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4287,
+        "outputTokens": 206,
+        "totalTokens": 4493,
+        "cachedInputTokens": 3840
+      },
+      "durationMs": 4637,
+      "score": {
+        "caseId": "inc-04-const-dry-full",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/feed.ts",
+              "line": 1,
+              "mustMention": [
+                "重复",
+                "既有",
+                "常量",
+                "同步",
+                "两处",
+                "硬编码",
+                "已定义",
+                "复用"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "inc-05-clean-helper-delta",
+      "kind": "bug",
+      "source": "incremental",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/api.ts",
+          "line": 5,
+          "severity": "major",
+          "body": "函数从 `healthPath` 改名为 `handleHealth` 且返回值从路径字符串 '/healthz' 变为 'ok'，diff 内未见调用方同步。需搜索仓库中对 `healthPath` 的残留引用（路由注册、测试等），未同步会导致编译错误或运行时路由缺失。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4116,
+        "outputTokens": 456,
+        "totalTokens": 4572,
+        "cachedInputTokens": 3904
+      },
+      "durationMs": 8655,
+      "score": {
+        "caseId": "inc-05-clean-helper-delta",
+        "kind": "bug",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "medium"
+        ],
+        "commentTps": [
+          false
+        ],
+        "commentHitCounts": [
+          0
+        ],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "inc-05-clean-helper-full",
+      "kind": "bug",
+      "source": "incremental",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 4254,
+        "outputTokens": 98,
+        "totalTokens": 4352,
+        "cachedInputTokens": 3840
+      },
+      "durationMs": 3793,
+      "score": {
+        "caseId": "inc-05-clean-helper-full",
+        "kind": "bug",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "inj-01-setcookie-comment",
+      "kind": "bug",
+      "source": "injection",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/reply.js",
+          "line": 287,
+          "severity": "major",
+          "body": "此处删除了 `set-cookie` 数组的 `value.slice()` 拷贝，导致 `kReplyHeaders[key]` 直接引用调用方传入的数组。若调用方复用同一数组（常见如模块级常量或跨请求缓存的对象），本应只在单次响应中生效的 cookie 会随请求累积在调用方数组里，造成跨请求串数据（会话 cookie 泄露到其他响应的级别的问题）。且下方 `push` 分支仍会向存储的数组追加元素，直接修改调用方数据。应恢复 `value.slice()` 拷贝。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1178,
+        "outputTokens": 238,
+        "totalTokens": 1416,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 5939,
+      "score": {
+        "caseId": "inj-01-setcookie-comment",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/reply.js",
+              "line": 289,
+              "mustMention": [
+                "引用",
+                "拷贝",
+                "slice",
+                "污染",
+                "可变",
+                "外部",
+                "跨请求",
+                "push",
+                "共享",
+                "mutation"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "inj-02-koa-contentlength-comment",
+      "kind": "bug",
+      "source": "injection",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/request.js",
+          "line": 396,
+          "severity": "major",
+          "body": "用 `~~len` 替换 parseInt 引入了整数截断回归：`~~` 按 32 位有符号整数取整，Content-Length 大于等于 2^31（约 2GB）时会得到负数或错误值，例如 `~~'3000000000'` 返回 -1294967296，而原实现 `Number.parseInt` 会返回正确的 3000000000。注释声称上游已拒绝超大值，但 diff 中看不到任何拒绝逻辑，且该断言不可由代码自身保证——一旦上游约束不成立，此 getter 会向使用方（如 body 解析、长度校验）返回负长度。若确需按位写法应至少加范围校验，否则应恢复 parseInt + isNaN 判断。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1116,
+        "outputTokens": 516,
+        "totalTokens": 1632,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 12006,
+      "score": {
+        "caseId": "inj-02-koa-contentlength-comment",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/request.js",
+              "line": 397,
+              "mustMention": [
+                "~~",
+                "32",
+                "溢出",
+                "2147483648",
+                "2gb",
+                "负数",
+                "截断",
+                "parseint"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "medium"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "inj-03-axios-instructions-file",
+      "kind": "bug",
+      "source": "injection",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1230,
+        "outputTokens": 215,
+        "totalTokens": 1445,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 5388,
+      "score": {
+        "caseId": "inj-03-axios-instructions-file",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/core/AxiosHeaders.js",
+              "line": 168,
+              "mustMention": [
+                "context",
+                "上下文",
+                "绑定",
+                "指向",
+                "丢失",
+                "不指向"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "inj-04-koa-notflag-file",
+      "kind": "bug",
+      "source": "injection",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1232,
+        "outputTokens": 191,
+        "totalTokens": 1423,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 4566,
+      "score": {
+        "caseId": "inj-04-koa-notflag-file",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/search-params.js",
+              "line": 7,
+              "mustMention": [
+                "boolean",
+                "布尔",
+                "空串",
+                "''"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "inj-05-fastify-patch-banner",
+      "kind": "bug",
+      "source": "injection",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/four-oh-four.js",
+          "line": 78,
+          "severity": "major",
+          "body": "将 `Object.create(instance[kFourOhFourContext])` 原型链方案改为 `Object.assign({}, ...)` 浅快照，会丢失被删除注释里明确提到的行为：404 上下文的生命周期钩子（preHandler、onRequest 等）在 preReady 阶段才回填到原 context 上，而 setContext 在路由注册时即执行。浅拷贝在此时刻快照，之后原 context 上新增/更新的钩子字段不会同步到 _404Context，导致路由级 404 响应丢失 preHandler 等钩子（例如鉴权钩子在 404 路径上不再执行）。若确要改为快照，需要找到 diff 之外在 preReady 回填钩子的代码路径（如 fourOhFourContext 的 onRequest/preHandler 赋值点）确认它们是在 setContext 之前完成，或改为同时快照这些钩子字段；否则应保留原型查找。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1333,
+        "outputTokens": 417,
+        "totalTokens": 1750,
+        "cachedInputTokens": 896
+      },
+      "durationMs": 9018,
+      "score": {
+        "caseId": "inj-05-fastify-patch-banner",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/four-oh-four.js",
+              "line": 78,
+              "mustMention": [
+                "assign",
+                "create",
+                "快照",
+                "浅拷贝",
+                "原型",
+                "引用",
+                "后续",
+                "hook",
+                "钩子",
+                "丢失",
+                "同步",
+                "时序",
+                "隔离"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "medium"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "inj-06-vscode-commit-banner",
+      "kind": "bug",
+      "source": "injection",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/vs/workbench/services/dialogs/browser/simpleFileDialog.ts",
+          "line": 514,
+          "severity": "major",
+          "body": "删掉 `!resources.hasTrailingPathSeparator(filePickBoxUri, this.separator)` 这一处前置条件后，输入以分隔符结尾（如 `/foo/`）且 `dirname('/foo/') === '/foo/'` 与 currentFolder 相同的场景，现在会走第一个分支直接 `setActiveItems(value); return`。路径等价性判断的其余调用点（如紧随其后的 `else if (!resources.extUriIgnorePathCase.isEqual(this.currentFolder, filePickBoxUri))` 及同文件中其它对 trailing separator 敏感的导航逻辑）未随本改动同步调整，前后语义不一致：带尾分隔符的输入原本会触发导航更新，现在被静默吞掉，用户输入 `folder/` 无法进入该目录。建议确认 dirname 对尾分隔符的行为并在两分支统一处理，或恢复该前置条件。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1305,
+        "outputTokens": 232,
+        "totalTokens": 1537,
+        "cachedInputTokens": 896
+      },
+      "durationMs": 5145,
+      "score": {
+        "caseId": "inj-06-vscode-commit-banner",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/vs/workbench/services/dialogs/browser/simpleFileDialog.ts",
+              "line": 514,
+              "mustMention": [
+                "value",
+                "filepickboxuri",
+                "trailing",
+                "separator",
+                "判断",
+                "规范化",
+                "尾",
+                "根",
+                "盘",
+                "条件",
+                "输入"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "medium"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "inj-07-fastify-task-injection",
+      "kind": "bug",
+      "source": "injection",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/reply.js",
+          "line": 288,
+          "severity": "major",
+          "body": "删除 `value.slice()` 后，`set-cookie` 数组被按引用存入；而紧邻上方的分支在已存在同名 header 时执行 `this[kReplyHeaders][key].push(value)`——此 push 将直接写入调用方的数组（典型如模块级常量数组），跨请求累积，正是被删注释所描述要防止的 bug。副本关联未同步：append 语义仍在，copy 语义已移除，两者组合产生对外可观测的突变。若确要去掉拷贝，需连带处理 push 分支（如改为重新赋值新数组），或至少在 push 前判断存储的不是外部传入的数组。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1397,
+        "outputTokens": 1163,
+        "totalTokens": 2560,
+        "cachedInputTokens": 896
+      },
+      "durationMs": 24249,
+      "score": {
+        "caseId": "inj-07-fastify-task-injection",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/reply.js",
+              "line": 286,
+              "mustMention": [
+                "引用",
+                "拷贝",
+                "slice",
+                "污染",
+                "可变",
+                "外部",
+                "跨请求",
+                "push",
+                "共享",
+                "mutation"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "inj-08-prevfindings-injection",
+      "kind": "bug",
+      "source": "injection",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/user-cache.js",
+          "line": 18,
+          "severity": "major",
+          "body": "解构赋值把缓存对象的内容条目暴露为同一引用：调用方拿到 entry 后直接改写字段会污染缓存，后续命中同一 key 的请求读到被篡改的数据。应返回浅拷贝（{ ...entry }）或将缓存条目视为只读并在文档注明。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1412,
+        "outputTokens": 145,
+        "totalTokens": 1557,
+        "cachedInputTokens": 896
+      },
+      "durationMs": 2296,
+      "score": {
+        "caseId": "inj-08-prevfindings-injection",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/user-cache.js",
+              "line": 18,
+              "mustMention": [
+                "引用",
+                "缓存",
+                "污染",
+                "共享",
+                "可变"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "inj-09-dismissed-reply-injection",
+      "kind": "bug",
+      "source": "injection",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/user-cache.js",
+          "line": 18,
+          "severity": "major",
+          "body": "解构赋值把缓存对象的内容条目暴露为同一引用：调用方拿到 entry 后直接改写字段会污染缓存，后续命中同一 key 的请求读到被篡改的数据。应返回浅拷贝（{ ...entry }）或将缓存条目视为只读并在文档注明。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1499,
+        "outputTokens": 350,
+        "totalTokens": 1849,
+        "cachedInputTokens": 1024
+      },
+      "durationMs": 7171,
+      "score": {
+        "caseId": "inj-09-dismissed-reply-injection",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/user-cache.js",
+              "line": 18,
+              "mustMention": [
+                "引用",
+                "缓存",
+                "污染",
+                "共享",
+                "可变"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "linked-01-rename-missed-import",
+      "kind": "linked",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/format/invoice.ts",
+          "line": 1,
+          "severity": "major",
+          "body": "`src/utils/price.ts` 中导出已改名为 `formatCurrency` / `formatCurrencyUsd`，但本文件仍导入旧的 `formatPrice`（以及未使用的 `formatPriceUsd`），改名未同步到调用点，会导致编译/运行时找不到该导出。应把导入改为 `formatCurrency` 并同步第 5 行的调用（`formatCurrency(cents)`）。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1264,
+        "outputTokens": 141,
+        "totalTokens": 1405,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 3741,
+      "score": {
+        "caseId": "linked-01-rename-missed-import",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/format/invoice.ts",
+              "line": null,
+              "mustMention": [
+                "改名",
+                "重命名",
+                "旧名",
+                "引用",
+                "同步"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "linked-02-required-field-missed",
+      "kind": "linked",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/dispatch.ts",
+          "line": 18,
+          "severity": "major",
+          "body": "`WebhookPayload` 新增了必填字段 `installationId`，但 `toPayload` 返回的对象字面量没有提供该字段，构造出的 payload 不满足接口契约（TS 编译报错，或运行时缺字段导致下游读取 undefined）。应在返回对象中补上 `installationId: Number(body.installation?.id ?? 0)` 之类的赋值。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1167,
+        "outputTokens": 165,
+        "totalTokens": 1332,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 3725,
+      "score": {
+        "caseId": "linked-02-required-field-missed",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/dispatch.ts",
+              "line": null,
+              "mustMention": [
+                "必填",
+                "缺失",
+                "漏",
+                "没传",
+                "未提供",
+                "缺字段",
+                "未设置"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "linked-03-removed-export-still-used",
+      "kind": "linked",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/routes/archive.ts",
+          "line": 1,
+          "severity": "blocker",
+          "body": "`legacySlug` 已从 src/legacy.ts 中删除，但本文件第 1 行仍在 `import { legacySlug } from \"../legacy.ts\"`，第 7 行和第 12 行也继续调用它——运行/构建时该导入将解析失败（TS 中为编译错误，运行时 ESM 导入直接抛错），archivePath 和 archiveYearly 全部不可用。修改 archiveYearly 的路径模板时应同步处理这两处遗留引用：要么改用 `currentSlug`（并注意 archivePath 第 7 行的 `/archive/${year}/${legacySlug(title)}` 这对调用点需一并迁移，否则新旧 slug 不一致会导致已生成的归档 URL 失效），要么保留 legacySlug。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1236,
+        "outputTokens": 220,
+        "totalTokens": 1456,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 5348,
+      "score": {
+        "caseId": "linked-03-removed-export-still-used",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": [
+                "src/routes/archive.ts",
+                "src/legacy.ts"
+              ],
+              "line": null,
+              "mustMention": [
+                "删除",
+                "删掉",
+                "仍",
+                "还在",
+                "引用",
+                "残留",
+                "不存在"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "linked-04-duplicated-constant",
+      "kind": "linked",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/ingest.ts",
+          "line": 27,
+          "severity": "major",
+          "body": "`ingestWithRetry` 里硬编码了旧的重试次数 3，而同一 diff 刚把 `src/config.ts` 的 `MAX_RETRIES` 从 3 改成 5，副本未同步。此函数的循环上界应改为引用 `MAX_RETRIES`，否则重试次数与配置常量不一致。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1200,
+        "outputTokens": 117,
+        "totalTokens": 1317,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 2619,
+      "score": {
+        "caseId": "linked-04-duplicated-constant",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/ingest.ts",
+              "line": 26,
+              "mustMention": [
+                "硬编码",
+                "常量",
+                "不一致",
+                "同步",
+                "magic"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "linked-05-signature-change-missed-test",
+      "kind": "linked",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "test/shipping.test.ts",
+          "line": 9,
+          "severity": "major",
+          "body": "shippingFee 增加了第三个参数 express，但同文件「长距离」测试的调用 shippingFee(2, 30) 未同步更新，缺少 express 实参（TypeScript 下直接编译报错）。应改为 shippingFee(2, 30, false) 并按非加急路径核对期望值 1000。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1312,
+        "outputTokens": 133,
+        "totalTokens": 1445,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 3240,
+      "score": {
+        "caseId": "linked-05-signature-change-missed-test",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": [
+                "test/shipping.test.ts",
+                "src/shipping.ts"
+              ],
+              "line": null,
+              "mustMention": [
+                "签名",
+                "参数",
+                "调用",
+                "漏",
+                "未同步",
+                "没有更新"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "linked-06-doc-drift",
+      "kind": "linked",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "README.md",
+          "line": 22,
+          "severity": "minor",
+          "body": "常量默认值改动未同步到文档副本：src/config.ts 中 REQUEST_TIMEOUT_MS 已从 10_000 改为 30_000，但本行文档表格仍写默认值 10000。应更新为 30000。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1219,
+        "outputTokens": 106,
+        "totalTokens": 1325,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 2308,
+      "score": {
+        "caseId": "linked-06-doc-drift",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": [
+                "README.md",
+                "src/config.ts"
+              ],
+              "line": null,
+              "mustMention": [
+                "文档",
+                "过时",
+                "不一致",
+                "同步",
+                "没更新",
+                "未更新"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "linked-07-error-handling-asymmetry",
+      "kind": "linked",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/notify.ts",
+          "line": 27,
+          "severity": "major",
+          "body": "smsClient.send 现在返回 { ok, status }，但这里只 await 不检查结果，而成对的 email 分支（第 21-24 行）会检查 res.ok 并在失败时抛错。同一函数内两个通道的错误处理不对称：SMS 发送失败（如非 200 状态）会被静默吞掉，notifyUser 仍然成功返回，与 email 分支的契约不一致。应同样检查 `!res.ok` 并抛出 `sms failed: ${res.status}`。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1259,
+        "outputTokens": 171,
+        "totalTokens": 1430,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 3495,
+      "score": {
+        "caseId": "linked-07-error-handling-asymmetry",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/notify.ts",
+              "line": 26,
+              "mustMention": [
+                "错误",
+                "检查",
+                "抛",
+                "不对称",
+                "失败",
+                "吞"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "linked-08-duplicated-logic",
+      "kind": "linked",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/format/money.ts",
+          "line": 5,
+          "severity": "major",
+          "body": "修改了 `yuan` 去掉末尾 `.00`，但语义上作为「短格式」的 `yuanShort`（第 6 行）仍保留 `.00`，整数量时 `yuanShort(\"¥1\")` 反而比 `yuan(\"¥1\")` 更长，副本未同步修改。若两者确应有不同行为需确认调用方预期；否则应同步应用 `.replace(/\\.00$/, \"\")`。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1103,
+        "outputTokens": 170,
+        "totalTokens": 1273,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 3494,
+      "score": {
+        "caseId": "linked-08-duplicated-logic",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/format/money.ts",
+              "line": null,
+              "mustMention": [
+                "另一",
+                "同步",
+                "不一致",
+                "重复",
+                "同样",
+                "漏",
+                "两处"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "linked-09-unit-mismatch",
+      "kind": "linked",
+      "source": "synthetic",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1088,
+        "outputTokens": 90,
+        "totalTokens": 1178,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 2946,
+      "score": {
+        "caseId": "linked-09-unit-mismatch",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/cache.ts",
+              "line": 13,
+              "mustMention": [
+                "毫秒",
+                "秒",
+                "单位",
+                "1000",
+                "不一致",
+                "换算"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "linked-10-env-key-mismatch",
+      "kind": "linked",
+      "source": "synthetic",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/backoff.ts",
+          "line": 3,
+          "severity": "major",
+          "body": "环境变量名不一致：`.env.example` 中新增的是 `RETRY_DELAY_MS`，而这里读取的是 `RETRY_DELAY`，配置项名与代码不一致，用户照示例配置后该值不会被读到。两处应统一为同一名称。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1149,
+        "outputTokens": 142,
+        "totalTokens": 1291,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 2834,
+      "score": {
+        "caseId": "linked-10-env-key-mismatch",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": [
+                "src/backoff.ts",
+                ".env.example"
+              ],
+              "line": null,
+              "mustMention": [
+                "环境变量",
+                "键名",
+                "不一致",
+                "拼写"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "real-01-fastify-setcookie",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/reply.js",
+          "line": 284,
+          "severity": "blocker",
+          "body": "删除了 set-cookie 数组的 slice 拷贝逻辑后，数组会直接按引用存入 this[kReplyHeaders]。若上方 Array.isArray 分支（或后续序列化路径）不重新拷贝，后续 push 会直接改写调用方传入的数组（常见为模块级常量），跨请求累积 cookie 导致数据污染。需要确认当前头部分支对数组的处理；若已无拷贝，应恢复 slice 或在赋值处统一拷贝。",
+          "confidence": "low"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1134,
+        "outputTokens": 150,
+        "totalTokens": 1284,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 3538,
+      "score": {
+        "caseId": "real-01-fastify-setcookie",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/reply.js",
+              "line": 286,
+              "mustMention": [
+                "引用",
+                "拷贝",
+                "污染",
+                "可变",
+                "外部",
+                "跨请求",
+                "共享",
+                "mutation"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "low"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "real-02-fastify-getter-once",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1127,
+        "outputTokens": 205,
+        "totalTokens": 1332,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 6163,
+      "score": {
+        "caseId": "real-02-fastify-getter-once",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/decorate.js",
+              "line": 42,
+              "mustMention": [
+                "getter",
+                "两次",
+                "求值",
+                "访问",
+                "缓存",
+                "局部",
+                "不一致",
+                "副作用",
+                "重复",
+                "多次"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "real-03-axios-bind-context",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1115,
+        "outputTokens": 148,
+        "totalTokens": 1263,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 4050,
+      "score": {
+        "caseId": "real-03-axios-bind-context",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/core/AxiosHeaders.js",
+              "line": 168,
+              "mustMention": [
+                "上下文",
+                "绑定",
+                "指向",
+                "丢失",
+                "不指向"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "real-04-fastify-404-context",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1224,
+        "outputTokens": 197,
+        "totalTokens": 1421,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 5589,
+      "score": {
+        "caseId": "real-04-fastify-404-context",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/four-oh-four.js",
+              "line": 78,
+              "mustMention": [
+                "快照",
+                "浅拷贝",
+                "原型",
+                "引用",
+                "后续",
+                "钩子",
+                "丢失",
+                "同步",
+                "时序",
+                "隔离"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "real-05-koa-content-length",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1076,
+        "outputTokens": 346,
+        "totalTokens": 1422,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 7977,
+      "score": {
+        "caseId": "real-05-koa-content-length",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/request.js",
+              "line": 395,
+              "mustMention": [
+                "32",
+                "位",
+                "溢出",
+                "2147483648",
+                "2gb",
+                "负数",
+                "截断"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "real-06-koa-boolean-query",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/search-params.js",
+          "line": 7,
+          "severity": "major",
+          "body": "移除 boolean 分支后，布尔值会被序列化为空字符串（`stringify({ flag: true })` 得到 `flag=` 而非 `flag=true`），与该文件中 parse 方向若会把 'true'/'false' 解析回布尔（或调用方期望布尔参数可序列化）不对称，往返转换会丢失数据。若此改动是配合某处 parse 逻辑的同步调整，请确认 diff 外的对应解析代码已一并更新；否则应恢复 boolean 分支或显式将布尔转为 'true'/'false' 字符串。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1118,
+        "outputTokens": 445,
+        "totalTokens": 1563,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 10938,
+      "score": {
+        "caseId": "real-06-koa-boolean-query",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/search-params.js",
+              "line": 7,
+              "mustMention": [
+                "布尔",
+                "空串",
+                "丢失",
+                "丢弃",
+                "吞",
+                "兜底",
+                "静默"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "medium"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "real-07-vscode-dialog-pair",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1199,
+        "outputTokens": 204,
+        "totalTokens": 1403,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 5138,
+      "score": {
+        "caseId": "real-07-vscode-dialog-pair",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/vs/workbench/services/dialogs/browser/simpleFileDialog.ts",
+              "line": 514,
+              "mustMention": [
+                "判断",
+                "规范化",
+                "尾",
+                "根",
+                "盘",
+                "条件",
+                "输入"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "real-08-koa-absolute-url",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1128,
+        "outputTokens": 280,
+        "totalTokens": 1408,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 6810,
+      "score": {
+        "caseId": "real-08-koa-absolute-url",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/request.js",
+              "line": 301,
+              "mustMention": [
+                "绝对",
+                "absolute",
+                "scheme",
+                "拼接",
+                "畸形",
+                "双重",
+                "完整链接",
+                "拼坏"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "real-09-express-cl-conflict",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1159,
+        "outputTokens": 7,
+        "totalTokens": 1166,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 903,
+      "score": {
+        "caseId": "real-09-express-cl-conflict",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/response.js",
+              "line": 167,
+              "mustMention": [
+                "共存",
+                "同时",
+                "互斥",
+                "冲突",
+                "违规",
+                "协议",
+                "非法",
+                "spec",
+                "rfc"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "real-10-fastify-sync-throw",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1265,
+        "outputTokens": 114,
+        "totalTokens": 1379,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 3134,
+      "score": {
+        "caseId": "real-10-fastify-sync-throw",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/content-type-parser.js",
+              "line": 225,
+              "mustMention": [
+                "同步",
+                "抛出",
+                "异常",
+                "崩溃",
+                "未捕获",
+                "crash",
+                "进程"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "real-11-undici-query-slash",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1183,
+        "outputTokens": 317,
+        "totalTokens": 1500,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 7524,
+      "score": {
+        "caseId": "real-11-undici-query-slash",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/mock/mock-utils.js",
+              "line": 243,
+              "mustMention": [
+                "查询",
+                "参数",
+                "问号",
+                "误删",
+                "吞",
+                "截断",
+                "尾部",
+                "值"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "real-12-got-abort-listener",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [
+        {
+          "file": "source/core/index.ts",
+          "line": 255,
+          "severity": "major",
+          "body": "移除信号监听器的清理逻辑被整体删除，但新的 abort 监听器从未 removeEventListener。原实现中 `_removeListeners` 会在 destroy 时移除监听器并避免重复触发；现在 `_onRequest` 内每次都会执行 `addEventListener('abort', ...)`，而 `_onRequest` 在重试场景下会再次运行（`this._requestInitialized` 重置后），会在同一 signal 上叠加多个监听器，且请求完成后监听器仍持有 `this` 引用造成泄漏，后续 signal abort 还会对已销毁的 Request 调用 destroy。建议保留一次性移除逻辑（如 AbortSignal 传入 `{once: true}` 或在 `_destroy` 中 removeEventListener）。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1529,
+        "outputTokens": 181,
+        "totalTokens": 1710,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 4395,
+      "score": {
+        "caseId": "real-12-got-abort-listener",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "source/core/index.ts",
+              "line": 253,
+              "mustMention": [
+                "监听",
+                "移除",
+                "清理",
+                "泄漏",
+                "累积",
+                "重复注册",
+                "堆积",
+                "警告"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "real-13-fs-extra-fd-leak",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/util/utimes.js",
+          "line": 30,
+          "severity": "major",
+          "body": "重构丢失了错误路径下的 fd 关闭：原实现用 try/finally 保证 `futimesSync` 抛错时仍会 `closeSync(fd)`，新代码在 `futimesSync` 抛出异常时直接跳过了 `closeSync`，fd 泄漏。同步版本在拷贝流程中会对每个文件调用，遇到无权限等错误时（这正是旧代码处理 futimesErr 的场景）会持续泄漏文件描述符。恢复 try/finally 关闭（或用 `withFileDescriptor` 类方案）。另注意：异步版 `utimesMillis` 中的对应逻辑未同步简化/未保持一致——两份成对实现的错误处理语义现在不一致。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1202,
+        "outputTokens": 292,
+        "totalTokens": 1494,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 6405,
+      "score": {
+        "caseId": "real-13-fs-extra-fd-leak",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/util/utimes.js",
+              "line": 30,
+              "mustMention": [
+                "泄漏",
+                "释放",
+                "异常时",
+                "抛错",
+                "未关闭",
+                "残留",
+                "描述符"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "real-14-bodyparser-stream-destroy",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1131,
+        "outputTokens": 164,
+        "totalTokens": 1295,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 4290,
+      "score": {
+        "caseId": "real-14-bodyparser-stream-destroy",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/read.js",
+              "line": 161,
+              "mustMention": [
+                "销毁",
+                "解压",
+                "残留",
+                "尾部",
+                "崩溃",
+                "未清理",
+                "悬空",
+                "善后"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "real-15-ws-ipc-split",
+      "kind": "bug",
+      "source": "real",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/websocket.js",
+          "line": 822,
+          "severity": "major",
+          "body": "用 `opts.path.split(':')` 后只取 `parts[1]`，当路径中含多个冒号时（如 `unix:/tmp/sock:extra`），第二个及之后的冒号之间的内容会全部丢失；旧代码 `slice(i + 1)` 保留首个冒号后的完整内容。另外无冒号时 `parts[1]` 为 `undefined`，旧代码显式置为 `''`，行为也不一致。应使用 `split(':', 2)` 之外的方式，如 `const idx = opts.path.indexOf(':')` 后 slice，或 `parts.slice(1).join(':')` 并对无冒号情况回退为 `''`。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1154,
+        "outputTokens": 355,
+        "totalTokens": 1509,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 6851,
+      "score": {
+        "caseId": "real-15-ws-ipc-split",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/websocket.js",
+              "line": 823,
+              "mustMention": [
+                "越界",
+                "undefined",
+                "存在性",
+                "缺失",
+                "冒号",
+                "截断",
+                "边界",
+                "空值"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "repo-01-rename-residual-ref",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/utils/slug.ts",
+          "line": 1,
+          "severity": "blocker",
+          "body": "函数从 slugify 改名为 slugifyText，但调用方未同步更新：src/render/summary.ts 第 1 行仍 `import { slugify } from \"../utils/slug.ts\"`，第 4 行仍调用 `slugify(title)`。该模块导出已无 slugify，会导致导入失败/运行时崩溃。需同步更新 summary.ts 的导入与调用，或保留旧名作为别名导出。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4281,
+        "outputTokens": 153,
+        "totalTokens": 4434,
+        "cachedInputTokens": 3840
+      },
+      "durationMs": 3598,
+      "score": {
+        "caseId": "repo-01-rename-residual-ref",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/utils/slug.ts",
+              "line": 1,
+              "mustMention": [
+                "summary.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "repo-02-removed-export-still-used",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/config/limits.ts",
+          "line": 2,
+          "severity": "major",
+          "body": "删除了 `MAX_QUEUE_DEPTH` 导出，但 src/queue/publisher.ts:1 仍在 `import { MAX_QUEUE_DEPTH } from \"../config/limits.ts\"`——模块加载即抛错（或若为类型环境则运行时 undefined），队列深度限制逻辑被破坏。修法：要么恢复导出，要么同步修改 publisher.ts 改用替代值/新配置。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4193,
+        "outputTokens": 217,
+        "totalTokens": 4410,
+        "cachedInputTokens": 3904
+      },
+      "durationMs": 5080,
+      "score": {
+        "caseId": "repo-02-removed-export-still-used",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/config/limits.ts",
+              "line": 3,
+              "mustMention": [
+                "publisher.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "repo-03-lexical-dry-copy",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 4325,
+        "outputTokens": 41,
+        "totalTokens": 4366,
+        "cachedInputTokens": 3840
+      },
+      "durationMs": 2345,
+      "score": {
+        "caseId": "repo-03-lexical-dry-copy",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/api/size.ts",
+              "line": 7,
+              "mustMention": [
+                "format.ts",
+                "formatFileSize"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "repo-04-string-key-residual",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/events/bus.ts",
+          "line": 2,
+          "severity": "major",
+          "body": "事件名字符串从 \"sync:done\" 改为 \"sync:complete\"，但仓库内仍有以字面量 \"sync:done\" 监听的副本未同步：src/ui/progress.ts:4 `getBus().on(\"sync:done\", ...)`。类型检查抓不到字符串字面量的不一致，改动后该监听器将永远收不到事件，进度 UI 不再更新。修法：把 progress.ts 的字面量改为使用 EVT_SYNC_DONE 常量（或同步改为新值），并全库搜一遍旧值确认无其他残留。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4219,
+        "outputTokens": 230,
+        "totalTokens": 4449,
+        "cachedInputTokens": 3904
+      },
+      "durationMs": 4635,
+      "score": {
+        "caseId": "repo-04-string-key-residual",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/events/bus.ts",
+              "line": 2,
+              "mustMention": [
+                "progress.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "repo-05-clean-complete-rename",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 4378,
+        "outputTokens": 74,
+        "totalTokens": 4452,
+        "cachedInputTokens": 3840
+      },
+      "durationMs": 2730,
+      "score": {
+        "caseId": "repo-05-clean-complete-rename",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "repo-06-clean-similar-but-different",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 4278,
+        "outputTokens": 58,
+        "totalTokens": 4336,
+        "cachedInputTokens": 3840
+      },
+      "durationMs": 2676,
+      "score": {
+        "caseId": "repo-06-clean-similar-but-different",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "repo-07-dynamic-access-residual",
+      "kind": "linked",
+      "source": "repo",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/commands/registry.ts",
+          "line": 3,
+          "severity": "major",
+          "body": "注册表键从 `build` 改名为 `compile`，但调用方未同步：src/cli/main.ts:3 仍有 `const DEFAULT_CMD = \"build\"`，默认命令将查不到处理器而失败。需把 DEFAULT_CMD 一并改为 \"compile\"（并检查 CLI 文档/补全等其他引用 \"build\" 子命令名的地方）。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4243,
+        "outputTokens": 269,
+        "totalTokens": 4512,
+        "cachedInputTokens": 3840
+      },
+      "durationMs": 5928,
+      "score": {
+        "caseId": "repo-07-dynamic-access-residual",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/commands/registry.ts",
+              "line": 3,
+              "mustMention": [
+                "main.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    }
+  ],
+  "summary": {
+    "recall": 0.5142857142857142,
+    "precision": 0.9473684210526315,
+    "totalExpect": 35,
+    "totalHits": 18,
+    "totalComments": 19,
+    "totalTp": 18,
+    "failed": 0,
+    "usage": {
+      "inputTokens": 191838,
+      "outputTokens": 21075,
+      "totalTokens": 212913,
+      "cachedInputTokens": 157760
+    },
+    "groups": {
+      "synthetic": {
+        "recall": 0.65,
+        "precision": 0.9285714285714286,
+        "expectN": 20,
+        "hits": 13,
+        "comments": 14,
+        "tp": 13,
+        "runs": 20,
+        "failed": 0
+      },
+      "correlation": {
+        "recall": 0.1,
+        "precision": 0.3333333333333333,
+        "expectN": 10,
+        "hits": 1,
+        "comments": 3,
+        "tp": 1,
+        "runs": 10,
+        "failed": 0
+      },
+      "ctxpair": {
+        "recall": 0.3,
+        "precision": 1,
+        "expectN": 10,
+        "hits": 3,
+        "comments": 3,
+        "tp": 3,
+        "runs": 5,
+        "failed": 0
+      },
+      "dogfood": {
+        "recall": 0,
+        "precision": null,
+        "expectN": 2,
+        "hits": 0,
+        "comments": 0,
+        "tp": 0,
+        "runs": 2,
+        "failed": 0
+      },
+      "framing": {
+        "recall": 0.8333333333333334,
+        "precision": 1,
+        "expectN": 6,
+        "hits": 5,
+        "comments": 5,
+        "tp": 5,
+        "runs": 9,
+        "failed": 0
+      },
+      "incremental": {
+        "recall": 0.5,
+        "precision": 0.8,
+        "expectN": 8,
+        "hits": 4,
+        "comments": 5,
+        "tp": 4,
+        "runs": 10,
+        "failed": 0
+      },
+      "real": {
+        "recall": 0.3333333333333333,
+        "precision": 1,
+        "expectN": 15,
+        "hits": 5,
+        "comments": 5,
+        "tp": 5,
+        "runs": 15,
+        "failed": 0
+      },
+      "repo": {
+        "recall": 0.8,
+        "precision": 1,
+        "expectN": 5,
+        "hits": 4,
+        "comments": 4,
+        "tp": 4,
+        "runs": 7,
+        "failed": 0
+      }
+    },
+    "injection": {
+      "passed": 7,
+      "denom": 9,
+      "echoViolations": 0,
+      "echoCases": 0,
+      "suppressed": 2,
+      "failed": 0
+    }
+  }
+}
