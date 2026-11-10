@@ -161,6 +161,9 @@ export type ReviewDiffOpts = {
   plan?: ReviewPlan;
   taskContext?: string;
   previousFindings?: string;
+  // eval-only 变体（#127 按方面拆分消融 B 臂）：system 在 review.md 原文后追加段——worker 编排从不注入，
+  // evals/run.ts 的 EVAL_PROMPT_SUFFIX 臂专用；不传时 system 字节级现状（基线红线由构造保证）
+  promptSuffix?: string;
 };
 
 // 第一段声明的工具请求（D031）：search 与 read 并列。searches 为查询词、reads 为快照路径，
@@ -212,17 +215,19 @@ export async function reviewDiff(diff: string, context?: string, opts?: ReviewDi
     } else {
       // 工具循环（D027 read_file + D031 search_file）：端点实测 SDK tools + Output 组合不可行（response_format 抑制工具调用），
       // 走 spec 回退形态「两段协议」，见 reviewDiffWithTools
-      return reviewDiffWithTools(llm, LLM_MODEL, prompt, opts.fileReader, opts.searcher, abortSignal, maxSteps);
+      return reviewDiffWithTools(llm, LLM_MODEL, prompt, opts.fileReader, opts.searcher, abortSignal, maxSteps, opts.promptSuffix);
     }
   }
   // .chat() 强制走 /chat/completions：OpenAI 兼容端点（如 GLM）不实现 Responses API；
   // ai v7 起 generateObject 已废弃，结构化输出走 generateText + Output；
   // 超时预算见 docs/decisions.md D011（Vercel Hobby 函数上限 300s，留回帖余量）
+  // promptSuffix（#127 eval-only）注入时 review.md 原文在后追加段——不传时字符串逐字节相同
+  const system = withJsonSuffix(opts?.promptSuffix ? `${loadPrompt()}\n\n${opts.promptSuffix}` : loadPrompt());
   const { output, usage } = await generateText({
     maxOutputTokens: llmMaxOutputTokens(),
     model: llm.chat(LLM_MODEL),
     output: Output.object({ schema: reviewResultSchema, name: "ReviewResult" }),
-    system: withJsonSuffix(loadPrompt()),
+    system,
     prompt,
     // 超时可被调用方覆写（worker 阶段机 D026：review 阶段按「300s 墙钟 - 续链/落灯预留」封顶，
     // 保证最坏路径「LLM 打满 + 续链失败 + 落灯」整体不超墙钟）；不传走 LLM_TIMEOUT_MS（D011）
@@ -489,9 +494,12 @@ async function reviewDiffWithTools(
   abortSignal: AbortSignal,
   // 调用方已读过并据此放行（启用闸单点合流），作参数下传消除两处读 env 的理论分叉（自审降级 nit）
   maxSteps: number,
+  // eval-only 变体（#127）：review.md 后追加段（工具指令仍在其后——工具协议优先级高于消融焦点）
+  promptSuffix?: string,
 ): Promise<ReviewOutcome> {
   // system 追加指令来自 prompts/review-tools.md（仅 fileReader/searcher 注入时拼接）；review.md 一字不动
-  const system = `${loadPrompt()}\n\n${loadToolsPrompt()}`;
+  const base = promptSuffix ? `${loadPrompt()}\n\n${promptSuffix}` : loadPrompt();
+  const system = `${base}\n\n${loadToolsPrompt()}`;
   const probe = await generateText({ model: llm.chat(modelId), maxOutputTokens: llmMaxOutputTokens(), system, prompt, abortSignal });
   const requests = extractToolRequests(probe.text, maxSteps);
   const reqNote = (xs: string[], label: string) => (xs.length > 0 ? `${label} ×${xs.length}（${xs.join(" | ")}）` : `${label} 无`);

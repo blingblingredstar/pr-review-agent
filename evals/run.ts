@@ -1,7 +1,7 @@
 // npm run eval —— 全部用例串行跑 LLM 审查，输出打分表，结果落盘 evals/runs/
 // 串行 + 用例间隔：本地代理对连续 API 请求间歇性失败（journal 会话 13），失败自动重试一次
 import { createHash } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { loadCases } from "./cases/index.ts";
 import { isCapabilitySource, parseEvalOnly, scoreCase, sourceOf, type CaseScore, type EvalCase } from "./score.ts";
 import {
@@ -117,16 +117,25 @@ async function main() {
   // worker buildRepoContext 的确定性尾段：触及文件全文按 diff 顺序 + 文件树，预算 contextMaxChars()），
   // 经 reviewDiff 第二位置参数注入（生产 context 通路同款）。其他组开与不开行为完全不变（字节级红线由构造保证）
   const evalContext = process.env.EVAL_CONTEXT === "1";
+  // EVAL_PROMPT_SUFFIX 消融臂（#127 按方面拆分 B 臂）：system 在 review.md 原文后追加段（evals/prompts/<名>.md），
+  // 经 opts.promptSuffix 进 reviewDiff——仅 eval 侧变体（worker 编排从不注入）；未设置时全链路字节级现状
+  const aspectArm = process.env.EVAL_PROMPT_SUFFIX ?? null;
+  const promptSuffix = aspectArm
+    ? readFileSync(new URL(`./prompts/${aspectArm}.md`, import.meta.url), "utf8").trimEnd()
+    : undefined;
   const model = process.env.LLM_MODEL ?? "(unknown)";
   // prompt 内容指纹：同 prompt 多轮与改版后的 run 机械可分（D006——eval 报告引用具体 prompt 版本）；
-  // 指纹跟随实际生效的 system（JSON 模式含 json-output.md 后缀，DeepSeek 类端点；GLM 下字节不变 hash 不变）
-  const promptHash = createHash("sha256").update(withJsonSuffix(loadPrompt())).digest("hex").slice(0, 12);
+  // 指纹跟随实际生效的 system（JSON 模式含 json-output.md 后缀，DeepSeek 类端点；GLM 下字节不变 hash 不变）；
+  // aspect 臂把后缀计入指纹（B 臂的 system 与基线不同源，绝不能共用基线 hash）
+  const effectivePromptText = promptSuffix ? `${loadPrompt()}\n\n${promptSuffix}` : loadPrompt();
+  const promptHash = createHash("sha256").update(withJsonSuffix(effectivePromptText)).digest("hex").slice(0, 12);
   const startedAt = new Date().toISOString();
   console.log(
     `eval 开始：${cases.length} 个用例，模型 ${model}，prompt ${promptHash}`
       + (evalOnly ? `，子集（EVAL_ONLY）${evalOnly.join(",")}` : "")
       + (evalPlan ? `，router 计划臂（EVAL_PLAN）` : "")
-      + (evalContext ? `，上下文注入臂（EVAL_CONTEXT，仅 ctxpair）` : ""),
+      + (evalContext ? `，上下文注入臂（EVAL_CONTEXT，仅 ctxpair）` : "")
+      + (aspectArm ? `，方面拆分臂（EVAL_PROMPT_SUFFIX=${aspectArm}）` : ""),
   );
 
   // 臂级统计（#65 消融口径）：injected = router 成功出计划；failed = router 抛错按无计划继续（D028
@@ -175,8 +184,9 @@ async function main() {
     let comments: ReviewResult["comments"] = [];
     let usage: TokenUsage | null = null;
     try {
-      // plan / context 只在有值时并入（裸路径用例 + 两臂均未开 → opts 与 context 原样下传，历史字节级一致）
-      const outcome = await reviewWithRetry(c.diff, ctxText, plan ? { ...(opts ?? {}), plan } : opts);
+      // plan / context / aspect 后缀只在有值时并入（裸路径用例 + 三臂均未开 → opts 原样下传，历史字节级一致）
+      const callOpts = promptSuffix ? { ...(opts ?? {}), promptSuffix } : opts;
+      const outcome = await reviewWithRetry(c.diff, ctxText, plan ? { ...(callOpts ?? {}), plan } : callOpts);
       comments = outcome.comments;
       usage = outcome.usage;
     } catch (e) {
@@ -347,11 +357,12 @@ async function main() {
   const extraBodyHash = process.env.LLM_EXTRA_BODY
     ? `-${createHash("sha256").update(process.env.LLM_EXTRA_BODY).digest("hex").slice(0, 6)}`
     : "";
-  // plan / ctx 臂后缀：两臂同模型同 prompt 同 extraBody，同秒起跑时若无后缀互覆（#56 同型事故）；
-  // 后缀即口径自描述——文件名一眼可分「这一轮是带计划/带上下文的臂」
+  // plan / ctx / aspect 臂后缀：同模型同 extraBody 的臂同秒起跑时若无后缀互覆（#56 同型事故）；
+  // 后缀即口径自描述——文件名一眼可分「这一轮是带计划/带上下文/方面拆分的臂」
   const planSuffix = evalPlan ? "-plan" : "";
   const ctxSuffix = evalContext ? "-ctx" : "";
-  const base = `${stamp}-${safeModel}-${promptHash}${extraBodyHash}${planSuffix}${ctxSuffix}`;
+  const aspSuffix = aspectArm ? `-asp-${aspectArm}` : "";
+  const base = `${stamp}-${safeModel}-${promptHash}${extraBodyHash}${planSuffix}${ctxSuffix}${aspSuffix}`;
   writeFileSync(
     new URL(`./runs/${base}.json`, import.meta.url),
     // schemaVersion 1 = groups 不含 injection、summary.injection 携带拦截率块、echo 口径为违规意见数；
@@ -365,6 +376,9 @@ async function main() {
       // contextArm（#80）：null = baseline 臂（diff-only 裸跑）；对象 = EVAL_CONTEXT 臂（仅 ctxpair 注入，
       // 含注入统计）。compare.ts 分组键同款拆臂，防止双联组两臂被混聚成「同版多轮」
       contextArm: evalContext ? { enabled: true, ...contextStats } : null,
+      // aspectArm（#127 按方面拆分消融）：null = baseline（单遍多方面）；对象 = EVAL_PROMPT_SUFFIX 臂
+      //（system = review.md + evals/prompts/<name>.md 后缀）。analyze-aspect-split.ts 按它识别 B 臂轮次
+      aspectArm: aspectArm ? { enabled: true, name: aspectArm } : null,
       runs, summary: {
       recall, precision, totalExpect, totalHits, totalComments, totalTp, failed, usage: usageTotal, groups: groupMetrics,
       // 注入组拦截率进 JSON（runs/*.json 是 compare 聚合与迭代对比的数据出口，只读 md 抄数会断机械聚合）

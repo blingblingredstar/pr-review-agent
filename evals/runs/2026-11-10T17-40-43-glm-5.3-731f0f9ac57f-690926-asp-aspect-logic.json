@@ -1,0 +1,152 @@
+{
+  "startedAt": "2026-11-10T17:40:43.725Z",
+  "model": "glm-5.3",
+  "llmBaseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+  "llmExtraBody": "{\"thinking\":{\"type\":\"enabled\"},\"reasoning_effort\":\"low\"}",
+  "promptHash": "731f0f9ac57f",
+  "evalOnly": [
+    "dogfood"
+  ],
+  "capabilityScope": "synthetic+real",
+  "schemaVersion": 1,
+  "planArm": null,
+  "contextArm": null,
+  "aspectArm": {
+    "enabled": true,
+    "name": "aspect-logic"
+  },
+  "runs": [
+    {
+      "caseId": "dogfood-01-webhook-guard",
+      "kind": "bug",
+      "source": "dogfood",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/webhook.ts",
+          "line": 100,
+          "severity": "minor",
+          "body": "isTimeoutError 把 name === \"AbortError\" 一律视为超时，但 AbortError 也可能来自调用方主动 abort（非超时原因），此时会误发「LLM 超时」降级通知，语义不准确。若 AI SDK 主动取消也抛 AbortError，建议仅在能确认由 AbortSignal.timeout 触发时才走超时分支，否则统一按普通失败处理。",
+          "confidence": "low"
+        }
+      ],
+      "usage": {
+        "inputTokens": 2264,
+        "outputTokens": 267,
+        "totalTokens": 2531,
+        "cachedInputTokens": 768
+      },
+      "durationMs": 6149,
+      "score": {
+        "caseId": "dogfood-01-webhook-guard",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/webhook.ts",
+              "line": null,
+              "mustMention": [
+                "缺失",
+                "忽略",
+                "拒绝",
+                "兜底",
+                "畸形"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 1,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "low"
+        ],
+        "commentTps": [
+          false
+        ],
+        "commentHitCounts": [
+          0
+        ],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "dogfood-02-timeout-warn",
+      "kind": "bug",
+      "source": "dogfood",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1690,
+        "outputTokens": 328,
+        "totalTokens": 2018,
+        "cachedInputTokens": 960
+      },
+      "durationMs": 8812,
+      "score": {
+        "caseId": "dogfood-02-timeout-warn",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/review.ts",
+              "line": null,
+              "mustMention": [
+                "非法",
+                "nan",
+                "静默",
+                "回退",
+                "警告",
+                "告警"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    }
+  ],
+  "summary": {
+    "recall": 0,
+    "precision": null,
+    "totalExpect": 0,
+    "totalHits": 0,
+    "totalComments": 0,
+    "totalTp": 0,
+    "failed": 0,
+    "usage": {
+      "inputTokens": 3954,
+      "outputTokens": 595,
+      "totalTokens": 4549,
+      "cachedInputTokens": 1728
+    },
+    "groups": {
+      "dogfood": {
+        "recall": 0,
+        "precision": 0,
+        "expectN": 2,
+        "hits": 0,
+        "comments": 1,
+        "tp": 0,
+        "runs": 2,
+        "failed": 0
+      }
+    }
+  }
+}

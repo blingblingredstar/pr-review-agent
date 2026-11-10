@@ -847,3 +847,25 @@
   2. 验收闸门 1（生产 run 落 Blob）需等下一个真实 PR 自然触发
 
 - **会话 48 续（部署落地，2026-11-10 深夜）**：#122 部署 CLI 全自动化走通（实测六步，见 deployment.md 实测节）——`blob create-store --access private`（CLI 默认连接挂静态 token，按 D041 移除换 `BLOB_STORE_ID` OIDC）、`project create` + 临时 link 切换配 dashboard env（`RUNS_API_ENABLED=1`）+ `git connect` 同仓、**`protection enable --sso` 只给 `prod_deployment_urls_and_all_previews`（固定生产域名豁免）→ REST API PATCH 到 `deploymentType: "all"`（CLI 不暴露档位，审查 P1-2 坑位实测坐实）**。验收：dashboard 固定生产域名与部署 URL 均 302 → SSO、主项目 `/api/runs` 404、`/runs.html` 200；主项目已 redeploy（env 生效）。闸门 1 等真实 PR 触发。deployment.md 改写为实测步骤。
+
+## 2026-11-11 · 会话 49：夜批——flash 同期对照定案 + 面板巡检三修 + #128 两线口径 + #127 A/B 定案
+
+- **目标**：用户指令「看下有哪些 issue 可以做，能做的都做下；ego-browser 看今天新加的 web ui 页面，发现问题建 issue 自动改；过程中发现的问题也建 issue 改；明早看结果」。
+- **完成**（4 PR 合并 + 1 PR 在途 + 3 issue 新建 + 2 issue 随 PR 关闭 + 1 生产 ops 修复）：
+  - **flash 同期对照（D036 补记三，PR #129 合并）**：f4e2b250e88b 同夜配对单轮——生产 94.3/97.1 vs flash 91.4/87.8，双超未复现；伪影溯源 = 生产基线读数跨 prompt 换代未更新（85.7/86.4 是 11-05 老 prompt 存档值）；端点演进观察项降级常规观察，cheap-pair 暂停维持；#82 已评论
+  - **面板巡检（ego-browser）**：**抓到 P0——dashboard `/api/runs` 恒 500（Blob store 未连接 dashboard 项目，OIDC 访问被拒），面板上线以来读取面从未工作过**；ops 当场补连接修复（REST `POST /v1/storage/stores/{id}/connections`，传播 ~1 分钟）→ 200 + 5 run 返回——**D041 闸门 1 实际已达成**（主项目写入侧 11-10 起正常，store 5 文件）。issue #130（部署步骤与验证清单缺口，docs PR #134 合并）/ #131（30s 自动刷新折回手动展开的 details，实测实锤）/ #132（hashchange 深链不重放 + ghPrUrl pr 段未编码）→ 修复 PR #133 合并（ego-browser 本地桩环境三项实测全过；#131 验收口径单测→真浏览器实测，拒 jsdom 理由 issue 留痕）
+  - **#128 两线口径（PR #135 合并）**：curl 侦察端点返回 cached_tokens（闸门 1 落 issue）→ `TokenUsage.cachedInputTokens` 全链路（生产 [reviewDiff]/[router] 日志、prodlogs 台账解析+汇总、eval run 汇总、RunRecord tokens.cached、面板命中列）；bot 抓 minor（summarize 汇总层漏 cached 合计）修复闭环。**首个真实读数：eval A 臂缓存命中 81%**（system 前缀跨 case 复用）——成本口径认知改写，跨 run 同 prompt 重跑也在吃缓存
+  - **#127 A/B 定案（D042，PR 在途）**：同夜 4 连发全量 run（各 ~10 分钟）——B union recall 88.6% 与 A 逐例持平（零「拆分补」发现）、precision 反降（36→79 条跨遍重复税）、成本 3.30× → **单遍多方面维持；#73 价值主张收敛到 precision 工程**；`EVAL_PROMPT_SUFFIX` 臂 + `merge-rules.ts` 单一实现源入 eval 基建
+  - **台账勤回收**：112 run（+8 今晚四个 PR 的审查）
+- **发现/坑**：
+  1. **zsh `source .env` 毁 LLM_EXTRA_BODY**（花括号展开 + 逗号分裂）→ `extraBody()` JSON.parse 全挂、用例 10s 内全败——差点误判端点故障烧掉 352 call 批；栈回溯到 `extraBody()` 破案，改走 `npm run eval`（node --env-file）。已进 agent 记忆（eval-env-loading-trap）
+  2. **analyze-cross-review.ts import 即执行**（顶层分析代码）——aspect-split 借 merge 函数把整个交叉分析跑了；抽出 `evals/merge-rules.ts` 单一实现源根治（重构后交叉分析回放数字逐位一致已核）
+  3. **Vercel Blob store↔project 连接无 CLI 命令**，REST `POST /v1/storage/stores/{id}/connections`（body `{projectId}`）可全自动；「env 配置 ≠ 资源授权」——部署验证清单必须含「读路径 200 且有数据」，不能止于「页面能开」
+  4. ego-browser task space 会话过期后 `taskSpace(id)` 失效，同名 `taskSpace(name)` 可恢复续用
+  5. 面板「命中 —」= 旧 RunRecord 无 cached 字段（additive 预期）；同 PR 两次 push 各落一条 Record（确定性 pathname 不冲突）
+  6. AI SDK v7 usage 语义：provider 对未报缓存详情的端点回 0（非 undefined）——0 = 未报或零命中，null = usage 整体缺失，两者已在类型注释与测试区分
+- **下一步**：
+  1. #127 PR 过闸门合并；今晚 4 PR 的 bot 意见全部闭环（三处核对纪律照走）
+  2. #73 reflect 立项（下一自然时点）：验收主线 = precision 工程（D042 收敛后口径），失败降级「宁可少发」语义 + 同对话续写缓存设计约束不变
+  3. 生产观察：新日志格式 cached 段随下一批真实 PR 审查进台账；面板「命中」列开始有数据
+  4. #69 corr 组等 fixture 裁决；#75 与预处理提案同批评估（Step 4 门槛早已达成）
