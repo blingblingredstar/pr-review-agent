@@ -104,12 +104,12 @@ webhook URL 公网可达，但审查只可能被合法事件触发：
 面板 = 主项目写（publish 阶段 best-effort 落 Blob）+ dashboard 项目读（`/api/runs` + 静态页）。同仓挂两个 Vercel project。生产已按下面步骤走通，保留作重放/重建参考：
 
 1. **store 与主项目凭证**（CLI 可全自动）：`vercel blob create-store pr-review-runs --access private -y`（自动连当前 link 的项目）；**CLI 默认连接形态给项目挂的是静态 `BLOB_READ_WRITE_TOKEN`——按 D041 移除**（`vercel env rm BLOB_READ_WRITE_TOKEN` 逐环境），改挂 `vercel env add BLOB_STORE_ID --environment production/preview/development`（值 = store id，`list-stores --all` 可查）。env 变更对已存在部署不生效，需 redeploy 主项目
-2. **dashboard 项目**（CLI 可全自动）：`vercel project create pr-review-agent-dashboard` → `vercel link --yes --project pr-review-agent-dashboard`（临时切换 link）→ 同样挂 `BLOB_STORE_ID` + `RUNS_API_ENABLED=1`（均三环境）→ `vercel git connect <仓库 URL> --yes`（同仓自动部署）→ 完成后恢复原 link（`.vercel/project.json` 拷回）
+2. **dashboard 项目**（CLI 可全自动）：`vercel project create pr-review-agent-dashboard` → `vercel link --yes --project pr-review-agent-dashboard`（临时切换 link）→ 同样挂 `BLOB_STORE_ID` + `RUNS_API_ENABLED=1`（均三环境）→ **store 连接 dashboard 项目**（#130：env 配置 ≠ 资源授权，OIDC 按 store↔project 连接鉴权；CLI 无 connect 子命令，REST 落法：`POST /v1/storage/stores/{storeId}/connections`，body `{"projectId":"<dashboard 项目 id>"}`，连接后约 1 分钟传播）→ `vercel git connect <仓库 URL> --yes`（同仓自动部署）→ 完成后恢复原 link（`.vercel/project.json` 拷回）
    - **env denylist（配了即破防，sec-auditor P1-3）**：`WEBHOOK_SECRET` / `GITHUB_TOKEN` / `LLM_*` / `DECISION_*` / `WORKER_BASE_URL` **绝不配置**；不配时 dashboard 项目上的 `/api/webhook`、`/api/worker` 确定性失败（inert，无害）
 3. **产线保护（CLI 半自动）**：`vercel project protection enable --sso --yes`——注意 CLI 只给到 `prod_deployment_urls_and_all_previews`（固定生产域名豁免，P1-2 的坑位），须再用 REST API 补到全保护：`PATCH /v9/projects/{id}?teamId={teamId}`，body `{"ssoProtection":{"deploymentType":"all"}}`（token 取 CLI 凭证）。操作禁令同 P1-2：不开 Automation Bypass、不生成 Shareable Link、不加 Protection Exceptions；Access 列表保持只有 owner
 4. **首次部署**：link 在 dashboard 项目下 `vercel deploy --prod --yes`；此后同仓 push 自动部署（git connect 已接）
 5. **保留期**：`RUNS_TTL_DAYS`（写侧生效）：默认 730 天自动过期，`0` = 不过期；本次未显式配置
-6. **验证（闸门实测，2026-11-10）**：dashboard 固定生产域名与部署专属 URL 均未登录 302 → SSO 登录页（闸门 5 ✓，域名按占位约定不落公开文档，实测记录见会话 journal 与 #122）；`curl https://<主项目域名>/api/runs` 返回 404（闸门 6 ✓）；闸门 1（生产 run 落 Blob）等下一个真实 PR 触发
+6. **验证（闸门实测，2026-11-10；11-11 巡检修正）**：dashboard 固定生产域名与部署专属 URL 均未登录 302 → SSO 登录页（闸门 5 ✓，域名按占位约定不落公开文档，实测记录见会话 journal 与 #122）；`curl https://<主项目域名>/api/runs` 返回 404（闸门 6 ✓）；**dashboard 域登录态 `GET /api/runs` 返回 200 且 JSON 带 runs 数组**（#130 补——11-10 走通时漏测此项，store 未连 dashboard 项目导致读取面 500、面板空态，11-11 巡检暴露后按步骤 2 补连接修复；验证用登录态浏览器发起，curl 过不了 SSO）；闸门 1（生产 run 落 Blob）11-11 确认达成（store 内 5 文件，#124/#125/#126/#129 的审查 run）
 
 面板页面在主项目域名也可访问（静态页随仓库部署），但 `/api/runs` 在主项目 404——页面显示「数据加载失败」空态，属设计内。
 GitHub 的 View Deployment 按钮落在部署根路径 `/`：vercel.json 根路径 302 跳 `/runs.html`（vercel.json 双项目共享，主项目根路径同样跳到空态页——比裸 404 可读，设计内）。
