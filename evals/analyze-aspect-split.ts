@@ -29,8 +29,11 @@ function runUrl(file: string): URL {
 }
 
 function loadRun(file: string): Map<string, StoredRun> {
-  const j = JSON.parse(readFileSync(runUrl(file), "utf8")) as { runs: StoredRun[]; aspectArm?: { name?: string } | null };
+  const j = JSON.parse(readFileSync(runUrl(file), "utf8")) as { runs: StoredRun[]; aspectArm?: { name?: string } | null; evalOnly?: string[] | null };
   if (bSide(file) && !j.aspectArm?.name) throw new Error(`${file}: aspect run 缺 aspectArm 标记（传成基线 run 了？）`);
+  // EVAL_ONLY 子集 run 当 B 臂 = 能力组用例在 Map 里整组缺失、get 静默回退空遍，读数系统性失真无告警
+  //（仓库里就有 dogfood 子集的 aspect 冒烟 run）——直接报错（bot minor #136）
+  if (bSide(file) && j.evalOnly) throw new Error(`${file}: EVAL_ONLY 子集 run（${j.evalOnly.join(",")}）不能当 B 臂——能力组用例缺失会让合并读数静默失真`);
   const out = new Map<string, StoredRun>();
   for (const r of j.runs) out.set(r.caseId, r);
   return out;
