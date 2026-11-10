@@ -25,7 +25,7 @@ function el(tag, attrs = {}, children = []) {
 
 function ghPrUrl(repo, pr) {
   const [owner, name] = String(repo).split("/");
-  return `https://github.com/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/pull/${pr}`;
+  return `https://github.com/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/pull/${encodeURIComponent(pr)}`;
 }
 
 function fmtNum(n) {
@@ -147,6 +147,11 @@ function renderFindings(runs) {
 // 层级视图带快速定位：needle 匹配 `${repo}#${pr}` 或仓库名子串，命中项展开、未命中隐藏
 function renderHierarchy(runs, needle) {
   const container = document.getElementById("hierarchy");
+  // 用户手动展开的 PR details 跨重建保持（#131）：30s 自动刷新全量重建会把展开态折回去，
+  // 重建前按 data-pr 键快照 open 态、重建后补回；needle 驱动的展开不变（重建时已带 open）
+  const openKeys = new Set(
+    Array.from(container.querySelectorAll("details[data-pr][open]"), (d) => d.dataset.pr),
+  );
   container.replaceChildren();
   const byRepo = new Map();
   for (const r of runs) {
@@ -176,7 +181,8 @@ function renderHierarchy(runs, needle) {
       if (!prMatched) continue;
       repoHasVisible = true;
       visiblePrs += 1;
-      const prDetails = el("details", n === "" ? {} : { open: "" });
+      const prDetails = el("details", { "data-pr": `${repo}#${pr}`, ...(n === "" ? {} : { open: "" }) });
+      if (!prDetails.open && openKeys.has(`${repo}#${pr}`)) prDetails.open = true;
       prDetails.append(
         el("summary", {}, [prLink(repo, pr), el("span", { class: "muted", text: ` ${prRuns.length} run` })]),
       );
@@ -241,9 +247,16 @@ function init() {
   document.getElementById("filter-text").addEventListener("input", () => findingsView.apply());
   document.getElementById("jump-pr").addEventListener("input", (e) => renderHierarchy(state.runs, e.target.value));
   document.getElementById("refresh").addEventListener("click", load);
-  // 深链：runs.html#pr42 → 快速定位框填 42（层级里对应 PR 展开置顶可见）
-  const m = /^#pr(\d+)$/.exec(location.hash);
-  if (m) document.getElementById("jump-pr").value = m[1];
+  // 深链：runs.html#pr42 → 快速定位框填 42（层级里对应 PR 展开置顶可见）。
+  // hashchange 重放（#132）：页面已开时点带 hash 链接/改 URL 也重新定位——首载只读一次的话，
+  // 同文档 hash 变化会静默无效。数据未到时只填框，渲染由 load() 统一走
+  const applyPrHash = () => {
+    const m = /^#pr(\d+)$/.exec(location.hash);
+    document.getElementById("jump-pr").value = m ? m[1] : "";
+    if (state.runs.length > 0) renderHierarchy(state.runs, document.getElementById("jump-pr").value);
+  };
+  window.addEventListener("hashchange", applyPrHash);
+  applyPrHash();
   load();
   setInterval(() => {
     if (!document.hidden) load();
