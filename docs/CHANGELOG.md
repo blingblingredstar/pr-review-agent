@@ -419,3 +419,9 @@
 - **保留期**：SDK 原生 `ttlDays` 默认 730 天（`RUNS_TTL_DAYS` 可调 / 0 关闭），prune 脚本省掉（issue 原前提「Blob 无 TTL」与 SDK 2.9.0 现状不符）
 - **依赖**：`@vercel/blob@2.9.0`；package.json `overrides` 强制 `zod ^4.6.7`（传递链 4.1.11 命中 GHSA-mrhx-c7xc-m3w5，audit 4 high → 0）
 - 单测 265 → 284（runs 模型/校验/写入失败隔离/API 门 + worker 接线 startedAt 贯通/失败不连坐）；D041 落档
+
+### Added（面板「落地即当次」交互，2026-11-10）
+
+- View Deployment 落地（根路径 → /runs.html）即见「最新 run」置顶展开卡片——按钮 URL 由 Vercel 生成无法携带 PR 参数，点击场景里最新 run 即当次；30 秒自动刷新（后台标签页暂停）覆盖「点按钮时 run 还在跑」的窗口
+- `#pr<号>` 深链 + 层级视图快速定位框（PR 号/仓库名子串，命中展开未命中隐藏）；手动刷新按钮 + 最近更新时间
+- 渲染硬约束不变（textContent-only / CSP / 零内联）
