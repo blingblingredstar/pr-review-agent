@@ -11,7 +11,17 @@
 <header>
   <h1>运行观测面板</h1>
   <div id="summary" class="summary"></div>
+  <div class="refresh-row">
+    <button id="refresh" type="button">刷新</button>
+    <span id="status" class="muted"></span>
+    <span class="muted">30 秒自动刷新（后台标签页暂停）</span>
+  </div>
 </header>
+
+<section>
+  <h2>最新 run</h2>
+  <div id="latest"></div>
+</section>
 
 <section>
   <h2>Findings 全量列表</h2>
@@ -29,6 +39,9 @@
 
 <section>
   <h2>repo → PR → run</h2>
+  <div class="filters">
+    <input id="jump-pr" type="text" placeholder="快速定位：PR 号或仓库名（如 123 或 acme/demo）" autocomplete="off">
+  </div>
   <div id="hierarchy"></div>
 </section>
 
