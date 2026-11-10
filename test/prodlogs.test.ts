@@ -21,16 +21,16 @@ test("parseLogLine：dashboard 扁平形态（epoch 毫秒时间戳、无 data �
   assert.equal(line.timestamp, new Date(1793814737107).toISOString());
 });
 
-test("aggregateRuns：按 requestId 聚合，worker 行解析 PR/SHA/outcome，token 三路提取", () => {
+test("aggregateRuns：按 requestId 聚合，worker 行解析 PR/SHA/outcome，token 三路提取（含 #128 cached 两线）", () => {
   const rid = "req-1";
   const runs = aggregateRuns(
     [
       L("2026-11-04T17:46:00Z", rid, "[task] 无关联 issue（closing keywords 未命中），不注入任务块"),
-      L("2026-11-04T17:46:05Z", rid, "[router] tokens: in 5828 / out 359"),
+      L("2026-11-04T17:46:05Z", rid, "[router] tokens: in 5828 / out 359 / cached 0"),
       L("2026-11-04T17:46:20Z", rid, "[tools] probe tokens: in 43253 / out 522 / total 43775"),
       L("2026-11-04T17:46:25Z", rid, '[tools] step 1: search "runReviewRouter" (10 files / 18 matches)'),
       L("2026-11-04T17:46:26Z", rid, "[tools] step 2: read src/router.ts (5470 chars)"),
-      L("2026-11-04T17:47:00Z", rid, "[reviewDiff] tokens（两段合计）: in 89812 / out 1602 / total 91414"),
+      L("2026-11-04T17:47:00Z", rid, "[reviewDiff] tokens（两段合计）: in 89812 / out 1602 / total 91414 / cached 44300"),
       L("2026-11-04T17:47:10Z", rid, "[worker] blingblingredstar/pr-review-agent#53@aa692ea 完成：0 条行内（进线程可闭环），1 条降级进 body"),
     ].map(parseLogLine),
   );
@@ -39,9 +39,9 @@ test("aggregateRuns：按 requestId 聚合，worker 行解析 PR/SHA/outcome，t
   assert.equal(run.runKey, "#53@aa692ea");
   assert.equal(run.headSha, "aa692ea");
   assert.deepEqual(run.outcome, { inline: 0, degraded: 1 });
-  assert.deepEqual(run.routerTokens, { in: 5828, out: 359 });
+  assert.deepEqual(run.routerTokens, { in: 5828, out: 359, cached: 0 });
   assert.deepEqual(run.probeTokens, { in: 43253, out: 522 });
-  assert.deepEqual(run.reviewTokens, { in: 89812, out: 1602, total: 91414 });
+  assert.deepEqual(run.reviewTokens, { in: 89812, out: 1602, total: 91414, cached: 44300 });
   assert.equal(run.toolCalls.length, 2);
   assert.equal(run.toolCalls[0]!.kind, "search");
   assert.equal(run.durationMs, 70_000);

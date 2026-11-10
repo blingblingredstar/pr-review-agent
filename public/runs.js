@@ -55,7 +55,7 @@ function runMetaRow(r) {
   return el("div", { class: "run-row" }, [
     el("span", { class: "mono", text: `@${String(r.headSha).slice(0, 7)}` }),
     el("span", { class: "muted", text: fmtTime(r.finishedAt) }),
-    el("span", { class: "muted", text: `tokens ${fmtNum(r.tokens?.total)}（in ${fmtNum(r.tokens?.input)} / out ${fmtNum(r.tokens?.output)}）` }),
+    el("span", { class: "muted", text: `tokens ${fmtNum(r.tokens?.total)}（in ${fmtNum(r.tokens?.input)} / out ${fmtNum(r.tokens?.output)} / 命中 ${fmtNum(r.tokens?.cached)}）` }),
     el("span", { class: "muted", text: `行内 ${fmtNum(counts.inline)} / 降级 ${fmtNum(counts.degraded)} / 折叠 ${fmtNum(counts.folded)}` }),
     r.incrementalBase ? el("span", { class: "badge badge-delta", text: `增量 ${String(r.incrementalBase).slice(0, 7)}..` }) : el("span", { class: "badge badge-full", text: "全量" }),
   ]);

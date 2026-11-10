@@ -37,9 +37,9 @@ export type ProdRun = {
   // 一次审查 = 多个 requestId（worker 阶段机 prepare/review/publish 各自独立调用），runKey = "pr@sha"
   // 把同一次审查的多段请求归组；run 级统计与 Step 4 门槛（≥10 run）按 distinct runKey 计数
   runKey: string | null;
-  routerTokens: { in: number; out: number } | null;
+  routerTokens: { in: number; out: number; cached?: number } | null;
   probeTokens: { in: number; out: number } | null;
-  reviewTokens: { in: number; out: number; total?: number } | null;
+  reviewTokens: { in: number; out: number; total?: number; cached?: number } | null;
   toolRequests: string | null;
   toolCalls: ToolCall[];
   task: string | null;
@@ -86,8 +86,16 @@ export function parseLogLine(raw: string): VercelLogLine | null {
   };
 }
 
-const tokens = (i: string | undefined, o: string | undefined, t?: string) =>
-  i === undefined || o === undefined ? null : { in: Number(i), out: Number(o), ...(t !== undefined ? { total: Number(t) } : {}) };
+const tokens = (i: string | undefined, o: string | undefined, t?: string, c?: string) =>
+  i === undefined || o === undefined
+    ? null
+    : {
+        in: Number(i),
+        out: Number(o),
+        ...(t !== undefined ? { total: Number(t) } : {}),
+        // 前缀缓存命中（#128，两线口径）：端点已报 cached_tokens 时入账——折扣不再隐形
+        ...(c !== undefined ? { cached: Number(c) } : {}),
+      };
 
 // 逐行提取结构化字段；一行命中多个模式时各自生效（互不重叠）
 function applyMessage(run: ProdRun, line: VercelLogLine): void {
@@ -103,10 +111,10 @@ function applyMessage(run: ProdRun, line: VercelLogLine): void {
   }
   if (m.includes("审查超时") || m.includes("未返回，本次跳过")) run.timeout = true;
   if (line.level === "warn" || line.level === "error") run.warnings.push(m);
-  if ((x = m.match(/\[router\] tokens: in (\d+) \/ out (\d+)/))) run.routerTokens = tokens(x[1], x[2]);
+  if ((x = m.match(/\[router\] tokens: in (\d+) \/ out (\d+)(?: \/ cached (\d+))?/))) run.routerTokens = tokens(x[1], x[2], undefined, x[3]);
   if ((x = m.match(/\[tools\] probe tokens: in (\d+) \/ out (\d+)/))) run.probeTokens = tokens(x[1], x[2]);
-  if ((x = m.match(/\[reviewDiff\] tokens[^:]*: in (\d+) \/ out (\d+)(?: \/ total (\d+))?/))) {
-    run.reviewTokens = tokens(x[1], x[2], x[3]);
+  if ((x = m.match(/\[reviewDiff\] tokens[^:]*: in (\d+) \/ out (\d+)(?: \/ total (\d+))?(?: \/ cached (\d+))?/))) {
+    run.reviewTokens = tokens(x[1], x[2], x[3], x[4]);
   }
   if ((x = m.match(/\[tools\] 第一段工具请求：(.+)$/))) run.toolRequests = x[1]!;
   if ((x = m.match(/\[tools\] step (\d+): (search|read) (.+)$/))) {
@@ -222,6 +230,8 @@ export function summarize(ledger: Ledger): string {
       reviewIn: rs.reduce((s, r) => s + (r.reviewTokens?.in ?? 0), 0),
       reviewOut: rs.reduce((s, r) => s + (r.reviewTokens?.out ?? 0), 0),
       routerOut: rs.reduce((s, r) => s + (r.routerTokens?.out ?? 0), 0),
+      // cached 两线（#128）：只加总已知值（旧日志行无 / cached 段 → undefined 不计），宁可低报
+      reviewCached: rs.reduce((s, r) => s + (r.reviewTokens?.cached ?? 0), 0),
     };
   });
   const finished = reviews.filter((r) => r.outcome !== null).length;
@@ -230,6 +240,7 @@ export function summarize(ledger: Ledger): string {
   const reviewIn = reviews.reduce((s, r) => s + r.reviewIn, 0);
   const reviewOut = reviews.reduce((s, r) => s + r.reviewOut, 0);
   const routerOut = reviews.reduce((s, r) => s + r.routerOut, 0);
+  const reviewCached = reviews.reduce((s, r) => s + r.reviewCached, 0);
   // 意见落点三计数（#65 闸门 2：folded 进指标——D032 起 minor/nit 折叠段是意见的重要落点，缺了
   // 会系统性低估产出）。folded/source 为 optional（#89 前的老记录无这格），缺省 0 / 不计入派生数：
   // 只加总已知值，宁可低报也不编造
@@ -246,7 +257,7 @@ export function summarize(ledger: Ledger): string {
   const rxMinus = rx.reduce((s, r) => s + r.minus, 0);
   return (
     `审查 ${reviews.length} 次（完成 ${finished}，超时 ${timeouts}）` +
-    `；review in ${reviewIn} / out ${reviewOut}，router out ${routerOut}` +
+    `；review in ${reviewIn} / out ${reviewOut}${reviewCached > 0 ? ` / cached ${reviewCached}` : ""}，router out ${routerOut}` +
     `；带工具调用审查 ${toolRuns} 次` +
     `；意见落点：行内 ${inline} / 降级 ${degraded} / 折叠 ${folded}（#89 派生口径 ${derived} run）` +
     `；意见反应 👍${rxPlus} / 👎${rxMinus}（#106，${rx.length} run 有数据）` +

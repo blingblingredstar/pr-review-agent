@@ -143,6 +143,9 @@ export async function runReviewRouter(args: { tree: string; skeleton: string }):
     prompt: `[仓库文件树]\n${args.tree}\n\n[diff 概要]\n${args.skeleton}`,
     abortSignal: AbortSignal.timeout(ROUTER_TIMEOUT_MS),
   });
-  console.log(`[router] tokens: in ${usage?.inputTokens ?? "?"} / out ${usage?.outputTokens ?? "?"}`);
+  console.log(
+    `[router] tokens: in ${usage?.inputTokens ?? "?"} / out ${usage?.outputTokens ?? "?"}` +
+      ` / cached ${usage?.inputTokenDetails?.cacheReadTokens ?? "?"}`,
+  );
   return output;
 }
