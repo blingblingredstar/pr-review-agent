@@ -18,7 +18,7 @@ import { matchesExpectation, normalizePath, scoreCase, sourceOf, type CaseScore,
 // ---------------------------------------------------------------- 基础类型
 
 type Sev = "blocker" | "major" | "minor" | "nit";
-type RawComment = { file: string; line: number; severity: Sev; body: string };
+export type RawComment = { file: string; line: number; severity: Sev; body: string };
 type StoredRun = {
   caseId: string;
   kind: string;
