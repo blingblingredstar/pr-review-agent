@@ -62,8 +62,8 @@ Harness 的核心纪律：**每一步都可回放**。文档只追加、少改�
 - 开 PR 后先看 agent 自审意见，逐条处理（修复 / 回应不修的理由 / 标记误报），处理一条闭环一条：
 
   ```bash
-  # 处理单条：先回复再 resolve（--only 与 --reply 用同一个线程 id）
-  npm run resolve:threads -- owner/repo#N --only <线程id> --reply <线程id>="回应文本"
+  # 处理单条：先回复再 resolve（--only 与 --reply 用同一个线程 id）；--verdict 裁定同步落账（fixed/wontfix/false-positive，schema 见 evals/prod-runs/README.md）
+  npm run resolve:threads -- owner/repo#N --only <线程id> --reply <线程id>="回应文本" --verdict <线程id>=fixed
   # 回应留痕在 PR 线程里——全量重审会注入上一轮意见，bot 复审时结论可见
   # 全部处理完收尾：
   npm run resolve:threads -- owner/repo#N --yes
