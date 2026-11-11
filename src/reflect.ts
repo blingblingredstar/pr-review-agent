@@ -1,7 +1,10 @@
 // reflect 二次评分（#73，pr-agent 借鉴）：precision 的工程化手段——第一轮审查产出 blocker/major 时，
 // 同对话续写一次调用（吃前缀缓存），对每条意见按硬 rubric 打 0-10 分并修正行号，低于阈值的意见在发布层过滤。
-// 「验证器挂了宁可少发」：reflect 失败或意见未被评分时按 REFLECT_FAILURE_SCORE 处理（上游
-// score_on_reflection_failure=7 同型语义——低于默认阈值即全部丢弃）。
+// 失败语义两层（PR #145 bot major 修正）：
+// ① 调用整体失败 = 回退第一轮原始意见（abortSignal 贯穿两段，撞 abort 是常见路径——清空会把合并闸门
+//   被一次超时打开变成常态；reflect 没跑成 = 没有验证层，基线行为兜底）；
+// ② 调用成功但个别意见未被评分 → 按 REFLECT_FAILURE_SCORE 处理（上游 score_on_reflection_failure=7
+//   同型——低于默认阈值即拦，「宁可少发」限定在经过评分判定的意见上）。
 // 本模块只做纯逻辑与 LLM 调用；编排（何时触发、预算）在 review.ts，生产开关在 worker（REFLECT_ENABLED）。
 import { readFileSync } from "node:fs";
 import { generateText, Output } from "ai";
@@ -22,8 +25,8 @@ export const reflectionSchema = z.object({
 
 export type ReflectionEntry = z.infer<typeof reflectionSchema>["scores"][number];
 
-// reflect 失败分（上游 score_on_reflection_failure=7 同型）：未评分 / reflect 失败的意见都按此分处理，
-// 默认阈值 8 之下即被过滤——「验证器挂了宁可少发」
+// reflect 失败分（上游 score_on_reflection_failure=7 同型）：调用成功但个别意见未被评分时按此分处理，
+// 默认阈值 8 之下即被拦——「宁可少发」限定在经过评分判定的意见上；调用整体失败走 review.ts 的回退基线路径
 export const REFLECT_FAILURE_SCORE = 7;
 
 export function loadReflectPrompt(): string {

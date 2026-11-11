@@ -291,11 +291,14 @@ async function reflectPass(
       reflection: { triggered: true, before, after: kept.length, dropped: before - kept.length, relines, failed: false },
     };
   } catch (err) {
-    console.error(`[reflect] 失败，${before} 条意见按失败分 ${REFLECT_FAILURE_SCORE} 处理（低于阈值全部丢弃——宁可少发）`, err);
+    // 调用整体失败 = 回退第一轮原始意见（PR #145 bot major：abortSignal 贯穿两段，第一轮耗掉大半预算后
+    // reflect 撞 abort 是常见路径而非尾部风险——失败即清空会把「合并闸门被一次超时打开」变成常态。
+    // 「宁可少发」限定在经过评分的意见上（applyReflection 的未评分 → 失败分语义）；reflect 没跑成
+    // = 没有验证层，回退基线行为。阈值 0（不过滤调试形态）在此路径同样成立
+    console.error(`[reflect] 失败，保留第一轮原始 ${before} 条意见（无验证层 → 回退基线，不丢已产出意见）`, err);
     return {
       ...outcome,
-      comments: [],
-      reflection: { triggered: true, before, after: 0, dropped: before, relines: 0, failed: true },
+      reflection: { triggered: true, before, after: before, dropped: 0, relines: 0, failed: true },
     };
   }
 }
@@ -568,11 +571,14 @@ async function reviewDiffWithTools(
   // Output 解析失败整审炸
   const hasRequests = requests.searches.length > 0 || requests.reads.length > 0;
   const toolBlock = `${hasRequests ? buildToolBlock(requests, fileReader, searcher) : "[工具结果]（本轮无工具请求，请直接给出审查意见）"}\n\n`;
+  // json 包裹只算一次（PR #145 bot minor：返回值与第二段调用的 system 必须严格同源——两处独立
+  // 调 withJsonSuffix 虽然当前实现纯函数同参必相等，单源 hoist 让「字节级一致」由构造保证）
+  const jsonSystem = withJsonSuffix(system);
   const { output, usage, text } = await generateText({
     maxOutputTokens: llmMaxOutputTokens(),
     model: llm.chat(modelId),
     output: Output.object({ schema: reviewResultSchema, name: "ReviewResult" }),
-    system: withJsonSuffix(system),
+    system: jsonSystem,
     prompt: `${toolBlock}${prompt}`,
     abortSignal,
   });
@@ -594,5 +600,5 @@ async function reviewDiffWithTools(
     `[reviewDiff] tokens（两段合计）: in ${tokenUsage.inputTokens ?? "?"} / out ${tokenUsage.outputTokens ?? "?"}` +
       ` / total ${tokenUsage.totalTokens ?? "?"} / cached ${tokenUsage.cachedInputTokens ?? "?"}`,
   );
-  return { outcome: { ...output, usage: tokenUsage }, system: withJsonSuffix(system), lastPrompt: `${toolBlock}${prompt}`, lastText: text ?? "" };
+  return { outcome: { ...output, usage: tokenUsage }, system: jsonSystem, lastPrompt: `${toolBlock}${prompt}`, lastText: text ?? "" };
 }

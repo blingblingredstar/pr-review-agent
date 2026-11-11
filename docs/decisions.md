@@ -540,6 +540,7 @@
 ## D043 — reflect 二次评分 v1 验收裁定（2026-11-12）：基础设施合并、生产不启用（precision +7.2pp / recall −2.9pp / 折后成本 ~3.5×，TP:FP 交换比 1:1 不划算）
 
 - **状态**：已接受（2026-11-12，会话 51 夜批；issue #73，#139 计分噪声修正后按期开工；验收数据 = 同 prompt `f4e2b250e88b` 能力口径 35 例 × reflect 3 轮 + baseline 3 轮，全量 run 落 `evals/runs/`，`EVAL_REFLECT` 臂经 compare.ts 分组键拆臂）。
+- **状态更新（2026-11-12 同夜，PR #145 bot major 驱动）**：失败语义修正——原「失败 = 全部按失败分丢弃」改为**两层**：① reflect 调用整体失败 = 回退第一轮原始意见（abortSignal 贯穿两段，第一轮耗掉大半预算后 reflect 撞 abort 是常见路径而非尾部风险，清空会把「合并闸门被一次超时打开」变成常态——可用性优先）；② 调用成功但个别意见未被评分 = 按失败分 7 处理（宁可少发限定在经过评分判定的意见上）。REFLECT_MIN_SCORE=0 的「不过滤调试形态」在两条路径下语义自洽。
 - **背景**：#73（pr-agent 借鉴）= precision 的工程化手段——第一轮审查产出 blocker/major 时同对话续写一次调用，硬 rubric 打 0-10 分过滤低分意见 + 修正行号；「验证器挂了宁可少发」（失败分 7 = 上游 `score_on_reflection_failure` 同型）。实现全链路：`prompts/review-reflect.md`（硬 rubric：0 分四类噪音形态 / 封顶 7 verify-only 与等价改动 / 封顶 8 泛泛错误处理）+ `src/reflect.ts`（applyReflection 纯函数 + runReflection 同对话续写 messages 三元组）+ `review.ts` reflectPass 编排收口（单段/工具两路径统一）+ worker `REFLECT_ENABLED` 开关 + `EVAL_REFLECT` eval 臂（run JSON `reflectArm` 字段、文件名 `-reflect` 后缀、compare.ts 分组键拆臂防混聚）。单测 291→296。
 - **验收读数（三轮微平均）**：
   - precision **89.4% → 96.7%（+7.2pp）**：每轮 ~2.7 条 FP 被拦——被拦 FP 集中在 linked 组深尾 minor（linked-02/04/05 的第二条投机意见，#139 分析确认的噪声形态），方向有效
