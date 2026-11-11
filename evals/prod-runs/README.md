@@ -33,7 +33,7 @@ npm run prodlogs -- --seed <jsonl> --seed-only   # 纯导入不实时拉取（�
   "ts": "2026-11-12T00:00:00.000Z",   // 裁定落账时间
   "repo": "owner/repo",
   "pr": 26,
-  "threadCommentId": 4445269633,      // 线程末条评论 databaseId（与 --only/--reply 的 id 同一约定）
+  "threadCommentId": 4445269633,      // 线程首条（原意见）评论 databaseId——稳定幂等键；--only/--reply 用的末条 id 会随后续回复漂移，不做键（PR #144 bot major）
   "verdict": "fixed",                 // fixed=修复 | wontfix=回应不修 | false-positive=核实误报
   "reason": "一行理由",                // 裁定时的 --reply 原文；回填时引用线程内既有回复原文（verbatim，不做语义解析）
   "severity": "minor",                // 原意见 body 的 **[sev]** 前缀；非 bot 意见为 null

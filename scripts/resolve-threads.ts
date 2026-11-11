@@ -7,7 +7,7 @@
 // 即回填落账（不 resolve 不回复，理由引用线程内既有回复原文）。
 // 用法：npm run resolve:threads -- owner/repo#N [--only id1,id2] [--reply id=文本 ...]
 //        [--verdict id=fixed|wontfix|false-positive ...] [--backfill] [--yes]
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { getOctokit } from "../src/github.ts";
 
@@ -106,7 +106,7 @@ export type RulingRow = {
   ts: string; // 裁定落账时间（ISO）
   repo: string;
   pr: number;
-  threadCommentId: number; // 线程末条评论 databaseId（与 --only/--reply 的 id 同一约定）
+  threadCommentId: number; // 线程首条（原意见）databaseId——稳定幂等键；CLI 参数 id 是列表展示的末条 id（--reply 回复目标），两者并存
   verdict: Verdict; // fixed=修复 / wontfix=回应不修 / false-positive=核实误报
   reason: string; // 一行理由：裁定时的 --reply 原文；回填时引用线程内既有回复原文（verbatim，无解析）
   severity: string | null; // 原意见 body 的 **[sev]** 前缀；非 bot 意见为 null
@@ -192,7 +192,15 @@ async function main(): Promise<void> {
     repository: {
       pullRequest: {
         reviewThreads: {
-          nodes: { id: string; isResolved: boolean; comments: { nodes: ThreadComment[] } }[];
+          nodes: {
+            id: string;
+            isResolved: boolean;
+            // original(first:1)：线程首条（原 review 意见）——幂等键与 severity/定位的唯一来源，
+            // first:1 永不截断（bot major，PR #144：last:10 下首节点会退化为较早回复，键漂移 + 脏定位）
+            original: { nodes: ThreadComment[] };
+            // recent(last:10)：窗口内末条用于 reason/permalink；超 10 条的线程窗口截断，落账时显式告警
+            recent: { nodes: ThreadComment[] };
+          }[];
           pageInfo: { hasNextPage: boolean };
         };
       };
@@ -206,7 +214,8 @@ async function main(): Promise<void> {
             nodes{
               id
               isResolved
-              comments(last:10){ nodes{ databaseId body path line url author{ login } } }
+              original: comments(first:1){ nodes{ databaseId body path line url author{ login } } }
+              recent: comments(last:10){ nodes{ databaseId body url author{ login } } }
             }
             pageInfo{ hasNextPage }
           }
@@ -221,30 +230,33 @@ async function main(): Promise<void> {
     console.error("review 线程超过 100 条，分页未支持——请人工检查剩余线程");
     process.exit(1);
   }
-  // comments(last:10)：首节点=原意见、末节点=最新回复（超过 10 条的线程退化，按末条处理）
+  // recent 末条（最新回复；窗口截断时是窗口内末条）；original 首条（原意见，first:1 永不截断）
   const lastOf = (t: (typeof threads.nodes)[number]): ThreadComment | undefined =>
-    t.comments.nodes[t.comments.nodes.length - 1];
+    t.recent.nodes[t.recent.nodes.length - 1];
+  const firstOf = (t: (typeof threads.nodes)[number]): ThreadComment | undefined => t.original.nodes[0];
   const open = threads.nodes.filter((t) => !t.isResolved);
   const resolved = threads.nodes.filter((t) => t.isResolved);
 
-  // 裁定行构造：原意见取线程首节点（body 前缀 severity + path/line 定位），
-  // reason = 本次 --reply 原文；无回复文本则引用线程内既有末条回复（verbatim）
+  // 裁定行构造（bot major，PR #144）：threadCommentId = 原意见（线程首条）databaseId——幂等键必须
+  // 稳定，末条会随后续回复漂移；severity/file/line 同取原意见。reason = 本次 --reply 原文；
+  // 无回复文本则引用窗口内末条回复（verbatim，窗口打满告警）。permalink 优先本次回复 URL
   const buildRow = (t: (typeof threads.nodes)[number], verdict: Verdict, replyText: string | null, replyUrl: string | null, source: "ruling" | "backfill"): RulingRow => {
-    const first = t.comments.nodes[0];
+    const first = firstOf(t);
     const last = lastOf(t);
-    const reason = replyText ?? (t.comments.nodes.length > 1 ? last!.body : "");
+    if (t.recent.nodes.length >= 10) console.warn(`  ⚠ 线程 ${first?.databaseId ?? t.id} 回复数 ≥10，reason/permalink 取的是 recent 窗口内末条（可能截断）`);
+    const reason = replyText ?? (t.recent.nodes.length > 1 ? last!.body : "");
     return buildRulingRow({
       ts: new Date().toISOString(),
       repo: `${owner}/${repo}`,
       pr: pullNumber,
-      threadCommentId: last!.databaseId!,
+      threadCommentId: first!.databaseId!,
       verdict,
       reason,
       severity: severityFromBody(first?.body ?? ""),
       confidence: null,
       file: first?.path ?? null,
       line: first?.line ?? null,
-      permalink: replyUrl ?? last!.url ?? "",
+      permalink: replyUrl ?? last!.url ?? first!.url ?? "",
       source,
     });
   };
@@ -253,10 +265,11 @@ async function main(): Promise<void> {
     // 回填列表模式（#140）：列出已 resolve 线程与全部回复——人工读贴标后对已 resolve 线程发 --verdict 落账
     console.log(`已 resolve 线程：${resolved.length}`);
     for (const t of resolved) {
-      const first = t.comments.nodes[0];
+      const first = firstOf(t);
       const last = lastOf(t);
-      console.log(`id=${last?.databaseId ?? "?"} [${severityFromBody(first?.body ?? "") ?? "?"}] ${first?.path ?? "?"}:${first?.line ?? "?"} ${(first?.body ?? "").split("\n")[0].slice(0, 80)}`);
-      for (const c of t.comments.nodes.slice(1)) {
+      if (t.recent.nodes.length >= 10) console.log(`  ⚠ recent 窗口打满（≥10 条），reply 列表可能截断`);
+      console.log(`id=${last?.databaseId ?? "?"} original=${first?.databaseId ?? "?"} [${severityFromBody(first?.body ?? "") ?? "?"}] ${first?.path ?? "?"}:${first?.line ?? "?"} ${(first?.body ?? "").split("\n")[0].slice(0, 80)}`);
+      for (const c of t.recent.nodes.slice(1)) {
         console.log(`  reply [${c.author?.login ?? "?"}] ${c.url ?? ""} ${c.body.split("\n")[0].slice(0, 100)}`);
       }
     }
@@ -311,9 +324,12 @@ async function main(): Promise<void> {
     console.error(`--reply 里的 id 不在本次要 resolve 的线程中（未含在 --only 或线程已 resolve）：${missingReply.join(",")}`);
     process.exit(1);
   }
-  // --verdict 的 id 必须真实存在（开着的要被 resolve、已 resolve 的走回填），其余报错
+  // --verdict 的 id 必须真实存在（开着的要被 resolve、已 resolve 的走回填），其余报错。
+  // original（首条）与末条 id 都接受——回填时两类引用形态都能定位到同一线程
   const allIds = new Set(
-    threads.nodes.map((t) => lastOf(t)?.databaseId).filter((x): x is number => x !== null && x !== undefined),
+    threads.nodes
+      .flatMap((t) => [lastOf(t)?.databaseId, firstOf(t)?.databaseId])
+      .filter((x): x is number => x !== null && x !== undefined),
   );
   const missingVerdict = [...verdicts.keys()].filter((id) => !allIds.has(id));
   if (missingVerdict.length > 0) {
