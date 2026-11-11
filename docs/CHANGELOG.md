@@ -12,6 +12,7 @@
 
 ### Changed
 
+- reflect 二次评分基础设施入库（#73 → D043 负结果决策）：硬 rubric 二次调用过滤低分意见 + 修正行号，`REFLECT_ENABLED` 默认关（生产零行为差异）；验收三轮微平均 precision +7.2pp / recall −2.9pp / 折后成本 ~3.5×，TP:FP 交换比 1:1 判定不启用，重开条件（severity 分档 / rubric 校准 / #140 台账 FP 分布）记 D043；`EVAL_REFLECT` eval 臂 + compare.ts 分组键拆臂
 - `resolve:threads` 裁定落账（#140 Phase 1）：`--verdict <id>=fixed|wontfix|false-positive` 与裁定动作同发、同步 append 一行机器可读 JSONL 到 `evals/prod-runs/rulings.jsonl`（行 schema 见 `evals/prod-runs/README.md`；append 幂等去重、纯函数单测）；`--backfill` 只读列出已 resolve 线程与回复供人工贴标；PR #26 全部 18 条历史裁定已回填入账（17 fixed + 1 false-positive，逐行引用 databaseId + 回复 permalink）——生产 FP 率读数按 ≥30 样本闸门自然触发，服务 #73 rubric 校准
 - eval 计分噪声修正（#139，#73 验收前置）：bug-04/real-03 mustMention 补齐模型自然措辞（await/floating、this/undefined，同发现原被同时记 miss+FP）、linked-04 diff 清理（重试耗尽改 rethrow——旧版 catch 吞异常是 diff 内第二个真缺陷，模型报对反记 FP）、score.ts source union 补 framing（9 例删局部类型放宽）；新增对账单测（test/eval-rescore-139.test.ts）对两轮历史 run 零 LLM 重打分：11-06 轮 verdict 逐位一致（基线对照）、11-10 轮仅两处伪 miss 翻正、linked-04 旧 FP 以双缺陷期望复核为真发现（fixture 缺陷非模型噪音）
 - architecture.md 补两张 mermaid 图（审查 prompt 组装顺序 / 增量审查决策流）；AGENTS.md 新增「文档可读性」约定（流程优先配图、issue 正文不放图、门面只写现状）；开放 issue 可读性批次（#119/#107/#74/#75/#69 重写、#73 触发刷新）（会话 50 续）
