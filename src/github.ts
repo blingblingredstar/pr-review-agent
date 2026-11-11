@@ -6,15 +6,26 @@ import { reviewMarker } from "./dedupe.ts";
 
 export type PrRef = { owner: string; repo: string; pullNumber: number };
 
+// pr-review 状态的 Details 深链（#148）：DASHBOARD_PANEL_URL 配置时，状态带 target_url 指向观测面板
+// `#pr<N>`——PR 页的 pr-review 检查一键看到本 PR 的运行详情（「View deployment」按钮指向 Vercel 部署
+// URL 不可定制，双项目拓扑下只有 dashboard 项目那条能打开面板；本深链是永远指向生产面板的单一入口）。
+// 未配置 = 无 target_url，现状不变；域名走 Vercel env 不进仓库文档（#124 占位约定——它经公开的
+// commit status API 可见，但其后是 Vercel Auth SSO + fail-closed 门，公开不增加可触达面）
+export function panelTargetUrl(pullNumber: number, base: string | undefined = process.env.DASHBOARD_PANEL_URL): string | undefined {
+  if (!base) return undefined;
+  return `${base.replace(/\/+$/, "")}/runs.html#pr${pullNumber}`;
+}
+
 // 审查生命周期 status（D017）：审查中 pending、完成 success、失败 failure。
 // 与 review-threads.yml 的线程状态（context: review-threads）分离，二者共同构成合并闸门——
 // pending 补上「review 尚未发布」的窗口期（PR #9 合并瞬间意见落地的竞态）；转 public 后作为 required check 硬闸门
 export async function setReviewStatus(
   client: Octokit,
-  { owner, repo, sha }: PrRef & { sha: string },
+  { owner, repo, pullNumber, sha }: PrRef & { sha: string },
   state: "pending" | "success" | "failure",
   description: string,
 ): Promise<void> {
+  const targetUrl = panelTargetUrl(pullNumber);
   await client.rest.repos.createCommitStatus({
     owner,
     repo,
@@ -22,6 +33,7 @@ export async function setReviewStatus(
     state,
     context: "pr-review",
     description: description.slice(0, 140),
+    ...(targetUrl ? { target_url: targetUrl } : {}),
   });
 }
 

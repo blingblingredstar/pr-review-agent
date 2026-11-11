@@ -236,3 +236,42 @@ test("fetchReviewComments：字段映射（line 置空走 original_line、body/p
   }
   assert.ok(logs.some((l) => l.includes("行内评论拉取失败")), "失败留日志");
 });
+
+// ===== pr-review 状态 Details 深链（#148）=====
+
+import { panelTargetUrl, setReviewStatus } from "../src/github.ts";
+
+test("panelTargetUrl：未配置 undefined，配置后拼接 runs.html#pr<N>，容忍尾斜杠", () => {
+  delete process.env.DASHBOARD_PANEL_URL;
+  assert.equal(panelTargetUrl(142), undefined);
+  process.env.DASHBOARD_PANEL_URL = "https://panel.example.vercel.app";
+  assert.equal(panelTargetUrl(142), "https://panel.example.vercel.app/runs.html#pr142");
+  process.env.DASHBOARD_PANEL_URL = "https://panel.example.vercel.app/";
+  assert.equal(panelTargetUrl(7), "https://panel.example.vercel.app/runs.html#pr7");
+  delete process.env.DASHBOARD_PANEL_URL;
+});
+
+test("setReviewStatus：配置时带 target_url，未配置不带（现状不变）", async () => {
+  const calls: Record<string, unknown>[] = [];
+  const client = {
+    rest: {
+      repos: {
+        createCommitStatus: async (args: Record<string, unknown>) => {
+          calls.push(args);
+        },
+      },
+    },
+  } as unknown as Octokit;
+  const ref = { owner: "acme", repo: "demo", pullNumber: 142, sha: "abc123" };
+
+  delete process.env.DASHBOARD_PANEL_URL;
+  await setReviewStatus(client, ref, "success", "完成");
+  assert.equal("target_url" in calls[0], false, "未配置时不应带 target_url");
+
+  process.env.DASHBOARD_PANEL_URL = "https://panel.example.vercel.app";
+  await setReviewStatus(client, ref, "pending", "审查进行中");
+  assert.equal(calls[1].target_url, "https://panel.example.vercel.app/runs.html#pr142");
+  assert.equal(calls[1].context, "pr-review");
+  assert.equal(calls[1].state, "pending");
+  delete process.env.DASHBOARD_PANEL_URL;
+});
