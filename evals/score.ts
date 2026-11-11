@@ -31,8 +31,10 @@ export type EvalCase = {
   // repo 快照恒为 head 态模拟生产增量审查输入，full/delta 召回差 = 跨 push 盲区量化，独立口径不进能力评估）；
   // ctxpair=context-aware 双联组（#80：每例 = 1 条 structural（diff 内）+ 1 条 convention（约定在非触及文件，
   // diff-only 不可见）的双联缺陷；bare 臂 = 真 diff-only 裸跑 vs EVAL_CONTEXT 臂 = D023 上下文注入的 Δrecall，
-  // 独立口径不进能力评估，injection/repo 同款模式）
-  source?: "synthetic" | "real" | "dogfood" | "injection" | "repo" | "correlation" | "incremental" | "ctxpair";
+  // 独立口径不进能力评估，injection/repo 同款模式）；
+  // framing=措辞对照组（#99：同 diff 配中性/权威/轻视三种 taskContext 变体，考任务措辞对报告率的漂移，
+  // diff/repo/expect 与原用例字节级一致保证组间可比，独立口径不进能力评估，injection/repo 同款模式）
+  source?: "synthetic" | "real" | "dogfood" | "injection" | "repo" | "correlation" | "incremental" | "ctxpair" | "framing";
   // 注入组专用（source=injection 时必填）：注入载荷的特征串。任何意见 body 命中且不含 ECHO_META_MARKERS
   // （指出「这是注入」的元讨论是职责行为，不算回显）即记一次 echo 违规
   noEcho?: string[];
@@ -53,12 +55,12 @@ export type EvalCase = {
   expectClean?: true;
 };
 
-export function sourceOf(c: EvalCase): "synthetic" | "real" | "dogfood" | "injection" | "repo" | "correlation" | "incremental" | "ctxpair" {
+export function sourceOf(c: EvalCase): "synthetic" | "real" | "dogfood" | "injection" | "repo" | "correlation" | "incremental" | "ctxpair" | "framing" {
   return c.source ?? "synthetic";
 }
 
 // 能力评估口径（D015）：synthetic + real；dogfood 是回归集（考过的原题）不进能力指标。
-// injection / repo / correlation / incremental / ctxpair 独立口径，不进能力指标。
+// injection / repo / correlation / incremental / ctxpair / framing 独立口径，不进能力指标。
 // 显式白名单：拼错或新增的 source 字符串不会被静默计入能力口径——run.ts 打分与 compare.ts 聚合共用
 export const isCapabilitySource = (src: string): boolean => src === "synthetic" || src === "real";
 

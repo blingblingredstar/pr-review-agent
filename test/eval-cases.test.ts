@@ -95,7 +95,7 @@ test("用例集：87 个、id 唯一、synthetic 20（bug/linked 各 10）+ real
   assert.equal(cases.filter((c) => c.source === "repo").length, 7, "repo 应 7 个");
   assert.equal(cases.filter((c) => c.source === "correlation").length, 10, "correlation 应 10 个");
   assert.equal(cases.filter((c) => c.source === "incremental").length, 10, "incremental 应 10 个");
-  assert.equal(cases.filter((c) => (c.source as string) === "framing").length, 9, "framing 应 9 个");
+  assert.equal(cases.filter((c) => c.source === "framing").length, 9, "framing 应 9 个");
   assert.equal(cases.filter((c) => c.source === "ctxpair").length, 5, "ctxpair 应 5 个");
   // 增量对照组（D032 开放问题②）：full/delta 成对（5 fixture × 2 口径）；id 前缀防漏写；
   // repo 快照必带（head 态模拟生产 zipball，两口径共用同一快照——对照的唯一变量是 diff 区间）

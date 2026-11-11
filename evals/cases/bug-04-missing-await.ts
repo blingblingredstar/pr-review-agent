@@ -36,7 +36,8 @@ index 6c7d8e9..0d1e2f3 100644
     {
       file: "src/session.ts",
       line: 33,
-      mustMention: ["异步", "未等待", "不等待", "fire-and-forget", "竞态"],
+      // await/floating 为 #139 补：模型自然措辞「没有 await / floating promise」原表不覆盖，同发现被记 miss+FP
+      mustMention: ["异步", "未等待", "不等待", "fire-and-forget", "竞态", "await", "floating"],
     },
   ],
 } satisfies EvalCase;

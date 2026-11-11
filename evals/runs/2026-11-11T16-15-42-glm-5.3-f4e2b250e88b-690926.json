@@ -1,0 +1,464 @@
+{
+  "startedAt": "2026-11-11T16:15:42.347Z",
+  "model": "glm-5.3",
+  "llmBaseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+  "llmExtraBody": "{\"thinking\":{\"type\":\"enabled\"},\"reasoning_effort\":\"low\"}",
+  "promptHash": "f4e2b250e88b",
+  "evalOnly": [
+    "framing"
+  ],
+  "capabilityScope": "synthetic+real",
+  "schemaVersion": 1,
+  "planArm": null,
+  "contextArm": null,
+  "aspectArm": null,
+  "runs": [
+    {
+      "caseId": "framing-02-removed-export-still-used-a",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/config/limits.ts",
+          "line": 2,
+          "severity": "blocker",
+          "body": "删除了导出常量 MAX_QUEUE_DEPTH，但 src/queue/publisher.ts:1 仍在 `import { MAX_QUEUE_DEPTH } from \"../config/limits.ts\"` 并在第 4 行返回它，模块解析会直接失败（Deno 下命名导入缺失即报错），publisher 及其依赖方全部无法加载。若确要移除该常量，需同步修改 publisher.ts（内联数值或改为从别处读取）；否则应保留导出。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3841,
+        "outputTokens": 250,
+        "totalTokens": 4091,
+        "cachedInputTokens": 2496
+      },
+      "durationMs": 6366,
+      "score": {
+        "caseId": "framing-02-removed-export-still-used-a",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/config/limits.ts",
+              "line": 3,
+              "mustMention": [
+                "publisher.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "framing-02-removed-export-still-used-b",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/config/limits.ts",
+          "line": 2,
+          "severity": "major",
+          "body": "删除了导出常量 MAX_QUEUE_DEPTH，但仓库中仍存在引用：src/queue/publisher.ts 第 1 行 `import { MAX_QUEUE_DEPTH } from \"../config/limits.ts\"` 并在第 4 行使用。该导入未在本次 diff 中同步修改，会导致运行时/编译时报错。若目的是移除该限额，应一并迁移或删除 publisher.ts 中的引用；若不是，则不应删除此导出。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3853,
+        "outputTokens": 197,
+        "totalTokens": 4050,
+        "cachedInputTokens": 3520
+      },
+      "durationMs": 5125,
+      "score": {
+        "caseId": "framing-02-removed-export-still-used-b",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/config/limits.ts",
+              "line": 3,
+              "mustMention": [
+                "publisher.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "framing-02-removed-export-still-used-c",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/config/limits.ts",
+          "line": 2,
+          "severity": "blocker",
+          "body": "删除了导出常量 MAX_QUEUE_DEPTH，但 src/queue/publisher.ts:1 仍 `import { MAX_QUEUE_DEPTH } from \"../config/limits.ts\"` 并在第 4 行使用它，会导致编译/运行时错误。应恢复该常量导出，或同步修改 publisher.ts 改用其他来源。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3851,
+        "outputTokens": 136,
+        "totalTokens": 3987,
+        "cachedInputTokens": 3520
+      },
+      "durationMs": 3564,
+      "score": {
+        "caseId": "framing-02-removed-export-still-used-c",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/config/limits.ts",
+              "line": 3,
+              "mustMention": [
+                "publisher.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "framing-04-string-key-residual-a",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 3804,
+        "outputTokens": 110,
+        "totalTokens": 3914,
+        "cachedInputTokens": 3456
+      },
+      "durationMs": 4772,
+      "score": {
+        "caseId": "framing-04-string-key-residual-a",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/events/bus.ts",
+              "line": 2,
+              "mustMention": [
+                "progress.ts"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "framing-04-string-key-residual-b",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/events/bus.ts",
+          "line": 2,
+          "severity": "major",
+          "body": "常量值从 \"sync:done\" 改为 \"sync:complete\"，但 src/ui/progress.ts:4 仍用字符串字面量 \"sync:done\" 监听（搜索已确认无其他引用点）。改名后该监听器永远收不到事件，同步完成进度提示失效。应让 progress.ts 改用 EVT_SYNC_DONE 常量（根因是绕开常量用字面量），或同步更新该字面量。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3879,
+        "outputTokens": 249,
+        "totalTokens": 4128,
+        "cachedInputTokens": 3456
+      },
+      "durationMs": 6663,
+      "score": {
+        "caseId": "framing-04-string-key-residual-b",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/events/bus.ts",
+              "line": 2,
+              "mustMention": [
+                "progress.ts"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "framing-04-string-key-residual-c",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/events/bus.ts",
+          "line": 2,
+          "severity": "major",
+          "body": "EVT_SYNC_DONE 的字符串值从 \"sync:done\" 改为 \"sync:complete\"，若仓库中存在直接以字面量 \"sync:done\" 注册监听或触发事件的地方（而非引用此常量），改名后双方将不再匹配，事件会静默丢失。本 diff 无法确认是否存在字面量使用点，建议搜索 \"sync:done\" 确认无残留后再合并。",
+          "confidence": "low"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3812,
+        "outputTokens": 494,
+        "totalTokens": 4306,
+        "cachedInputTokens": 3520
+      },
+      "durationMs": 17681,
+      "score": {
+        "caseId": "framing-04-string-key-residual-c",
+        "kind": "linked",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/events/bus.ts",
+              "line": 2,
+              "mustMention": [
+                "progress.ts"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 1,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "low"
+        ],
+        "commentTps": [
+          false
+        ],
+        "commentHitCounts": [
+          0
+        ],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "framing-05-clean-complete-rename-a",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 4024,
+        "outputTokens": 40,
+        "totalTokens": 4064,
+        "cachedInputTokens": 3456
+      },
+      "durationMs": 12726,
+      "score": {
+        "caseId": "framing-05-clean-complete-rename-a",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "framing-05-clean-complete-rename-b",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 4036,
+        "outputTokens": 59,
+        "totalTokens": 4095,
+        "cachedInputTokens": 3520
+      },
+      "durationMs": 4659,
+      "score": {
+        "caseId": "framing-05-clean-complete-rename-b",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "framing-05-clean-complete-rename-c",
+      "kind": "linked",
+      "source": "framing",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/auth/session.ts",
+          "line": 2,
+          "severity": "nit",
+          "body": "函数改名为 assertToken 但仍返回 boolean 而不抛异常；\"assert\" 前缀惯例上意味着断言失败即抛错，调用方容易误用（如 `if (!assertToken(x))` 之外的场景）。要么命名改为 isValidToken，要么让函数真正抛异常并同步调整调用方。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4032,
+        "outputTokens": 185,
+        "totalTokens": 4217,
+        "cachedInputTokens": 3520
+      },
+      "durationMs": 12497,
+      "score": {
+        "caseId": "framing-05-clean-complete-rename-c",
+        "kind": "linked",
+        "verdicts": [],
+        "hits": 0,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "medium"
+        ],
+        "commentTps": [
+          false
+        ],
+        "commentHitCounts": [
+          0
+        ],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    }
+  ],
+  "summary": {
+    "recall": 0,
+    "precision": null,
+    "totalExpect": 0,
+    "totalHits": 0,
+    "totalComments": 0,
+    "totalTp": 0,
+    "failed": 0,
+    "usage": {
+      "inputTokens": 35132,
+      "outputTokens": 1720,
+      "totalTokens": 36852,
+      "cachedInputTokens": 30464
+    },
+    "groups": {
+      "framing": {
+        "recall": 0.6666666666666666,
+        "precision": 0.6666666666666666,
+        "expectN": 6,
+        "hits": 4,
+        "comments": 6,
+        "tp": 4,
+        "runs": 9,
+        "failed": 0
+      }
+    }
+  }
+}
