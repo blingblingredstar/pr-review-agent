@@ -869,3 +869,19 @@
   2. #73 reflect 立项（下一自然时点）：验收主线 = precision 工程（D042 收敛后口径），失败降级「宁可少发」语义 + 同对话续写缓存设计约束不变
   3. 生产观察：新日志格式 cached 段随下一批真实 PR 审查进台账；面板「命中」列开始有数据
   4. #69 corr 组等 fixture 裁决；#75 与预处理提案同批评估（Step 4 门槛早已达成）
+
+## 2026-11-11 · 会话 50：evanxmerz 文章裁定 + eval 全量审计 + 文档说人话重组
+
+- **目标**：用户依次指令——裁定《AI 使用产生脆弱代码库》文章对本项目的意义并建 issue；审计 eval 用例集合理性与增删改；建真实 CR 裁定回收 issue；README 与相关文档说人话重组开 PR（含 AGENTS.md）。
+- **完成**（3 issue 新建 + 1 文档 PR 在途）：
+  - **#138**（P2 浅测试检测 aspect 候选，排 #73 后）：四机制处置记档——浅测试接（唯一 diff 内信号完整）、过度抽象不接（撞检索边界 + 与反投机规则冲突）、理解流失不可为、速度侵蚀审查已是产品本身；README 引用文章为独立小改动
+  - **eval 全量审计（87 例 × 同 prompt 两轮全量 run 对比）**：删不需要、增已被 #107/#138 接住；改 4 处进 **#139**（P1，#73 验收前置）——bug-04/real-03 mustMention 漏模型自然措辞（await/floating、this/undefined）造成伪 miss+伪 FP、linked-04 diff 藏第二真缺陷（重试耗尽吞异常）违反「diff 干净」纪律、framing 未进 score.ts source union（用例内局部类型放宽绕过）。折噪后真实读数 recall 33/35、precision 基本满分；单例措辞翻转 ±2.9pp 与 prompt 批次增益同量级，#73 验收口径须先清噪。linked-09（0/2 静默）/real-14/bug-01 行锚漂移留作判别样本不动
+  - **#140**（P2 真实 CR 裁定回收）：resolve:threads 裁定 append JSONL（fixed/wontfix/false-positive），≥30 样本出生产 FP 率表（severity × confidence），服务 #73 rubric 校准 + dogfood 扩录 + #100 校准；定性非 reinforcement（不自动改 prompt）
+  - **文档说人话 PR（在途）**：doc-critic 新读者评审驱动（README 22 条 / AGENTS 9 条卡点）；README 重组（效果数字换现行口径 94.3/97.1 并标注方差、eval 用例改九组四列表、威胁模型 canary 白话定义、D 编号首现带指针、成本段拆观测/硬闸两段）+ AGENTS.md 工程约定拆逗号链（六规则一句拆四条、三处核对改编号清单、合并闸门逐条单列，规则语义逐条保留）+ architecture.md evals 行计数修正（48→87、real 7→15、corr 5→10、inj 7→9、补 incremental/framing/ctxpair）；陈旧数字全修（284 单测、D001–D042、台账 122 run 0 超时）
+- **发现/坑**：
+  1. README 效果一节的 Day 6 迭代数字（92.6→96.3）与现行口径脱节三月未更新——门面数字要与 report.md 同步换代的维护成本，本次顺手立了先例
+  2. doc-critic 对「历史演进叙述混进规则文本」的通用观察与 harness「只追加少改写」纪律同源——门面/规则文档应只写现状，历史归 journal/decisions
+- **下一步**：
+  1. 文档 PR 过闸门合并（bot 三处核对纪律照走）
+  2. 用户晚间批次：#139 eval 计分噪声修正 + #138 配套 README 引用（#140 可同批顺手）
+  3. #73 reflect 立项（口径清洁后验收闸门可信）
