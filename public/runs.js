@@ -206,6 +206,11 @@ function renderHierarchy(runs, needle) {
 
 let inFlight = false;
 let firstLoad = true;
+// 深链定位待滚动标记（#148）：applyPrHash 置位、load() 数据到齐后消费——首载时数据未到只填框，
+// hashchange 时数据在手立即滚。init 局部声明会让顶层 load() 引用即 ReferenceError（本地桩实测抓出）
+let pendingPrScroll = false;
+const scrollHierarchyIntoView = () =>
+  document.getElementById("hierarchy")?.scrollIntoView({ block: "start" });
 
 async function load() {
   if (inFlight) return;
@@ -230,6 +235,11 @@ async function load() {
     findingsView.apply = renderFindings(state.runs).apply;
     findingsView.apply();
     renderHierarchy(state.runs, document.getElementById("jump-pr").value);
+    if (pendingPrScroll) {
+      // 首载深链（#148）：数据到齐后补滚——init 阶段数据未到只填框，没有这段的话 #pr<N> 只过滤不定位
+      scrollHierarchyIntoView();
+      pendingPrScroll = false;
+    }
     status.textContent = `最近更新 ${new Date().toLocaleTimeString()}`;
   } catch {
     if (firstLoad || state.runs.length === 0) {
@@ -264,7 +274,12 @@ function init() {
   const applyPrHash = () => {
     const m = /^#pr(\d+)$/.exec(location.hash);
     document.getElementById("jump-pr").value = m ? m[1] : "";
-    if (state.runs.length > 0) renderHierarchy(state.runs, document.getElementById("jump-pr").value);
+    if (m) pendingPrScroll = true;
+    if (state.runs.length > 0) {
+      renderHierarchy(state.runs, document.getElementById("jump-pr").value);
+      // 页面已开时同文档 hash 变化：数据在手立即滚；首载数据未到由 load() 消费 pendingPrScroll 补滚
+      if (m) scrollHierarchyIntoView();
+    }
   };
   window.addEventListener("hashchange", applyPrHash);
   applyPrHash();
