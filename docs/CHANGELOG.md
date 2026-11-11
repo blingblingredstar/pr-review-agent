@@ -12,6 +12,7 @@
 
 ### Changed
 
+- README 与 AGENTS.md 说人话重组（doc-critic 新读者评审驱动）：拆超载长句与逗号链、术语首现即定义、规则与历史注记分离；修正陈旧数字（87 用例含全部九组、284 单测、决策记录至 D042、生产台账 122 run、评测能力口径换现行读数）与 architecture.md evals 行计数（会话 50）
 - `PLAN.md` 迁移至 `docs/plans/PLAN.md`；后续阶段性计划/规格统一归档 `docs/plans/`（D010）
 - 全部文档按真实项目定位修订表述
 - 提交身份改为 `blingblingredstar <564447023@qq.com>`，既有提交作者已重写
