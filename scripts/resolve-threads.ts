@@ -236,6 +236,19 @@ async function main(): Promise<void> {
   const firstOf = (t: (typeof threads.nodes)[number]): ThreadComment | undefined => t.original.nodes[0];
   const open = threads.nodes.filter((t) => !t.isResolved);
   const resolved = threads.nodes.filter((t) => t.isResolved);
+  // id → 线程统一映射：original（首条）与末条 id 都接受（PR #144 复审 major：校验与查找必须同一口径，
+  // 查找不命中静默跳过 = 裁定数据丢失）。--verdict 的全部查找都走这张表
+  const idToThread = new Map<number, (typeof threads.nodes)[number]>();
+  for (const t of threads.nodes) {
+    const o = firstOf(t)?.databaseId;
+    const l = lastOf(t)?.databaseId;
+    if (o !== null && o !== undefined) idToThread.set(o, t);
+    if (l !== null && l !== undefined) idToThread.set(l, t);
+  }
+  const verdictThreads = [...verdicts.entries()]
+    .filter(([id]) => idToThread.has(id))
+    .map(([id]) => ({ id, t: idToThread.get(id)! }));
+  const verdictByThreadId = new Map(verdictThreads.map(({ t, id }) => [t.id, verdicts.get(id)!]));
 
   // 裁定行构造（bot major，PR #144）：threadCommentId = 原意见（线程首条）databaseId——幂等键必须
   // 稳定，末条会随后续回复漂移；severity/file/line 同取原意见。reason = 本次 --reply 原文；
@@ -291,17 +304,14 @@ async function main(): Promise<void> {
     if (verdicts.size > 0) {
       // 未带 --only/--yes 时，--verdict 只允许全部指向已 resolve 线程（纯回填路径）；
       // 指向开着的线程 = 裁定未伴随 resolve，线程还开着却已记账
-      const resolvedIds = new Set(resolved.map((t) => lastOf(t)?.databaseId).filter((x): x is number => x !== null && x !== undefined));
-      const openVerdicts = [...verdicts.keys()].filter((id) => !resolvedIds.has(id));
+      const openVerdicts = verdictThreads.filter(({ t }) => !t.isResolved);
       if (openVerdicts.length > 0) {
-        console.error(`--verdict 指向未 resolve 线程时必须与 --only/--yes 搭配（伴随 resolve）：${openVerdicts.join(",")}`);
+        console.error(`--verdict 指向未 resolve 线程时必须与 --only/--yes 搭配（伴随 resolve）：${openVerdicts.map(({ id }) => id).join(",")}`);
         process.exit(1);
       }
-      for (const [id, verdict] of verdicts) {
-        const t = resolved.find((x) => lastOf(x)?.databaseId === id);
-        if (!t) continue;
-        writeRuling(buildRow(t, verdict, null, null, "backfill"));
-        console.log(`backfilled verdict: ${id}=${verdict}`);
+      for (const { id, t } of verdictThreads) {
+        writeRuling(buildRow(t, verdicts.get(id)!, null, null, "backfill"));
+        console.log(`backfilled verdict: ${id}=${verdicts.get(id)}`);
       }
       return;
     }
@@ -325,21 +335,16 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   // --verdict 的 id 必须真实存在（开着的要被 resolve、已 resolve 的走回填），其余报错。
-  // original（首条）与末条 id 都接受——回填时两类引用形态都能定位到同一线程
-  const allIds = new Set(
-    threads.nodes
-      .flatMap((t) => [lastOf(t)?.databaseId, firstOf(t)?.databaseId])
-      .filter((x): x is number => x !== null && x !== undefined),
-  );
-  const missingVerdict = [...verdicts.keys()].filter((id) => !allIds.has(id));
+  // 校验与查找同走 idToThread（original 与末条 id 都接受——两类引用形态定位同一线程）
+  const missingVerdict = [...verdicts.keys()].filter((id) => !idToThread.has(id));
   if (missingVerdict.length > 0) {
     console.error(`--verdict 里的 id 不在该 PR 的线程中（打错或已删）：${missingVerdict.join(",")}`);
     process.exit(1);
   }
-  const openVerdictIds = [...verdicts.keys()].filter((id) => openIds.has(id));
-  const untargeted = openVerdictIds.filter((id) => !targetIds.has(id));
+  const targetThreadIds = new Set(targets.map((t) => t.id));
+  const untargeted = verdictThreads.filter(({ t }) => !t.isResolved && !targetThreadIds.has(t.id));
   if (untargeted.length > 0) {
-    console.error(`--verdict 的 id 在未 resolve 线程中但不在本次 resolve 范围：${untargeted.join(",")}（--only/--yes 带上，或线程已 resolve 才能单独回填）`);
+    console.error(`--verdict 的 id 在未 resolve 线程中但不在本次 resolve 范围：${untargeted.map(({ id }) => id).join(",")}（--only/--yes 带上，或线程已 resolve 才能单独回填）`);
     process.exit(1);
   }
 
@@ -364,7 +369,7 @@ async function main(): Promise<void> {
     if (!res.resolveReviewThread.thread.isResolved) {
       throw new Error(`线程 ${t.id} resolve 后仍为未解决`);
     }
-    const verdict = commentId !== null && commentId !== undefined ? verdicts.get(commentId) : undefined;
+    const verdict = verdictByThreadId.get(t.id);
     if (verdict) {
       // 裁定与 resolve 同事务语义：resolve 成功才落账（追加失败算本次处理失败，重试安全——appendRuling 幂等）
       writeRuling(buildRow(t, verdict, reply ?? null, replyUrl, "ruling"));
@@ -385,13 +390,12 @@ async function main(): Promise<void> {
     console.error(`${failures.length} 条处理失败：\n${failures.join("\n")}`);
     process.exit(1);
   }
-  // 回填落账：--verdict 指向已 resolve 线程 → 不 resolve 不回复，理由引用线程内既有末条回复原文
-  const backfilled = [...verdicts.entries()].filter(([id]) => !openIds.has(id));
-  for (const [id, verdict] of backfilled) {
-    const t = resolved.find((x) => lastOf(x)?.databaseId === id);
-    if (!t) continue;
-    writeRuling(buildRow(t, verdict, null, null, "backfill"));
-    console.log(`backfilled verdict: ${id}=${verdict}`);
+  // 回填落账：--verdict 指向本次未 resolve 的线程（查询时已 resolve）→ 不 resolve 不回复，
+  // 理由引用线程内既有末条回复原文。参与本次 resolve 的已在 resolveOne 内落账
+  for (const { id, t } of verdictThreads) {
+    if (targetThreadIds.has(t.id)) continue;
+    writeRuling(buildRow(t, verdicts.get(id)!, null, null, "backfill"));
+    console.log(`backfilled verdict: ${id}=${verdicts.get(id)}`);
   }
   // 部分 resolve（还有剩余 open 线程）时 check 仍应为红，不重跑
   const coveredAll = only.size === 0 || targets.length === open.length;
