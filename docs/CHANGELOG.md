@@ -12,6 +12,7 @@
 
 ### Changed
 
+- architecture.md 补两张 mermaid 图（审查 prompt 组装顺序 / 增量审查决策流）；AGENTS.md 新增「文档可读性」约定（流程优先配图、issue 正文不放图、门面只写现状）；开放 issue 可读性批次（#119/#107/#74/#75/#69 重写、#73 触发刷新）（会话 50 续）
 - README 与 AGENTS.md 说人话重组（doc-critic 新读者评审驱动）：拆超载长句与逗号链、术语首现即定义、规则与历史注记分离；修正陈旧数字（87 用例含全部九组、284 单测、决策记录至 D042、生产台账 122 run、评测能力口径换现行读数）与 architecture.md evals 行计数（会话 50）
 - `PLAN.md` 迁移至 `docs/plans/PLAN.md`；后续阶段性计划/规格统一归档 `docs/plans/`（D010）
 - 全部文档按真实项目定位修订表述
