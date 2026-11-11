@@ -130,6 +130,7 @@ flowchart TD
 | `REVIEW_TRIGGER_USERS` | 触发白名单 | 逗号分隔 GitHub 用户名，仅名单内 PR 作者触发审查；未设置 = 所有人，`*` = 显式全放行（D021） |
 | `REFLECT_ENABLED` | reflect 二次评分开关（#73 → D043） | 默认未设置 = 关（零行为差异）；`"1"` 开启后 review 阶段对有 blocker/major 意见的 run 跑二次评分过滤；验收读数不划算，重开条件见 D043 |
 | `REFLECT_MIN_SCORE` | reflect 发布阈值 | 默认 8（0-10 整数；0 = 不过滤仅调试）；rubric 封顶 7 的意见被拦、封顶 8 保留；非法值告警回退默认 |
+| `DASHBOARD_PANEL_URL` | pr-review 状态 Details 深链（#148，主项目配置） | dashboard 面板固定域名；设置后 pr-review 状态带 target_url 指向 `runs.html#pr<N>`（PR 页一键看本 PR 运行详情），未设置 = 状态不带 target_url；域名经公开 status API 可见但其后是 Vercel Auth SSO + fail-closed 门 |
 | `LEDGER_GITHUB_REPO` | 台账 outcome 派生的目标仓库（#89，`npm run prodlogs` 用） | `owner/repo` 形态，未设置 = 默认 `blingblingredstar/pr-review-agent`；凭证沿用 `GITHUB_TOKEN`；`--skip-derive` 走纯日志口径 |
 | `BLOB_STORE_ID` / `BLOB_READ_WRITE_TOKEN` | Run 写时持久化的 Blob 凭证（D041） | OIDC 优先（`BLOB_STORE_ID` + 平台注入 `VERCEL_OIDC_TOKEN`，静态 token 无只读形态故弃）；两者均缺席 = 写入面未开通，静默跳过（本地/单测默认态）；dashboard 项目只读同一 store |
 | `RUNS_API_ENABLED` | `/api/runs` 读取面 fail-closed 门（D041，P0-1） | 只配在 dashboard 项目（`"1"`）；主项目不配——同仓双项目部署下主项目域名打 `/api/runs` 必须 404（验收闸门）；缺失/非 "1" 一律 404 且与路由不存在无区别 |
