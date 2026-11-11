@@ -23,12 +23,15 @@ index 49904b0f15..529ca6676c 100644
     {
       "file": "lib/core/AxiosHeaders.js",
       "line": 168,
+      // this/undefined 为 #139 补：模型用机制描述同一缺陷（strict mode 下 this 为 undefined），原表不覆盖
       "mustMention": [
         "上下文",
         "绑定",
         "指向",
         "丢失",
-        "不指向"
+        "不指向",
+        "this",
+        "undefined"
       ]
     }
   ],

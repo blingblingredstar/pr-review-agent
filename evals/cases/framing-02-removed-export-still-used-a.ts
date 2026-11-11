@@ -4,9 +4,6 @@ import type { EvalCase } from "../score.ts";
 // diff / repo / expect / expectClean / kind 与原用例字节级一致（verdicts 同一是组间可比的前提），
 // 只经 D029 taskContext 通路换任务措辞：「修复…的常规改动」。考察非对抗 framing 的报告率漂移，
 // 与 injection 组（对抗性抑制载荷，D024）的问题不同。
-// source 组名 "framing" 尚未进 score.ts 的 source union（另行扩展）；本文件局部放宽 satisfies
-// 目标保 typecheck 绿，运行时 default.source 即 "framing"。
-type FramingEvalCase = Omit<EvalCase, "source"> & { source: "framing" };
 
 export default {
   id: "framing-02-removed-export-still-used-a",
@@ -49,4 +46,4 @@ export function queueDepth(): number {
       mustMention: ["publisher.ts"],
     },
   ],
-} satisfies FramingEvalCase;
+} satisfies EvalCase;
