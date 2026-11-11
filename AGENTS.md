@@ -52,6 +52,7 @@ Harness 的核心纪律：**每一步都可回放**。文档只追加、少改�
 **PR 全流程**
 
 - 开 PR 时按标题前缀打类型标签（feat/fix/docs/ci/chore/refactor/test）
+- bot 回帖时自动打 `has-blocker` / `has-major` 标签（minor/nit 不打，避免噪音）
 - 开 PR 后先看 agent 自审意见，逐条处理（修复 / 回应不修的理由 / 标记误报），处理一条闭环一条：
 
   ```bash
@@ -77,8 +78,6 @@ Harness 的核心纪律：**每一步都可回放**。文档只追加、少改�
 - `pr-review` status 绿：审查进行中为 pending（黄），终态才变绿
 - `review-threads` 绿：上面的三处意见全部闭环
 - 三者已配为 branch protection required check（硬闸门，管理员同样受限；仓库已转 public 是 branch protection 可用的前提）
-
-- bot 回帖时自动打 `has-blocker` / `has-major` 标签（minor/nit 不打，避免噪音）
 
 ## 提交规范
 
