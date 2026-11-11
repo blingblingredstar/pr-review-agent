@@ -245,9 +245,14 @@ async function main(): Promise<void> {
     if (o !== null && o !== undefined) idToThread.set(o, t);
     if (l !== null && l !== undefined) idToThread.set(l, t);
   }
-  const verdictThreads = [...verdicts.entries()]
-    .filter(([id]) => idToThread.has(id))
-    .map(([id]) => ({ id, t: idToThread.get(id)! }));
+  // id 存在性校验在所有路径之前统一收口（PR #144 复审 major：纯回填分支提前 return，
+  // 校验只在带 --only/--yes 的后续路径跑的话，非法 id 被静默滤掉、脚本退出 0）
+  const missingVerdict = [...verdicts.keys()].filter((id) => !idToThread.has(id));
+  if (missingVerdict.length > 0) {
+    console.error(`--verdict 里的 id 不在该 PR 的线程中（打错或已删）：${missingVerdict.join(",")}`);
+    process.exit(1);
+  }
+  const verdictThreads = [...verdicts.entries()].map(([id]) => ({ id, t: idToThread.get(id)! }));
   const verdictByThreadId = new Map(verdictThreads.map(({ t, id }) => [t.id, verdicts.get(id)!]));
 
   // 裁定行构造（bot major，PR #144）：threadCommentId = 原意见（线程首条）databaseId——幂等键必须
@@ -334,13 +339,7 @@ async function main(): Promise<void> {
     console.error(`--reply 里的 id 不在本次要 resolve 的线程中（未含在 --only 或线程已 resolve）：${missingReply.join(",")}`);
     process.exit(1);
   }
-  // --verdict 的 id 必须真实存在（开着的要被 resolve、已 resolve 的走回填），其余报错。
-  // 校验与查找同走 idToThread（original 与末条 id 都接受——两类引用形态定位同一线程）
-  const missingVerdict = [...verdicts.keys()].filter((id) => !idToThread.has(id));
-  if (missingVerdict.length > 0) {
-    console.error(`--verdict 里的 id 不在该 PR 的线程中（打错或已删）：${missingVerdict.join(",")}`);
-    process.exit(1);
-  }
+  // --verdict 的 id 存在性已在 idToThread 构造处统一校验；这里只补「开着的线程必须伴随 resolve」
   const targetThreadIds = new Set(targets.map((t) => t.id));
   const untargeted = verdictThreads.filter(({ t }) => !t.isResolved && !targetThreadIds.has(t.id));
   if (untargeted.length > 0) {
