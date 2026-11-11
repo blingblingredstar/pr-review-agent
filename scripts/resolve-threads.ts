@@ -253,6 +253,13 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   const verdictThreads = [...verdicts.entries()].map(([id]) => ({ id, t: idToThread.get(id)! }));
+  // 同一线程的 original/末条 id 都出现在 --verdict 时 = 同一裁定给了两个标签（verdictByThreadId 后者覆盖、
+  // 回填循环两条都落，最终标签取决于执行路径）——显式报错（PR #144 复审 minor）
+  const threadIds = verdictThreads.map(({ t }) => t.id);
+  if (new Set(threadIds).size !== threadIds.length) {
+    console.error(`--verdict 有多个 id 指向同一线程（original/末条重复引用）：同一裁定只能落一个标签`);
+    process.exit(1);
+  }
   const verdictByThreadId = new Map(verdictThreads.map(({ t, id }) => [t.id, verdicts.get(id)!]));
 
   // 裁定行构造（bot major，PR #144）：threadCommentId = 原意见（线程首条）databaseId——幂等键必须
@@ -262,7 +269,13 @@ async function main(): Promise<void> {
     const first = firstOf(t);
     const last = lastOf(t);
     if (t.recent.nodes.length >= 10) console.warn(`  ⚠ 线程 ${first?.databaseId ?? t.id} 回复数 ≥10，reason/permalink 取的是 recent 窗口内末条（可能截断）`);
-    const reason = replyText ?? (t.recent.nodes.length > 1 ? last!.body : "");
+    let reason = replyText ?? (t.recent.nodes.length > 1 ? last!.body : "");
+    if (!reason) {
+      // 零回复线程的裁定没有可引用的留痕（PR #144 复审 minor）：显式占位不静默落空串——
+      // FP 率台账的每行 reason 都必须可回放
+      console.warn(`  ⚠ 线程 ${first?.databaseId ?? t.id} 无回复留痕，reason 落占位说明（裁定依据请补在 PR 线程或 issue）`);
+      reason = "（线程内无回复留痕，裁定依据见线程上下文）";
+    }
     return buildRulingRow({
       ts: new Date().toISOString(),
       repo: `${owner}/${repo}`,
