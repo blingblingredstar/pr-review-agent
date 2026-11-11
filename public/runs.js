@@ -211,9 +211,13 @@ async function load() {
   if (inFlight) return;
   inFlight = true;
   const status = document.getElementById("status");
+  let failedStatus = null;
   try {
     const res = await fetch("/api/runs");
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      failedStatus = res.status;
+      throw new Error(`HTTP ${res.status}`);
+    }
     const data = await res.json();
     state.runs = (Array.isArray(data?.runs) ? data.runs : [])
       .filter((r) => r && r.v === 1)
@@ -229,7 +233,14 @@ async function load() {
     status.textContent = `最近更新 ${new Date().toLocaleTimeString()}`;
   } catch {
     if (firstLoad || state.runs.length === 0) {
-      showError("数据加载失败：/api/runs 不可用（未登录、RUNS_API_ENABLED 未配置，或服务异常）");
+      // 404 = 读取面结构性不存在（fail-closed 门：RUNS_API_ENABLED 只配在 dashboard 项目，
+      // 主项目 / PR 预览域名上的本页是静态壳）——定向提示防误读成服务故障（#146）。
+      // 网络错误/未登录（SSO 重定向被 CORS 拦成 TypeError）保持 failedStatus = null 走笼统文案
+      showError(
+        failedStatus === 404
+          ? "此部署未启用读取面（/api/runs 404：RUNS_API_ENABLED fail-closed 门未开）——观测面板部署在 dashboard 项目固定域名（SSO 保护），PR 预览 / 主项目域名上的本页只是静态壳；dashboard 域名见 docs/deployment.md"
+          : "数据加载失败：/api/runs 不可用（未登录、RUNS_API_ENABLED 未配置，或服务异常）",
+      );
     } else {
       status.textContent = `刷新失败（${new Date().toLocaleTimeString()}），展示上次数据`;
     }
