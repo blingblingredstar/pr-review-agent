@@ -1,25 +1,35 @@
 // 解决 PR 上未 resolve 的 review 线程——意见闭环的收尾（AGENTS.md 工程约定、D013）。
 // 推荐流程：每轮意见处理后即时闭环——处理过的线程用 --only <databaseId> --reply <databaseId>="回应文本"
 // 回复并 resolve（回应留痕在 PR 线程里，bot 复审翻旧账时结论可见）；全部处理完用 --yes 全量收尾。
-// 不带参数：只列出线程摘要（含序号与 databaseId）。
-// 用法：npm run resolve:threads -- owner/repo#N [--only id1,id2] [--reply id=文本 ...] [--yes]
-import { pathToFileURL } from "node:url";
+// 裁定落账（#140）：--verdict <databaseId>=fixed|wontfix|false-positive 与裁定动作同发，
+// 同步 append 一行机器可读 JSONL（evals/prod-runs/rulings.jsonl）——人工裁定的免费标注不闲置。
+// 回填：--backfill 只读列出已 resolve 线程与回复（人工读贴标）；对已 resolve 线程发 --verdict
+// 即回填落账（不 resolve 不回复，理由引用线程内既有回复原文）。
+// 用法：npm run resolve:threads -- owner/repo#N [--only id1,id2] [--reply id=文本 ...]
+//        [--verdict id=fixed|wontfix|false-positive ...] [--backfill] [--yes]
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { getOctokit } from "../src/github.ts";
+
+export type Verdict = "fixed" | "wontfix" | "false-positive";
+export const VERDICTS: readonly Verdict[] = ["fixed", "wontfix", "false-positive"];
 
 export type ParsedArgs = {
   ref: string;
   yes: boolean;
   only: Set<number>;
   replies: Map<number, string>;
+  verdicts: Map<number, Verdict>;
+  backfill: boolean;
 };
 
-// 参数解析（纯函数，便于单测）：带值 flag（--only/--reply）消费掉自己的值位，
+// 参数解析（纯函数，便于单测）：带值 flag（--only/--reply/--verdict）消费掉自己的值位，
 // 开关判断只看未被消费的位置——否则回复文本/值里恰好出现 "--yes"（shell 引号漏掉时的合法 argv）会被误当开关
 export function parseArgs(argv: string[]): ParsedArgs {
   const [ref = "", ...args] = argv;
   const consumed = new Set<number>();
   const only = new Set<number>();
-  // 循环处理所有 --only 出现位置（与 --reply 一致）：第二个 --only 的值位不被消费的话，
+  // 循环处理所有 --only 出现位置（与 --reply/--verdict 一致）：第二个 --only 的值位不被消费的话，
   // 值恰为 "--yes" 时仍会被误判成开关
   for (let i = 0; i < args.length; i++) {
     if (consumed.has(i) || args[i] !== "--only") continue;
@@ -63,30 +73,126 @@ export function parseArgs(argv: string[]): ParsedArgs {
     }
     replies.set(id, spec.slice(eq + 1));
   }
+  // --verdict <id=标签>，可多次；标签枚举固定（#140），拼错即报错不静默落账
+  const verdicts = new Map<number, Verdict>();
+  for (let i = 0; i < args.length; i++) {
+    if (consumed.has(i) || args[i] !== "--verdict") continue;
+    consumed.add(i);
+    consumed.add(i + 1);
+    const spec = args[i + 1] ?? "";
+    const eq = spec.indexOf("=");
+    const rawLabel = eq > 0 ? spec.slice(eq + 1) : "";
+    const id = Number(spec.slice(0, eq > 0 ? eq : NaN));
+    if (!(VERDICTS as readonly string[]).includes(rawLabel)) {
+      throw new Error(`--verdict 格式应为 id=fixed|wontfix|false-positive，收到："${spec || "(缺参数)"}"`);
+    }
+    if (!Number.isSafeInteger(id) || id <= 0) {
+      throw new Error(`--verdict 的 id "${spec.slice(0, eq > 0 ? eq : NaN)}" 不是合法的线程 databaseId`);
+    }
+    verdicts.set(id, rawLabel as Verdict);
+  }
   const yes = args.some((a, i) => a === "--yes" && !consumed.has(i));
-  return { ref, yes, only, replies };
+  const backfill = args.some((a, i) => a === "--backfill" && !consumed.has(i));
+  if (backfill && (only.size > 0 || replies.size > 0 || verdicts.size > 0 || yes)) {
+    // --backfill 是只读列表模式：混入写动作会让人以为回填已落账
+    throw new Error("--backfill 是只读列表模式，不与 --only/--reply/--verdict/--yes 混用");
+  }
+  return { ref, yes, only, replies, verdicts, backfill };
+}
+
+// —— 裁定台账（#140）：JSONL 一行一裁定，schema 见 evals/prod-runs/README.md ——
+
+export type RulingRow = {
+  ts: string; // 裁定落账时间（ISO）
+  repo: string;
+  pr: number;
+  threadCommentId: number; // 线程末条评论 databaseId（与 --only/--reply 的 id 同一约定）
+  verdict: Verdict; // fixed=修复 / wontfix=回应不修 / false-positive=核实误报
+  reason: string; // 一行理由：裁定时的 --reply 原文；回填时引用线程内既有回复原文（verbatim，无解析）
+  severity: string | null; // 原意见 body 的 **[sev]** 前缀；非 bot 意见为 null
+  confidence: null; // GitHub 评论不渲染 confidence（发布层不渲染），恒 null——消费时从 RunRecord findings join（schema 占位，见 evals/prod-runs/README.md）
+  file: string | null; // 原意见定位（GitHub 评论自带 path/line）
+  line: number | null;
+  permalink: string; // 回复（或原意见）的 GitHub URL，可回放
+  source: "ruling" | "backfill"; // 新裁 vs 历史回填
+};
+
+// severity 从 bot 意见 body 前缀提取（发布格式 `**[severity]** body`，github.ts 唯一写入点）
+export function severityFromBody(body: string): string | null {
+  const m = /^\s*\*\*\[(blocker|major|minor|nit)\]\*\*/.exec(body);
+  return m ? (m[1] as string) : null;
+}
+
+export function buildRulingRow(input: {
+  ts: string;
+  repo: string;
+  pr: number;
+  threadCommentId: number;
+  verdict: Verdict;
+  reason: string;
+  severity: string | null;
+  confidence: null;
+  file: string | null;
+  line: number | null;
+  permalink: string;
+  source: "ruling" | "backfill";
+}): RulingRow {
+  return { ...input };
+}
+
+export function rulingKey(row: Pick<RulingRow, "repo" | "pr" | "threadCommentId">): string {
+  return `${row.repo}#${row.pr}/${row.threadCommentId}`;
+}
+
+// append 纯函数：同 (repo, pr, threadCommentId) 已落账则跳过（重复执行回填/重试安全），否则追加一行
+export function appendRuling(existing: string, row: RulingRow): string {
+  const key = rulingKey(row);
+  const exists = existing
+    .split("\n")
+    .filter(Boolean)
+    .some((line) => {
+      try {
+        return rulingKey(JSON.parse(line) as RulingRow) === key;
+      } catch {
+        return false; // 坏行不阻断（人工排查），不把它当已有裁定
+      }
+    });
+  if (exists) return existing;
+  return existing + (existing && !existing.endsWith("\n") ? "\n" : "") + JSON.stringify(row) + "\n";
+}
+
+const RULINGS_PATH = fileURLToPath(new URL("../evals/prod-runs/rulings.jsonl", import.meta.url));
+
+function writeRuling(row: RulingRow): void {
+  const existing = existsSync(RULINGS_PATH) ? readFileSync(RULINGS_PATH, "utf8") : "";
+  const next = appendRuling(existing, row);
+  if (next !== existing) writeFileSync(RULINGS_PATH, next);
 }
 
 async function main(): Promise<void> {
-  const { ref, yes, only, replies } = parseArgs(process.argv.slice(2));
+  const { ref, yes, only, replies, verdicts, backfill } = parseArgs(process.argv.slice(2));
   const m = ref.match(/^([\w.-]+)\/([\w.-]+)#(\d+)$/);
   if (!m) {
-    console.error("用法：npm run resolve:threads -- owner/repo#N [--only id1,id2] [--reply id=文本 ...] [--yes]");
+    console.error("用法：npm run resolve:threads -- owner/repo#N [--only id1,id2] [--reply id=文本 ...] [--verdict id=标签 ...] [--backfill] [--yes]");
     process.exit(1);
   }
   const [, owner, repo, num] = m;
   const pullNumber = Number(num);
 
   const client = getOctokit();
+  type ThreadComment = {
+    databaseId: number | null;
+    body: string;
+    path: string | null;
+    line: number | null;
+    url: string | null;
+    author: { login: string | null } | null;
+  };
   type Threads = {
     repository: {
       pullRequest: {
         reviewThreads: {
-          nodes: {
-            id: string;
-            isResolved: boolean;
-            comments: { nodes: { databaseId: number | null; author: { login: string | null } | null; body: string }[] };
-          }[];
+          nodes: { id: string; isResolved: boolean; comments: { nodes: ThreadComment[] } }[];
           pageInfo: { hasNextPage: boolean };
         };
       };
@@ -100,7 +206,7 @@ async function main(): Promise<void> {
             nodes{
               id
               isResolved
-              comments(last:1){ nodes{ databaseId body author{ login } } }
+              comments(last:10){ nodes{ databaseId body path line url author{ login } } }
             }
             pageInfo{ hasNextPage }
           }
@@ -115,10 +221,51 @@ async function main(): Promise<void> {
     console.error("review 线程超过 100 条，分页未支持——请人工检查剩余线程");
     process.exit(1);
   }
+  // comments(last:10)：首节点=原意见、末节点=最新回复（超过 10 条的线程退化，按末条处理）
+  const lastOf = (t: (typeof threads.nodes)[number]): ThreadComment | undefined =>
+    t.comments.nodes[t.comments.nodes.length - 1];
   const open = threads.nodes.filter((t) => !t.isResolved);
+  const resolved = threads.nodes.filter((t) => t.isResolved);
+
+  // 裁定行构造：原意见取线程首节点（body 前缀 severity + path/line 定位），
+  // reason = 本次 --reply 原文；无回复文本则引用线程内既有末条回复（verbatim）
+  const buildRow = (t: (typeof threads.nodes)[number], verdict: Verdict, replyText: string | null, replyUrl: string | null, source: "ruling" | "backfill"): RulingRow => {
+    const first = t.comments.nodes[0];
+    const last = lastOf(t);
+    const reason = replyText ?? (t.comments.nodes.length > 1 ? last!.body : "");
+    return buildRulingRow({
+      ts: new Date().toISOString(),
+      repo: `${owner}/${repo}`,
+      pr: pullNumber,
+      threadCommentId: last!.databaseId!,
+      verdict,
+      reason,
+      severity: severityFromBody(first?.body ?? ""),
+      confidence: null,
+      file: first?.path ?? null,
+      line: first?.line ?? null,
+      permalink: replyUrl ?? last!.url ?? "",
+      source,
+    });
+  };
+
+  if (backfill) {
+    // 回填列表模式（#140）：列出已 resolve 线程与全部回复——人工读贴标后对已 resolve 线程发 --verdict 落账
+    console.log(`已 resolve 线程：${resolved.length}`);
+    for (const t of resolved) {
+      const first = t.comments.nodes[0];
+      const last = lastOf(t);
+      console.log(`id=${last?.databaseId ?? "?"} [${severityFromBody(first?.body ?? "") ?? "?"}] ${first?.path ?? "?"}:${first?.line ?? "?"} ${(first?.body ?? "").split("\n")[0].slice(0, 80)}`);
+      for (const c of t.comments.nodes.slice(1)) {
+        console.log(`  reply [${c.author?.login ?? "?"}] ${c.url ?? ""} ${c.body.split("\n")[0].slice(0, 100)}`);
+      }
+    }
+    return;
+  }
+
   console.log(`未 resolve 线程：${open.length}`);
   for (const [i, t] of open.entries()) {
-    const last = t.comments.nodes[0];
+    const last = lastOf(t);
     const text = (last?.body ?? "").split("\n")[0].slice(0, 80);
     console.log(`  #${i + 1} id=${last?.databaseId ?? "?"} [${last?.author?.login ?? "?"}] ${text}`);
   }
@@ -128,35 +275,69 @@ async function main(): Promise<void> {
       console.error("--reply 必须与 --only 或 --yes 搭配使用");
       process.exit(1);
     }
+    if (verdicts.size > 0) {
+      // 未带 --only/--yes 时，--verdict 只允许全部指向已 resolve 线程（纯回填路径）；
+      // 指向开着的线程 = 裁定未伴随 resolve，线程还开着却已记账
+      const resolvedIds = new Set(resolved.map((t) => lastOf(t)?.databaseId).filter((x): x is number => x !== null && x !== undefined));
+      const openVerdicts = [...verdicts.keys()].filter((id) => !resolvedIds.has(id));
+      if (openVerdicts.length > 0) {
+        console.error(`--verdict 指向未 resolve 线程时必须与 --only/--yes 搭配（伴随 resolve）：${openVerdicts.join(",")}`);
+        process.exit(1);
+      }
+      for (const [id, verdict] of verdicts) {
+        const t = resolved.find((x) => lastOf(x)?.databaseId === id);
+        if (!t) continue;
+        writeRuling(buildRow(t, verdict, null, null, "backfill"));
+        console.log(`backfilled verdict: ${id}=${verdict}`);
+      }
+      return;
+    }
     // 防「一键清场」：每条意见都要走过 修复/回应 才该被 resolve（AGENTS.md 流程）
     console.log("逐条处理后：--only <id1,id2> 回复并 resolve 指定线程；全部处理完 --yes 全量收尾");
     return;
   }
   // --only 显式选择即为确认；校验 id 都存在，防打错静默漏掉
-  const openIds = new Set(open.map((t) => t.comments.nodes[0]?.databaseId).filter((x): x is number => x !== null));
+  const openIds = new Set(open.map((t) => lastOf(t)?.databaseId).filter((x): x is number => x !== null && x !== undefined));
   const missing = [...only].filter((id) => !openIds.has(id));
   if (missing.length > 0) {
     console.error(`--only 里的 id 不在未 resolve 线程中（可能已 resolve 或打错）：${missing.join(",")}`);
     process.exit(1);
   }
-  const targets = only.size > 0 ? open.filter((t) => only.has(t.comments.nodes[0]!.databaseId!)) : open;
+  const targets = only.size > 0 ? open.filter((t) => only.has(lastOf(t)!.databaseId!)) : open;
   // --reply 必须落在本次要 resolve 的 targets 上：--only A --reply B 时 B 的回复永远不会被发送，不能静默丢弃
-  const targetIds = new Set(targets.map((t) => t.comments.nodes[0]!.databaseId!));
+  const targetIds = new Set(targets.map((t) => lastOf(t)!.databaseId!));
   const missingReply = [...replies.keys()].filter((id) => !targetIds.has(id));
   if (missingReply.length > 0) {
     console.error(`--reply 里的 id 不在本次要 resolve 的线程中（未含在 --only 或线程已 resolve）：${missingReply.join(",")}`);
+    process.exit(1);
+  }
+  // --verdict 的 id 必须真实存在（开着的要被 resolve、已 resolve 的走回填），其余报错
+  const allIds = new Set(
+    threads.nodes.map((t) => lastOf(t)?.databaseId).filter((x): x is number => x !== null && x !== undefined),
+  );
+  const missingVerdict = [...verdicts.keys()].filter((id) => !allIds.has(id));
+  if (missingVerdict.length > 0) {
+    console.error(`--verdict 里的 id 不在该 PR 的线程中（打错或已删）：${missingVerdict.join(",")}`);
+    process.exit(1);
+  }
+  const openVerdictIds = [...verdicts.keys()].filter((id) => openIds.has(id));
+  const untargeted = openVerdictIds.filter((id) => !targetIds.has(id));
+  if (untargeted.length > 0) {
+    console.error(`--verdict 的 id 在未 resolve 线程中但不在本次 resolve 范围：${untargeted.join(",")}（--only/--yes 带上，或线程已 resolve 才能单独回填）`);
     process.exit(1);
   }
 
   type ResolveResult = { resolveReviewThread: { thread: { isResolved: boolean } } };
   type ThreadNode = (typeof threads.nodes)[number];
   const resolveOne = async (t: ThreadNode) => {
-    const last = t.comments.nodes[0];
+    const last = lastOf(t);
     const commentId = last?.databaseId;
     const reply = commentId !== null && commentId !== undefined ? replies.get(commentId) : undefined;
+    let replyUrl: string | null = null;
     if (commentId && reply) {
       // 回应先落 PR 线程；回复失败则不 resolve——没有留痕的闭环不算闭环
-      await client.rest.pulls.createReplyForReviewComment({ owner, repo, pull_number: pullNumber, comment_id: commentId, body: reply });
+      const replyRes = await client.rest.pulls.createReplyForReviewComment({ owner, repo, pull_number: pullNumber, comment_id: commentId, body: reply });
+      replyUrl = replyRes.data.html_url;
       console.log(`replied: ${commentId}`);
     }
     const res = await client.graphql<ResolveResult>(
@@ -166,6 +347,11 @@ async function main(): Promise<void> {
     // GraphQL 不抛错的边缘场景（如线程刚被删除）也要算失败
     if (!res.resolveReviewThread.thread.isResolved) {
       throw new Error(`线程 ${t.id} resolve 后仍为未解决`);
+    }
+    const verdict = commentId !== null && commentId !== undefined ? verdicts.get(commentId) : undefined;
+    if (verdict) {
+      // 裁定与 resolve 同事务语义：resolve 成功才落账（追加失败算本次处理失败，重试安全——appendRuling 幂等）
+      writeRuling(buildRow(t, verdict, reply ?? null, replyUrl, "ruling"));
     }
     console.log(`resolved: ${commentId ?? t.id}`);
   };
@@ -182,6 +368,14 @@ async function main(): Promise<void> {
   if (failures.length > 0) {
     console.error(`${failures.length} 条处理失败：\n${failures.join("\n")}`);
     process.exit(1);
+  }
+  // 回填落账：--verdict 指向已 resolve 线程 → 不 resolve 不回复，理由引用线程内既有末条回复原文
+  const backfilled = [...verdicts.entries()].filter(([id]) => !openIds.has(id));
+  for (const [id, verdict] of backfilled) {
+    const t = resolved.find((x) => lastOf(x)?.databaseId === id);
+    if (!t) continue;
+    writeRuling(buildRow(t, verdict, null, null, "backfill"));
+    console.log(`backfilled verdict: ${id}=${verdict}`);
   }
   // 部分 resolve（还有剩余 open 线程）时 check 仍应为红，不重跑
   const coveredAll = only.size === 0 || targets.length === open.length;

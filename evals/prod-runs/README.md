@@ -21,3 +21,29 @@ npm run prodlogs -- --seed <jsonl> --seed-only   # 纯导入不实时拉取（�
 - `reviewTokens` = `[reviewDiff] tokens`（两段合计或单段，SDK 返回值）；`routerTokens` = D028 路由段；`probeTokens` = 工具循环第一段。token 数据全部落在带 `[worker]` 行的段上（prepare 段无 token 输出），排除不丢数。
 - `timeout=true` = 命中超时路径（D011 优雅跳过 / postTimeoutNotice）。
 - 2026-11-04 前的历史 run（#51 两笔等）只有 dashboard 截图，未入机器台账（数字在 journal 会话 38）。
+
+## 裁定台账（rulings.jsonl）
+
+`rulings.jsonl` = 本仓真实 PR 上 bot 意见的人工裁定台账（#140），JSONL 一行一裁定，由 `resolve:threads` 的 `--verdict` 落账、`--backfill` 列出已 resolve 线程供人工贴标后回填。用途：生产侧 precision 读数与 #73 reflect 的真实 FP 分布数据源。
+
+行 schema（纯本地文件，随会话收尾按台账惯例 commit）：
+
+```jsonc
+{
+  "ts": "2026-11-12T00:00:00.000Z",   // 裁定落账时间
+  "repo": "owner/repo",
+  "pr": 26,
+  "threadCommentId": 4445269633,      // 线程末条评论 databaseId（与 --only/--reply 的 id 同一约定）
+  "verdict": "fixed",                 // fixed=修复 | wontfix=回应不修 | false-positive=核实误报
+  "reason": "一行理由",                // 裁定时的 --reply 原文；回填时引用线程内既有回复原文（verbatim，不做语义解析）
+  "severity": "minor",                // 原意见 body 的 **[sev]** 前缀；非 bot 意见为 null
+  "confidence": null,                 // GitHub 评论不渲染 confidence（发布层不渲染，D035/#100 口径），消费时从 RunRecord findings join
+  "file": "evals/run.ts",             // 原意见定位（GitHub 评论自带 path/line）
+  "line": 151,
+  "permalink": "https://github.com/…", // 回复（或原意见）URL，可回放
+  "source": "backfill"                // ruling=裁定即时落账 | backfill=历史回填
+}
+```
+
+- 幂等：同 `(repo, pr, threadCommentId)` 已落账则跳过（回填重跑、resolve 重试安全）；append 逻辑纯函数（`appendRuling`）单测覆盖。
+- 消费闸门：样本 ≥30 条前只积累不出读数；首个读数 = 按 severity × confidence 的生产 FP 率表，落 journal 并与 eval 侧 FP 分布对比。不是 reinforcement——数据不自动改 prompt，回流仍是人工 prompt 批次 + eval 红线。
