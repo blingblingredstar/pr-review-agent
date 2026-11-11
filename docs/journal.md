@@ -892,3 +892,22 @@
 - **AGENTS.md 增「文档可读性」三条**：流程/分支/组装优先 mermaid（图给形状文字给细节）；issue 正文不放流程图（经 D029 进审查 prompt，mermaid 语法是模型噪音）；门面/规则文档只写现状、历史归 journal/decisions
 - **开放 issue 可读性批次（API 直改，6 个）**：#119/#107/#74/#75/#69 按新标准重写正文（结构不变、事实全保、悬空引用补白话——#75 引用 agent 内部记忆的「预处理提案」改为行内描述排序）、#73 刷新过时触发（「排 Step 7 后」→ 多模型对照评测侧已完成，改挂 #139 后）；#76/#82/#138-140 已达标不动
 - **发现**：issue 可读性有双重受众——人读 + 经 D029 进审查 prompt 被模型读，所以 issue 的「说人话」标准 = 平实分节而非配图；#75 把 agent 私有记忆当引用来源是「悬空引用」的极端形态，rewrite 时暴露
+
+## 2026-11-12 · 会话 51：夜批——#139 计分噪声修正 + #140 裁定台账回填 + 面板巡检 + #73 reflect 验收（负结果）
+
+- **目标**：用户指令「看下有什么 issue 可以做，晚上能做的都做完；ego-browser 看下 dashboard；过程中发现的问题建 issue 做掉」。
+- **完成**（3 PR 合并/在途 + 面板巡检零新问题）：
+  - **面板巡检（ego-browser）零新问题**：17 runs 全渲染、主项目 `/api/runs` 404 门、`#pr142` 深链（#132 修复产线可用）、文本/severity 过滤、快速定位、30s 自动刷新实测保过滤保滚动；缓存命中列 7/17 渐进覆盖（旧记录「—」预期内）；面板上 4 条前夜 PR 的 bot 意见逐一核代码确认已闭环
+  - **#139 合并（PR #143）**：三处计分噪声 + framing 进 source union；对账单测对两轮历史 run 零 LLM 重打分（11-06 逐位一致基线 / 11-10 仅两翻正 / linked-04 旧 FP 双缺陷期望复核为真发现）；bot 三条折叠全采纳——this/undefined 换「严格模式」机制措辞（泛词把关）、期望行号 26→27、注释空格
+  - **#140 Phase 1 合并（PR #144）**：`--verdict` 裁定落账 + `--backfill` 列表 + PR #26 十八条回填（17 fixed + 1 false-positive，original id 稳定键）；bot 两轮三条 major 全采纳——幂等键末条→首条 original id、校验/查找统一 idToThread 双 id 等价、纯回填分支校验前置；**--verdict 自身 dogfood 落账三笔实时裁定**（台账现 21 行）
+  - **#73 reflect 验收（PR #145，负结果 D043）**：实现全链路（rubric prompt / 同对话续写 / applyReflection / worker REFLECT_ENABLED 默认关 / EVAL_REFLECT 臂 + compare 拆臂）；验收 35 例 × reflect 3 轮 vs baseline 3 轮——precision +7.2pp / recall −2.9pp / 折后成本 ~3.5×，**TP:FP 交换比 1:1 判不启用**；根因 = rubric 校准（真阳性被自评 5-7 分），重开条件三条记 D043
+  - **README 引用 evanxmerz 文章**（#138 配套）：导语一句背景 + 链接
+- **发现 / 坑**：
+  1. **main 有分支保护直推被拒**（GH006：2 required checks）——台账/文档类小改动也必须走 PR；推送后必须核对 `git ls-remote`（一次瞬时 SSH 失败留 ahead 1 未察觉）
+  2. resolve:threads 的 comments(last:10) 双面退化：首节点截断退化（原意见丢）+ 末条漂移（幂等键不稳）——GraphQL 拆 `original: comments(first:1)` / `recent: comments(last:10)` 双别名根治；校验与查找口径不一致（校验双 id、查找单 id）= 静默数据丢失的典型形态
+  3. reflect 的真阳性拦截形态：real 组单条意见用例被自评 ≤7 整条丢弃——「确凿 9-10 / 未确凿 5-7」档位被模型保守应用；被拦意见不入 run JSON，离线归因靠逐用例 hits 对比（重开时再议落盘）
+  4. Python urllib 偶发 SSL EOF（系统 python3.9）——GitHub API 操作换 curl
+- **下一步**：
+  1. #145 过闸门合并；README 引用随本 PR 落
+  2. 生产 REFLECT_ENABLED 维持关闭；#140 台账随 PR 自然积累，≥30 样本出首个生产 FP 率表（reflect 重开第一数据源）
+  3. #138 浅测试 aspect 排期不变（#73 已关闭，前置已清）
