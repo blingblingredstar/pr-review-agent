@@ -6,6 +6,14 @@ import { z } from "zod";
 import { truncateDiff } from "./diff.ts";
 import { buildPlanBlock, type ReviewPlan } from "./router.ts";
 import type { SearchOutcome, Searcher } from "./context.ts";
+import {
+  applyReflection,
+  hasBlockingFinding,
+  REFLECT_FAILURE_SCORE,
+  reflectMinScore,
+  runReflection,
+  type ReflectionInfo,
+} from "./reflect.ts";
 
 // 与 docs/architecture.md 的输出 schema、evals/run.ts 的打分逻辑共用，改这里要同步改评分
 export const reviewResultSchema = z.object({
@@ -120,8 +128,9 @@ export type TokenUsage = {
   cachedInputTokens: number | null;
 };
 
-// reviewDiff 的完整返回：LLM 结构化输出 + 本次调用用量（eval 聚合进 run 落盘，生产走 console 日志）
-export type ReviewOutcome = ReviewResult & { usage: TokenUsage };
+// reviewDiff 的完整返回：LLM 结构化输出 + 本次调用用量（eval 聚合进 run 落盘，生产走 console 日志）。
+// reflection 为 #73 观测面（非 LLM 输出契约，schema 变更纪律不适用）：opts.reflect 注入时携带触发/过滤统计
+export type ReviewOutcome = ReviewResult & { usage: TokenUsage; reflection?: ReflectionInfo };
 
 // 工具循环的 prompt 规模闸（本 PR 自身 dogfood 实测校准，见 reviewDiff 内注释）；
 // worker 侧在重取快照前用同一阈值预判（自审 minor：大 prompt 快照取回不用，白吃预算）
@@ -164,6 +173,10 @@ export type ReviewDiffOpts = {
   // eval-only 变体（#127 按方面拆分消融 B 臂）：system 在 review.md 原文后追加段——worker 编排从不注入，
   // evals/run.ts 的 EVAL_PROMPT_SUFFIX 臂专用；不传时 system 字节级现状（基线红线由构造保证）
   promptSuffix?: string;
+  // reflect 二次评分（#73）：true 且第一轮产出 blocker/major 时同对话续写一次调用，按硬 rubric 打分过滤 +
+  // 修正行号；失败语义 = 未评分意见按失败分处理（默认阈值下全部丢弃，宁可少发）。生产由 worker 按
+  // REFLECT_ENABLED 注入；evals 直调不传（红线：裸路径字节级不变），eval 臂经 EVAL_REFLECT 显式开
+  reflect?: boolean;
 };
 
 // 第一段声明的工具请求（D031）：search 与 read 并列。searches 为查询词、reads 为快照路径，
@@ -215,7 +228,8 @@ export async function reviewDiff(diff: string, context?: string, opts?: ReviewDi
     } else {
       // 工具循环（D027 read_file + D031 search_file）：端点实测 SDK tools + Output 组合不可行（response_format 抑制工具调用），
       // 走 spec 回退形态「两段协议」，见 reviewDiffWithTools
-      return reviewDiffWithTools(llm, LLM_MODEL, prompt, opts.fileReader, opts.searcher, abortSignal, maxSteps, opts.promptSuffix);
+      const run = await reviewDiffWithTools(llm, LLM_MODEL, prompt, opts.fileReader, opts.searcher, abortSignal, maxSteps, opts.promptSuffix);
+      return reflectPass(llm, LLM_MODEL, run, abortSignal, opts.reflect === true);
     }
   }
   // .chat() 强制走 /chat/completions：OpenAI 兼容端点（如 GLM）不实现 Responses API；
@@ -223,7 +237,7 @@ export async function reviewDiff(diff: string, context?: string, opts?: ReviewDi
   // 超时预算见 docs/decisions.md D011（Vercel Hobby 函数上限 300s，留回帖余量）
   // promptSuffix（#127 eval-only）注入时 review.md 原文在后追加段——不传时字符串逐字节相同
   const system = withJsonSuffix(opts?.promptSuffix ? `${loadPrompt()}\n\n${opts.promptSuffix}` : loadPrompt());
-  const { output, usage } = await generateText({
+  const { output, usage, text } = await generateText({
     maxOutputTokens: llmMaxOutputTokens(),
     model: llm.chat(LLM_MODEL),
     output: Output.object({ schema: reviewResultSchema, name: "ReviewResult" }),
@@ -243,7 +257,50 @@ export async function reviewDiff(diff: string, context?: string, opts?: ReviewDi
     `[reviewDiff] tokens: in ${tokenUsage.inputTokens ?? "?"} / out ${tokenUsage.outputTokens ?? "?"}` +
       ` / total ${tokenUsage.totalTokens ?? "?"} / cached ${tokenUsage.cachedInputTokens ?? "?"}`,
   );
-  return { ...output, usage: tokenUsage };
+  return reflectPass(llm, LLM_MODEL, { outcome: { ...output, usage: tokenUsage }, system, lastPrompt: prompt, lastText: text ?? "" }, abortSignal, opts?.reflect === true);
+}
+
+// reflect 编排收口（#73）：单段/工具两路径的产出统一在这里过滤。触发条件 = opts.reflect 开 &&
+// 第一轮有 blocker/major（成本控制）；同对话续写吃前缀缓存（#128）；失败 = 未评分意见按
+// REFLECT_FAILURE_SCORE 处理（默认阈值下全部丢弃，「验证器挂了宁可少发」）
+async function reflectPass(
+  llm: ReturnType<typeof createOpenAI>,
+  modelId: string,
+  run: { outcome: ReviewOutcome; system: string; lastPrompt: string; lastText: string },
+  abortSignal: AbortSignal,
+  reflectOn: boolean,
+): Promise<ReviewOutcome> {
+  const outcome = run.outcome;
+  if (!reflectOn) return outcome;
+  if (!hasBlockingFinding(outcome.comments)) {
+    console.log(`[reflect] 无 blocker/major 意见，跳过二次评分（成本控制）`);
+    return { ...outcome, reflection: { triggered: false, before: outcome.comments.length, after: outcome.comments.length, dropped: 0, relines: 0, failed: false } };
+  }
+  const before = outcome.comments.length;
+  try {
+    const { scores, usage } = await runReflection(llm, modelId, run.system, run.lastPrompt, run.lastText, outcome.comments, abortSignal, llmMaxOutputTokens());
+    const { kept, relines } = applyReflection(outcome.comments, scores, reflectMinScore());
+    console.log(
+      `[reflect] ${before} → ${kept.length} 条（阈值 ${reflectMinScore()}，失败分 ${REFLECT_FAILURE_SCORE}，行号修正 ${relines}）` +
+        ` / tokens: in ${usage.inputTokens ?? "?"} / out ${usage.outputTokens ?? "?"} / cached ${usage.cachedInputTokens ?? "?"}`,
+    );
+    return {
+      ...outcome,
+      comments: kept,
+      usage: sumUsage([outcome.usage, usage]),
+      reflection: { triggered: true, before, after: kept.length, dropped: before - kept.length, relines, failed: false },
+    };
+  } catch (err) {
+    // 调用整体失败 = 回退第一轮原始意见（PR #145 bot major：abortSignal 贯穿两段，第一轮耗掉大半预算后
+    // reflect 撞 abort 是常见路径而非尾部风险——失败即清空会把「合并闸门被一次超时打开」变成常态。
+    // 「宁可少发」限定在经过评分的意见上（applyReflection 的未评分 → 失败分语义）；reflect 没跑成
+    // = 没有验证层，回退基线行为。阈值 0（不过滤调试形态）在此路径同样成立
+    console.error(`[reflect] 失败，保留第一轮原始 ${before} 条意见（无验证层 → 回退基线，不丢已产出意见）`, err);
+    return {
+      ...outcome,
+      reflection: { triggered: true, before, after: before, dropped: 0, relines: 0, failed: true },
+    };
+  }
 }
 
 // 工具循环步预算（D027，D031 语义扩展）：FILE_TOOL_MAX_STEPS，默认 2；数值 0 = 显式关闭（生产 kill switch，
@@ -496,7 +553,7 @@ async function reviewDiffWithTools(
   maxSteps: number,
   // eval-only 变体（#127）：review.md 后追加段（工具指令仍在其后——工具协议优先级高于消融焦点）
   promptSuffix?: string,
-): Promise<ReviewOutcome> {
+): Promise<{ outcome: ReviewOutcome; system: string; lastPrompt: string; lastText: string }> {
   // system 追加指令来自 prompts/review-tools.md（仅 fileReader/searcher 注入时拼接）；review.md 一字不动
   const base = promptSuffix ? `${loadPrompt()}\n\n${promptSuffix}` : loadPrompt();
   const system = `${base}\n\n${loadToolsPrompt()}`;
@@ -514,11 +571,14 @@ async function reviewDiffWithTools(
   // Output 解析失败整审炸
   const hasRequests = requests.searches.length > 0 || requests.reads.length > 0;
   const toolBlock = `${hasRequests ? buildToolBlock(requests, fileReader, searcher) : "[工具结果]（本轮无工具请求，请直接给出审查意见）"}\n\n`;
-  const { output, usage } = await generateText({
+  // json 包裹只算一次（PR #145 bot minor：返回值与第二段调用的 system 必须严格同源——两处独立
+  // 调 withJsonSuffix 虽然当前实现纯函数同参必相等，单源 hoist 让「字节级一致」由构造保证）
+  const jsonSystem = withJsonSuffix(system);
+  const { output, usage, text } = await generateText({
     maxOutputTokens: llmMaxOutputTokens(),
     model: llm.chat(modelId),
     output: Output.object({ schema: reviewResultSchema, name: "ReviewResult" }),
-    system: withJsonSuffix(system),
+    system: jsonSystem,
     prompt: `${toolBlock}${prompt}`,
     abortSignal,
   });
@@ -540,5 +600,5 @@ async function reviewDiffWithTools(
     `[reviewDiff] tokens（两段合计）: in ${tokenUsage.inputTokens ?? "?"} / out ${tokenUsage.outputTokens ?? "?"}` +
       ` / total ${tokenUsage.totalTokens ?? "?"} / cached ${tokenUsage.cachedInputTokens ?? "?"}`,
   );
-  return { ...output, usage: tokenUsage };
+  return { outcome: { ...output, usage: tokenUsage }, system: jsonSystem, lastPrompt: `${toolBlock}${prompt}`, lastText: text ?? "" };
 }

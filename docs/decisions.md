@@ -536,3 +536,21 @@
   8. **依赖**：`@vercel/blob@2.9.0`；传递链 `@vercel/cli-config@0.3.1` 精确钉死 `zod@4.1.11`（GHSA-mrhx-c7xc-m3w5，high）——package.json `overrides` 强制 `zod ^4.6.7`，audit 4 high → 0（#116 同款手法）。
 - **备选**：中心 ledger issue（agent 仓 public，私有仓接入后 findings 外泄，否决——现为全公开仓，将来加私有即踩）；prune 脚本（ttlDays 原生替代，见决策 7）；静态 token（无只读形态，OIDC 替代）；把 findings 存进自有库实时拉 diff 重建（重活且引入二次事实源）。
 - **后果**：新增 `src/runs.ts`（记录模型 + 写/读 + API 门，依赖注入可测）、`api/runs.ts` 薄壳、`public/runs.html|js|css`（CSP 兼容零内联）；worker 信封 state 加 `startedAt` 贯通（additive，prepare issuedAt → RunRecord.startedAt）；worker deps 加 `writeRun` 注入位；`vercel.json` 加 `/runs.html` CSP headers（双项目共享，主项目无该页面无影响）；单测 265 → 284。**部署前置**：Vercel 建 Blob store（private）、建 dashboard 项目并配 `RUNS_API_ENABLED=1` + Blob OIDC、开 Vercel Auth（prod + all previews）、操作禁令（不开 Automation Bypass / 不生成 Shareable Link / 不加 Protection Exceptions）——步骤清单落 docs/deployment.md。**残余风险如实记录**：持 Blob 凭证者可 `del` 抹台账（OIDC 短-lived 已收敛）；Vercel Auth 边界依赖项目配置纪律；私有仓接入前需补服务端代理 + fine-grained 只读凭证（issue 已记为预留项，当前公开仓阶段浏览器直连 GitHub）。
+
+## D043 — reflect 二次评分 v1 验收裁定（2026-11-12）：基础设施合并、生产不启用（precision +7.2pp / recall −2.9pp / 折后成本 ~3.5×，TP:FP 交换比 1:1 不划算）
+
+- **状态**：已接受（2026-11-12，会话 51 夜批；issue #73，#139 计分噪声修正后按期开工；验收数据 = 同 prompt `f4e2b250e88b` 能力口径 35 例 × reflect 3 轮 + baseline 3 轮，全量 run 落 `evals/runs/`，`EVAL_REFLECT` 臂经 compare.ts 分组键拆臂）。
+- **状态更新（2026-11-12 同夜，PR #145 bot major 驱动）**：失败语义修正——原「失败 = 全部按失败分丢弃」改为**两层**：① reflect 调用整体失败 = 回退第一轮原始意见（abortSignal 贯穿两段，第一轮耗掉大半预算后 reflect 撞 abort 是常见路径而非尾部风险，清空会把「合并闸门被一次超时打开」变成常态——可用性优先）；② 调用成功但个别意见未被评分 = 按失败分 7 处理（宁可少发限定在经过评分判定的意见上）。REFLECT_MIN_SCORE=0 的「不过滤调试形态」在两条路径下语义自洽。
+- **背景**：#73（pr-agent 借鉴）= precision 的工程化手段——第一轮审查产出 blocker/major 时同对话续写一次调用，硬 rubric 打 0-10 分过滤低分意见 + 修正行号；「验证器挂了宁可少发」（失败分 7 = 上游 `score_on_reflection_failure` 同型）。实现全链路：`prompts/review-reflect.md`（硬 rubric：0 分四类噪音形态 / 封顶 7 verify-only 与等价改动 / 封顶 8 泛泛错误处理）+ `src/reflect.ts`（applyReflection 纯函数 + runReflection 同对话续写 messages 三元组）+ `review.ts` reflectPass 编排收口（单段/工具两路径统一）+ worker `REFLECT_ENABLED` 开关 + `EVAL_REFLECT` eval 臂（run JSON `reflectArm` 字段、文件名 `-reflect` 后缀、compare.ts 分组键拆臂防混聚）。单测 291→296。
+- **验收读数（三轮微平均）**：
+  - precision **89.4% → 96.7%（+7.2pp）**：每轮 ~2.7 条 FP 被拦——被拦 FP 集中在 linked 组深尾 minor（linked-02/04/05 的第二条投机意见，#139 分析确认的噪声形态），方向有效
+  - recall **83.8% → 81.0%（−2.9pp）**：每轮 ~2.7 条**真阳性**被拦——real 组单条意见用例（real-01/02/03/05/06/07/08/10 各轮出现）的真实 major 被模型自评 ≤7 分整条丢弃
+  - 成本两线：input tokens ×2.7（reflect 段整 prompt 重读）；缓存命中 90%→65%，**按命中折扣（~1/8）折后总成本 ~3.5×**
+  - **TP:FP 交换比 ≈ 1:1**——拦 3 条投机 minor 的代价是拦 3 条真 major，对合并闸门型 bot 净负
+- **决策**：
+  1. **基础设施合并、生产不启用**：`REFLECT_ENABLED` 默认关（未设置 = opts.reflect 恒 false = 裸路径字节级不变，promptHash 零接触）；启用裁定留给读数反转后的显式动作。
+  2. **v1 未过验收的根因判定**：rubric 的「确凿 9-10 / 方向对但未确凿 5-7」档位被模型过度保守应用——自评给真阳性打 5-7（低于阈值 8）。这是**校准问题**不是架构问题：架构（同对话续写 + 缓存 + 宁可少发失败语义）按设计工作。
+  3. **重开条件（三条满足其一重议形态，不重开本轮实现）**：① #140 裁定台账 ≥30 样本的生产 FP 率表显示 FP 集中于 minor/nit 投机类 → 形态改为「reflect 只对 minor/nit 生效」（major/blocker 恒不过滤——合并闸门信号不交给自评校准）；② rubric 校准实验（把「确凿缺陷给 9-10 不要保守」写成显式指令）三轮复测 TP 拦截率显著下降；③ threshold 按 severity 分档（major 阈值降到 ≤5 只拦明确误报）。
+  4. **观测面**：`ReviewOutcome.reflection`（triggered/before/after/dropped/relines/failed）随 run 落盘——被拦意见不入 run JSON（v1 取舍：离线 TP/FP 归因靠逐用例 hits 对比，重开时再议全量落盘）。
+- **备选**：threshold 降到 7——failure 分 7 的意见被保留，「宁可少发」失败语义反转，且 cap-7 的 verify-only 噪音进发布层，否决；rubric 当晚再迭代 + 3 轮复测——单夜方差内调参有过拟合风险，校准列重开条件；放弃实现只记数据——测量工具（EVAL_REFLECT 臂 + compare 拆臂）是重开的必要前置，代码 default-off 零生产面，保留。
+- **后果**：#73 关闭（负结果决策，重开条件见决策 3）；#140 台账成为 reflect 重开的第一数据源；README/架构文档 reflect 段按「基础设施在库、生产默认关」现状表述。

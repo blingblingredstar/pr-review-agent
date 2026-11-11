@@ -13,6 +13,7 @@ import { hasReviewed } from "./dedupe.ts";
 import { decideIncrement, fetchDeltaDiff, latestValidReview, listBotReviews, listCommitShas } from "./incremental.ts";
 import { buildPrevFindingsForPr, fetchDismissedFindings, prevFindingsMaxChars } from "./findings.ts";
 import { buildRepoContext, fileReaderFromEntries, makeSnapshot, searcherFromEntries, snapshotTree } from "./context.ts";
+import { reflectEnabled } from "./reflect.ts";
 import { buildTaskContextForPr } from "./task.ts";
 import {
   buildReviewPrompt,
@@ -346,6 +347,7 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
         plan,
         taskContext,
         previousFindings,
+        reflect: reflectEnabled(),
       });
       // state 累积传递：publish 的 postReview 仍需 diff 做行内预定位（splitByLocatable）
       await deps.chain({ v: 1, stage: "publish", hop: envelope.hop + 1, ref, issuedAt: Date.now(), state: { ...state, result } });

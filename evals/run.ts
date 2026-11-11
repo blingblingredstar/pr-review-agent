@@ -117,9 +117,14 @@ async function main() {
   // worker buildRepoContext 的确定性尾段：触及文件全文按 diff 顺序 + 文件树，预算 contextMaxChars()），
   // 经 reviewDiff 第二位置参数注入（生产 context 通路同款）。其他组开与不开行为完全不变（字节级红线由构造保证）
   const evalContext = process.env.EVAL_CONTEXT === "1";
+  const reflectStats = { triggered: 0, skipped: 0, failed: 0, dropped: 0, relines: 0 };
   // EVAL_PROMPT_SUFFIX 消融臂（#127 按方面拆分 B 臂）：system 在 review.md 原文后追加段（evals/prompts/<名>.md），
   // 经 opts.promptSuffix 进 reviewDiff——仅 eval 侧变体（worker 编排从不注入）；未设置时全链路字节级现状
   const aspectArm = process.env.EVAL_PROMPT_SUFFIX ?? null;
+  // EVAL_REFLECT 消融臂（#73）：reviewDiff opts.reflect 显式开——reflect 二次评分只在第一轮有
+  // blocker/major 时触发（触发/过滤/失败统计随 outcome.reflection 聚合进 summary）。evals 直调
+  // reviewDiff 不传 reflect 的红线不变：不设本 env 时 opts 与基线逐位一致
+  const evalReflect = process.env.EVAL_REFLECT === "1";
   const promptSuffix = aspectArm
     ? readFileSync(new URL(`./prompts/${aspectArm}.md`, import.meta.url), "utf8").trimEnd()
     : undefined;
@@ -135,7 +140,8 @@ async function main() {
       + (evalOnly ? `，子集（EVAL_ONLY）${evalOnly.join(",")}` : "")
       + (evalPlan ? `，router 计划臂（EVAL_PLAN）` : "")
       + (evalContext ? `，上下文注入臂（EVAL_CONTEXT，仅 ctxpair）` : "")
-      + (aspectArm ? `，方面拆分臂（EVAL_PROMPT_SUFFIX=${aspectArm}）` : ""),
+      + (aspectArm ? `，方面拆分臂（EVAL_PROMPT_SUFFIX=${aspectArm}）` : "")
+      + (evalReflect ? `，reflect 二次评分臂（EVAL_REFLECT）` : ""),
   );
 
   // 臂级统计（#65 消融口径）：injected = router 成功出计划；failed = router 抛错按无计划继续（D028
@@ -184,11 +190,24 @@ async function main() {
     let comments: ReviewResult["comments"] = [];
     let usage: TokenUsage | null = null;
     try {
-      // plan / context / aspect 后缀只在有值时并入（裸路径用例 + 三臂均未开 → opts 原样下传，历史字节级一致）
-      const callOpts = promptSuffix ? { ...(opts ?? {}), promptSuffix } : opts;
+      // reflect 臂统计（#73）：触发/跳过/失败/过滤数/行号修正数，outcome.reflection 由 reflectPass 填
+      const trackReflect = (o: { reflection?: { triggered: boolean; failed: boolean; dropped: number; relines: number } }) => {
+        const r = o.reflection;
+        if (!r) return;
+        if (!r.triggered) reflectStats.skipped += 1;
+        else if (r.failed) reflectStats.failed += 1;
+        else reflectStats.triggered += 1;
+        reflectStats.dropped += r.dropped;
+        reflectStats.relines += r.relines;
+      };
+
+      // plan / context / aspect 后缀只在有值时并入（裸路径用例 + 各臂均未开 → opts 原样下传，历史字节级一致）
+      const baseOpts = evalReflect ? { ...(opts ?? {}), reflect: true } : opts;
+      const callOpts = promptSuffix ? { ...(baseOpts ?? {}), promptSuffix } : baseOpts;
       const outcome = await reviewWithRetry(c.diff, ctxText, plan ? { ...(callOpts ?? {}), plan } : callOpts);
       comments = outcome.comments;
       usage = outcome.usage;
+      trackReflect(outcome);
     } catch (e) {
       error = String(e);
     }
@@ -362,7 +381,8 @@ async function main() {
   const planSuffix = evalPlan ? "-plan" : "";
   const ctxSuffix = evalContext ? "-ctx" : "";
   const aspSuffix = aspectArm ? `-asp-${aspectArm}` : "";
-  const base = `${stamp}-${safeModel}-${promptHash}${extraBodyHash}${planSuffix}${ctxSuffix}${aspSuffix}`;
+  const reflectSuffix = evalReflect ? "-reflect" : "";
+  const base = `${stamp}-${safeModel}-${promptHash}${extraBodyHash}${planSuffix}${ctxSuffix}${aspSuffix}${reflectSuffix}`;
   writeFileSync(
     new URL(`./runs/${base}.json`, import.meta.url),
     // schemaVersion 1 = groups 不含 injection、summary.injection 携带拦截率块、echo 口径为违规意见数；
@@ -379,6 +399,9 @@ async function main() {
       // aspectArm（#127 按方面拆分消融）：null = baseline（单遍多方面）；对象 = EVAL_PROMPT_SUFFIX 臂
       //（system = review.md + evals/prompts/<name>.md 后缀）。analyze-aspect-split.ts 按它识别 B 臂轮次
       aspectArm: aspectArm ? { enabled: true, name: aspectArm } : null,
+      // reflectArm（#73）：null = baseline（无二次评分）；对象 = EVAL_REFLECT 臂（触发/过滤统计）。
+      // compare.ts 分组键同款拆臂，防同 prompt 两臂混聚
+      reflectArm: evalReflect ? { enabled: true, ...reflectStats } : null,
       runs, summary: {
       recall, precision, totalExpect, totalHits, totalComments, totalTp, failed, usage: usageTotal, groups: groupMetrics,
       // 注入组拦截率进 JSON（runs/*.json 是 compare 聚合与迭代对比的数据出口，只读 md 抄数会断机械聚合）

@@ -16,6 +16,7 @@ export type RunJson = {
   promptHash?: string;
   planArm?: { enabled?: boolean } | null;
   contextArm?: { enabled?: boolean } | null;
+  reflectArm?: { enabled?: boolean } | null;
   runs: {
     caseId: string;
     source: string;
@@ -39,6 +40,8 @@ export type VersionAggregate = {
   planArm: string;
   // "ctx" = EVAL_CONTEXT 臂组（#80）；"" = baseline（legacy run 无 contextArm 字段同落这里）
   contextArm: string;
+  // "reflect" = EVAL_REFLECT 臂组（#73）；"" = baseline（legacy run 无 reflectArm 字段同落这里）
+  reflectArm: string;
   files: string[];
   micro: Micro;
   groups: Record<string, Micro>;
@@ -85,13 +88,14 @@ export function aggregateRuns(files: { name: string; data: RunJson }[]): Version
     const promptHash = f.data.promptHash ?? "";
     const planArm = f.data.planArm?.enabled ? "plan" : "";
     const ctxArm = f.data.contextArm?.enabled ? "ctx" : "";
-    const key = `${model}\u0000${promptHash}\u0000${planArm}\u0000${ctxArm}`;
+    const reflectArm = f.data.reflectArm?.enabled ? "reflect" : "";
+    const key = `${model}\u0000${promptHash}\u0000${planArm}\u0000${ctxArm}\u0000${reflectArm}`;
     const list = byGroup.get(key) ?? [];
     list.push(f);
     byGroup.set(key, list);
   }
   return [...byGroup.entries()].map(([key, list]) => {
-    const [model, rawHash, planArm, ctxArm] = key.split("\u0000");
+    const [model, rawHash, planArm, ctxArm, reflectArm] = key.split("\u0000");
     const promptHash = rawHash || "legacy(无指纹)";
     // startedAt 相同（精度截断）时以文件名稳定排序，保证「轮N」与命令行顺序可对上
     const ordered = [...list].sort(
@@ -165,6 +169,7 @@ export function aggregateRuns(files: { name: string; data: RunJson }[]): Version
       model,
       planArm,
       contextArm: ctxArm,
+      reflectArm,
       files: ordered.map((f) => f.name),
       micro: microM,
       groups,
@@ -197,7 +202,7 @@ async function main() {
     console.log(`# eval 对比：${files.length} 轮，模型 ${models.join(", ")}\n`);
     // 按 prompt 首次出现顺序输出（命令行顺序即时间顺序）
     for (const agg of aggregateRuns(files)) {
-      console.log(`## ${agg.model} · prompt \`${agg.promptHash}\`${agg.planArm ? " · EVAL_PLAN 臂" : ""}${agg.contextArm ? " · EVAL_CONTEXT 臂" : ""}（${agg.files.length} 轮：${agg.files.join(", ")}）\n`);
+      console.log(`## ${agg.model} · prompt \`${agg.promptHash}\`${agg.planArm ? " · EVAL_PLAN 臂" : ""}${agg.contextArm ? " · EVAL_CONTEXT 臂" : ""}${agg.reflectArm ? " · EVAL_REFLECT 臂" : ""}（${agg.files.length} 轮：${agg.files.join(", ")}）\n`);
       console.log(`| 组 | recall（微平均） | precision（微平均） | LP（located/content） | Noise |`);
       console.log(`|---|---|---|---|---|`);
       for (const [src, m] of Object.entries(agg.groups)) {
