@@ -70,7 +70,9 @@ if [ "${PRRA_REUSE_LAST:-0}" != "1" ]; then
 fi
 
 # ---- 解析最新 run ----
-newname=$(ls -t evals/runs 2>/dev/null | grep '\.json$' | head -1 || true)
+# 名字排序（不按 mtime：worktree 首建会把全部已提交 run 的 mtime 统一置为创建时刻）
+# 文件名前缀 = run startedAt 的 UTC 时间戳，字典序即时间序
+newname=$(ls evals/runs 2>/dev/null | grep '\.json$' | sort -r | head -1 || true)
 new=""
 if [ -n "$newname" ]; then new="evals/runs/$newname"; fi
 if [ -z "$new" ] || ! model=$(jq -r '.model' "$new" 2>/dev/null) || [ -z "$model" ] || ! hash=$(jq -r '.promptHash' "$new" 2>/dev/null) || [ -z "$hash" ]; then
@@ -78,15 +80,31 @@ if [ -z "$new" ] || ! model=$(jq -r '.model' "$new" 2>/dev/null) || [ -z "$model
   note "巡检 run 解析失败（schema 变更？），详见 $LOG"
   exit 1
 fi
+# summary 缺失（schema 变更）显式失败，不让 recall/precision 以空值静默走完
+if ! jq -e '.summary.recall != null and .summary.precision != null' "$new" >/dev/null 2>&1; then
+  log "FAIL：run JSON summary 缺 recall/precision（${new}）"
+  note "巡检 run summary 解析失败（schema 变更？），详见 $LOG"
+  exit 1
+fi
 recall=$(jq -r '(.summary.recall*10000|round)/100' "$new")
 precision=$(jq -r '(.summary.precision*10000|round)/100' "$new")
-failed=$(jq -r '.summary.failed' "$new")
+failed=$(jq -r '.summary.failed // 0' "$new")
 
-# ---- 对照：上一次同 model+promptHash 的 run（worktree 内 = 主库已提交历史 + 既往巡检 run） ----
-# top-2 里排除本次 run（最新匹配必是它自己），剩下的最新一条才是对照
-prevname=$(ls -t evals/runs 2>/dev/null | grep -F -- "-${model}-${hash}-" | grep '\.json$' | head -2 | grep -vF -- "$newname" | head -1 || true)
+# ---- 对照：上一次「同口径」的 run（worktree 内 = 主库已提交历史 + 既往巡检 run） ----
+# 文件名只含 model+promptHash+extraBody 指纹，过滤不掉 ctx/reflect/plan 臂与 EVAL_ONLY 子集 run
+#（后缀 -ctx/-reflect 在 extraBody 指纹之后，EVAL_ONLY 更是不留名）——逐个开 JSON 验内容：
+# 必须 evalOnly 为空、三臂全 false、llmExtraBody 与本次一致（thinking 档位变了也不可比）
+newextra=$(jq -c '.llmExtraBody' "$new")
 prev=""
-if [ -n "$prevname" ]; then prev="evals/runs/$prevname"; fi
+for candname in $(ls evals/runs 2>/dev/null | grep -F -- "-${model}-${hash}-" | grep '\.json$' | sort -r); do
+  [ "$candname" = "$newname" ] && continue
+  if jq -e --argjson extra "$newextra" \
+       '(.evalOnly == null) and (.planArm != true) and (.contextArm != true) and (.reflectArm != true) and (.llmExtraBody == $extra)' \
+       "evals/runs/$candname" >/dev/null 2>&1; then
+    prev="evals/runs/$candname"
+    break
+  fi
+done
 
 alert=""
 if [ -z "$prev" ]; then
