@@ -127,6 +127,24 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 
 **迭代对比**：每个 run 落盘记录 prompt 内容指纹和逐用例结果，`node --import tsx evals/compare.ts evals/runs/<run>.json ...` 聚合出组指标与短板矩阵；历史对比见 [evals/report.md](./evals/report.md)。
 
+## 同类工具对照
+
+> 对照对象：[shadcn/improve](https://github.com/shadcn/improve)（全仓审计 agent skill）。本表是 2026-11-12 对其 main@`cac56e1` 的源码精读快照，完整分析见 [docs/plans/shadcn-improve-analysis.md](./docs/plans/shadcn-improve-analysis.md)；另一对标 pr-agent 的精读见 [docs/plans/pr-agent-analysis.md](./docs/plans/pr-agent-analysis.md)。文中 `D0XX` 同样指 [docs/decisions.md](./docs/decisions.md) 的决策编号。
+
+两者共享不少直觉——意见必须带 file:line 证据、仓库内容是数据不是指令、模型按能力分层使用——结构差异如下：
+
+| 维度 | shadcn/improve | 本项目 |
+|---|---|---|
+| 形态 | 本地 agent skill，人工跑 `/improve`，对话式挑 findings | webhook 服务，PR 事件自动触发，无人值守 |
+| 审查对象 | 整个仓库（`branch` 变体审分支变更） | PR diff，修改锚定——意见永远是「你的改动引起了 X」 |
+| 产出 | findings 表 + 给便宜模型执行的自包含实现计划 | 逐条行内意见 + REQUEST_CHANGES 合并闸门 |
+| 假阳性过滤 | Vet 阶段：审计子代理的 findings 由主模型逐条重读引用代码复核，拒绝项记入索引防下轮重报 | 运行时二遍过滤实测后不启用（reflect 二次评分：precision +7.2pp / recall −2.9pp、真阳性换假阳性 1:1，D043）；改为生成侧规则 + 发帖前行号预定位（D016）+ 裁定台账度量真实 FP 率 |
+| 审查质量评测 | **无**——零标注用例，findings 置信度是模型自报 | 87 用例评测集，确定性打分 recall / precision，promptHash 基线，改 prompt 必跑回归 |
+| 注入抗性 | 规则声明（内容是数据不是指令，并逐字传播给子代理），无测量 | 9 例注入用例持续回归，拦截率独立口径 |
+| 复审 | `reconcile` 手动维护计划状态（漂移检查靠 git SHA 戳） | 自动：commit 幂等（D010）、区间增量（D032）、上一轮意见逐字重报防措辞漂移（D035） |
+
+两个头部对标（improve 约 10k⭐、pr-agent 约 14.8k⭐）在同一点上留下结构缺口：都以「让模型再检查一遍」（Vet / reflect）替代「测量检查得对不对」。质量迭代回路——评测集 → 改 prompt → 回归对比——是本项目与它们的差异所在。
+
 ## 路线图
 
 按优先级排序；质量基线看 eval 报告，成本基线看评测落盘的 token 用量。活任务与执行追踪（待办 / 观察项 / 触发条件 / 验收闸门）见 [GitHub Issues（label: roadmap）](https://github.com/blingblingredstar/pr-review-agent/issues?q=is%3Aissue+is%3Aopen+label%3Aroadmap)（D034 单源原则）；[docs/plans/roadmap-execution.md](./docs/plans/roadmap-execution.md) 为历史执行计划存档（状态列已停止维护）。
