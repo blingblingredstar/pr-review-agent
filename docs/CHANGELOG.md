@@ -12,6 +12,7 @@
 
 ### Changed
 
+- 浅测试检测 aspect 接入单遍 prompt（#138 → D044）：新增测试与被测代码同在 diff 内时检查边界分支触达面，零触达报「哪个分支缺测试用例」、锚在测试行——「测试缺口」进可指认缺陷清单，「覆盖率低」类无锚定建议仍不发；eval 新增正/负例（shallow-01/02，能力期望 35→36、用例 87→89）；首版措辞一轮回归暴露压制干扰（bug-02/07 基线 8/8 全命中史同轮零意见——锚定要求被读成边界类发现的定位前置），措辞显式化否定面后修订版两轮微平均 recall 88.9% / precision 97.1%，高于基线带均值，promptHash 基线换代 `4a1c2b4d0679`
 - README 新增「同类工具对照」表 + shadcn/improve 源码精读归档（`docs/plans/shadcn-improve-analysis.md`，上游 main@`cac56e1`）：重点拆 Vet 阶段假阳性过滤（主模型逐条重读子代理 findings + 三类预期误报处置 + 拒绝台账防重报），对照本项目 D043 reflect 实测否决 / D016 行号预定位 / #140 裁定台账；「审查质量评测缺口」获第二个头部对标独立确证（前次 pr-agent），为本项目核心差异化卖点
 - pr-review 状态带 Details 深链（#148）：`DASHBOARD_PANEL_URL`（主项目，可选）配置后状态 target_url 指向面板 `runs.html#pr<N>`——PR 页一键看本 PR 运行详情；「View deployment」按钮指向 Vercel 部署 URL 不可定制，双项目下只有 dashboard 项目那条能打开面板（实测登录态可用），本深链是永远指向生产面板的单一入口；未配置 = 现状不变
 - 面板页无读取面域名上的报错定向化（#146）：`/api/runs` 404（RUNS_API_ENABLED fail-closed 门未开——主项目 / PR 预览部署）显示「此部署未启用读取面」提示并指向 dashboard 项目入口，其余失败维持笼统文案；本地桩（静态服务器 404）实测，真浏览器验证

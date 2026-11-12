@@ -80,14 +80,14 @@ function parseDiff(diff: string): { files: Set<string>; newLineRanges: Map<strin
   return { files, newLineRanges, errors };
 }
 
-test("用例集：87 个、id 唯一、synthetic 20（bug/linked 各 10）+ real 15 + dogfood 2 + injection 9 + repo 7 + correlation 10 + incremental 10 + framing 9 + ctxpair 5", async () => {
+test("用例集：89 个、id 唯一、synthetic 22（bug 12 + linked 10）+ real 15 + dogfood 2 + injection 9 + repo 7 + correlation 10 + incremental 10 + framing 9 + ctxpair 5", async () => {
   const cases = await loadCases();
-  assert.equal(cases.length, 87, `应有 87 个用例，实际 ${cases.length}`);
+  assert.equal(cases.length, 89, `应有 89 个用例，实际 ${cases.length}`);
   const ids = cases.map((c) => c.id);
-  assert.equal(new Set(ids).size, 87, "id 有重复");
+  assert.equal(new Set(ids).size, 89, "id 有重复");
   const synthetic = cases.filter((c) => (c.source ?? "synthetic") === "synthetic");
-  assert.equal(synthetic.length, 20, "synthetic 应 20 个");
-  assert.equal(synthetic.filter((c) => c.kind === "bug").length, 10, "synthetic bug 类应 10 个");
+  assert.equal(synthetic.length, 22, "synthetic 应 22 个");
+  assert.equal(synthetic.filter((c) => c.kind === "bug").length, 12, "synthetic bug 类应 12 个");
   assert.equal(synthetic.filter((c) => c.kind === "linked").length, 10, "synthetic linked 类应 10 个");
   assert.equal(cases.filter((c) => c.source === "real").length, 15, "real 应 15 个");
   assert.equal(cases.filter((c) => c.source === "dogfood").length, 2, "dogfood 应 2 个");
