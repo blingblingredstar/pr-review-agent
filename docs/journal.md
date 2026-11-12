@@ -943,3 +943,17 @@
   2. #140 台账自然积累（22 行，≥30 出首个生产 FP 率表）
   3. 金丝雀周巡检提议仍待用户答复（零新代码本地 cron，非 Vercel）
   4. #75 与预处理提案同批评估的排序未动（异步化→预处理队列维持）
+
+## 2026-11-13 · 会话 54：金丝雀周巡检落地 + #75 同批评估定案（D045）
+
+- **目标**：用户指令「这两个做一下」——指上会话遗留的两个待答复项：①金丝雀周巡检（本地 cron）；②#75 与预处理提案的同批评估。
+- **完成**（2 PR 在途 + 1 issue 裁决 + 1 ops 落地）：
+  - **#75 同批评估（D045）**：排序前提失效——原链 usage 日志（✅）→ 异步化（✅ D026）→ 预处理 = 上下文增强第一阶段（✅ D023），「同批」对象已不存在；门槛远超（台账 112+ run）；成本可测（#128 cached_tokens，AGENTS.md ~2-3k tokens 进前缀吃缓存）；独立佐证第二落（improve ADR→Vet 参照）；靶面有 ctxpair 结构性读数（D023 形态不含非触及文件约定文档，convention 增益理论 ≈0）。**裁决：启动实现，下一主动项**。实现级关键结论：default-branch-only trust 必须独立拉取（head zipball 是作者可控内容，复用快照会破坏 trust 边界）；Memdoor 式预处理维持 D020 否决。issue #75 已评论留痕
+  - **金丝雀周巡检**：`scripts/canary-patrol.sh`（独立 worktree reset --hard origin/main + APFS 克隆 node_modules + lock 指纹变化才 npm ci + .env 符号链接 + 全量 eval + 同 model+promptHash 对照 + 下滑 ≥6pp 或失败 ≥3 弹通知）+ launchd 每周一 09:00；patrol run 留在 worktree 不入主库，主库已提交 run 天然作对照历史；PRRA_REUSE_LAST=1 调试旁路
+- **发现 / 坑**：
+  1. zsh 脚本 `set -euo pipefail` 三连坑：glob 无匹配直接中止（nomatch 默认开，ls 前就炸）、nvm.sh 内部 unbound 变量（set +u 包裹 source）、`ls 空 glob` 进管道被 pipefail 判死——目录列表 + grep 过滤替代 glob 最稳
+  2. npm ci 会先删 node_modules——worktree 里 node_modules 若是指向主仓的符号链接会连带删掉主仓依赖，故用 APFS 克隆实体目录（cp -Rc 秒级）而非链接
+  3. launchd 验证口径沿用面板巡检 P0 教训（「部署验证必须含真读数」）：bootstrap + kickstart 真跑一次全链路，不看「配置加载成功」就当通过
+- **下一步**：
+  1. #75 实现（下一主动项，D045 已定形态与验收）；金丝雀巡检每周一 09:00 自动跑，漂移读数人工分析后入 report.md
+  2. #140 台账积累（23 行，≥30 出 FP 率表）
