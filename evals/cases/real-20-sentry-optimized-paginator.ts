@@ -218,7 +218,9 @@ index 2d9ecf553d2..d1489ba6aa9 100644
     },
     {
         file: "src/sentry/api/paginator.py",
-        line: 882,
+        // line null 文件级：负切片缺陷在 diff 内两处同机制实例（基类 get_result ~183 / OptimizedCursorPaginator ~882），
+        // golden 只标后者而首读数模型报前者（同缺陷）——实例枚举口径，mustMention 守内容（bot minor，PR #158 审查）
+        line: null,
         mustMention: [
             "负数",
             "负值",

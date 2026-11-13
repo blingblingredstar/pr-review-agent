@@ -101,7 +101,9 @@ index e2ab07595af..1085d72dfb9 100644
   expect: [
     {
         file: "packages/features/ee/workflows/api/scheduleSMSReminders.ts",
-        line: 39,
+        // line null 文件级：首读数实证评审锚位天然漂移（模型贴 OR 数组开头行 33，距机制行 39 差 6 行），
+        // 同缺陷多锚位合理；内容由 mustMention 守（bot minor：单行锚会系统性记假 miss，PR #158 审查）
+        line: null,
         mustMention: [
             "误删",
             "删掉",
