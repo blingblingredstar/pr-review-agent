@@ -80,24 +80,26 @@ function parseDiff(diff: string): { files: Set<string>; newLineRanges: Map<strin
   return { files, newLineRanges, errors };
 }
 
-test("用例集：92 个、id 唯一、synthetic 22（bug 12 + linked 10）+ real 15 + dogfood 2 + injection 10 + repo 7 + correlation 10 + incremental 10 + framing 9 + ctxpair 5 + agentsmd 2", async () => {
+// 分组计数不做硬断言（#119 C3 去脆：每批量加用例必改断言的脆点）——tripwire 由
+// 「source 必属已知枚举 + 已知组不得为空」承担：拼错 source、组被整组删空仍会红，
+// 加用例则零测试改动。组数现状以 evals/report.md 各轮 runs 计数为准
+const KNOWN_SOURCES = ["synthetic", "real", "dogfood", "injection", "repo", "correlation", "incremental", "framing", "ctxpair", "agentsmd"] as const;
+
+test("用例集：id 唯一、source 显式且属已知枚举、已知组非空、synthetic 两 kind 并存", async () => {
   const cases = await loadCases();
-  assert.equal(cases.length, 92, `应有 92 个用例，实际 ${cases.length}`);
+  assert.ok(cases.length >= 60, `用例总数 ${cases.length} 异常（疑似 loadCases 大面积漏载）`);
   const ids = cases.map((c) => c.id);
-  assert.equal(new Set(ids).size, 92, "id 有重复");
+  assert.equal(new Set(ids).size, cases.length, "id 有重复");
+  const bySource = new Map<string, number>();
+  for (const c of cases) bySource.set(c.source ?? "synthetic", (bySource.get(c.source ?? "synthetic") ?? 0) + 1);
+  for (const [src] of bySource) {
+    assert.ok((KNOWN_SOURCES as readonly string[]).includes(src), `未知 source「${src}」（拼错或新组未登记 KNOWN_SOURCES）`);
+  }
+  for (const src of KNOWN_SOURCES) {
+    assert.ok((bySource.get(src) ?? 0) >= 1, `已知组「${src}」为空（整组删空或 source 漏写）`);
+  }
   const synthetic = cases.filter((c) => (c.source ?? "synthetic") === "synthetic");
-  assert.equal(synthetic.length, 22, "synthetic 应 22 个");
-  assert.equal(synthetic.filter((c) => c.kind === "bug").length, 12, "synthetic bug 类应 12 个");
-  assert.equal(synthetic.filter((c) => c.kind === "linked").length, 10, "synthetic linked 类应 10 个");
-  assert.equal(cases.filter((c) => c.source === "real").length, 15, "real 应 15 个");
-  assert.equal(cases.filter((c) => c.source === "dogfood").length, 2, "dogfood 应 2 个");
-  assert.equal(cases.filter((c) => c.source === "injection").length, 10, "injection 应 10 个");
-  assert.equal(cases.filter((c) => c.source === "agentsmd").length, 2, "agentsmd 应 2 个");
-  assert.equal(cases.filter((c) => c.source === "repo").length, 7, "repo 应 7 个");
-  assert.equal(cases.filter((c) => c.source === "correlation").length, 10, "correlation 应 10 个");
-  assert.equal(cases.filter((c) => c.source === "incremental").length, 10, "incremental 应 10 个");
-  assert.equal(cases.filter((c) => c.source === "framing").length, 9, "framing 应 9 个");
-  assert.equal(cases.filter((c) => c.source === "ctxpair").length, 5, "ctxpair 应 5 个");
+  assert.ok(synthetic.some((c) => c.kind === "bug") && synthetic.some((c) => c.kind === "linked"), "synthetic 组 bug/linked 两 kind 应并存");
   // 增量对照组（D032 开放问题②）：full/delta 成对（5 fixture × 2 口径）；id 前缀防漏写；
   // repo 快照必带（head 态模拟生产 zipball，两口径共用同一快照——对照的唯一变量是 diff 区间）
   const incIds = cases.filter((c) => c.source === "incremental").map((c) => c.id);
@@ -221,7 +223,7 @@ test("repo/incremental/framing/ctxpair 组 fixture 结构：diff 触及文件都
 
 test("framing 组（#99）：fixture 三变体成对（-a/-b/-c），同 fixture 的 diff/kind/expect/expectClean/repo 组内一致（只差 taskContext 措辞）", async () => {
   const cases = (await loadCases()).filter((c) => (c.source as string) === "framing");
-  assert.equal(cases.length, 9, "framing 应 9 个");
+  // 总数不做硬断言（#119 C3）：变体后缀缺失与 trio 数量校验已覆盖（多出的无后缀文件在下方 notEqual 处红）
   const byBase = new Map<string, EvalCase[]>();
   for (const c of cases) {
     const base = c.id.replace(/-(a|b|c)$/, "");

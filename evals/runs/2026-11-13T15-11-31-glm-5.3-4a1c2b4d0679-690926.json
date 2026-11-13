@@ -1,0 +1,699 @@
+{
+  "startedAt": "2026-11-13T15:11:31.809Z",
+  "model": "glm-5.3",
+  "llmBaseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+  "llmExtraBody": "{\"thinking\":{\"type\":\"enabled\"},\"reasoning_effort\":\"low\"}",
+  "promptHash": "4a1c2b4d0679",
+  "evalOnly": [
+    "correlation"
+  ],
+  "capabilityScope": "synthetic+real",
+  "schemaVersion": 1,
+  "planArm": null,
+  "contextArm": null,
+  "aspectArm": null,
+  "reflectArm": null,
+  "runs": [
+    {
+      "caseId": "corr-01-fastify-destroyed-guard",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1143,
+        "outputTokens": 59,
+        "totalTokens": 1202,
+        "cachedInputTokens": 0
+      },
+      "durationMs": 2996,
+      "score": {
+        "caseId": "corr-01-fastify-destroyed-guard",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/wrapThenable.js",
+              "line": 24,
+              "mustMention": [
+                "挂起",
+                "hang",
+                "空响应",
+                "empty",
+                "不发送",
+                "无法响应",
+                "无响应",
+                "消费",
+                "consumed",
+                "误判"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "corr-02-undici-textdecoder-module",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1355,
+        "outputTokens": 81,
+        "totalTokens": 1436,
+        "cachedInputTokens": 832
+      },
+      "durationMs": 2162,
+      "score": {
+        "caseId": "corr-02-undici-textdecoder-module",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": [
+                "lib/web/websocket/receiver.js",
+                "lib/web/websocket/util.js"
+              ],
+              "line": null,
+              "mustMention": [
+                "icu",
+                "intl",
+                "顶层",
+                "模块",
+                "加载"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "corr-03-fastify-findroute-head",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/route.js",
+          "line": 325,
+          "severity": "blocker",
+          "body": "find-my-way 的路由实例没有 `findRoute` 方法，查找接口是 `find(method, url, constraints)`。此处调用会在运行时抛 `router.findRoute is not a function`，导致所有非 HEAD-on-GET 场景的路由构建直接失败。应改回 `router.find('HEAD', opts.url, constraints)`（若确有新 API，需先确认 router 版本真的导出了 `findRoute`）。另外 `find` 返回 `null` 表示未命中，原 `!= null` 写法本身无误，本次改为 `!== null` 属行为等价的改动，但真正的问题是方法名被替换。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1058,
+        "outputTokens": 328,
+        "totalTokens": 1386,
+        "cachedInputTokens": 832
+      },
+      "durationMs": 6110,
+      "score": {
+        "caseId": "corr-03-fastify-findroute-head",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/route.js",
+              "line": 325,
+              "mustMention": [
+                "findroute",
+                "already declared",
+                "constraints",
+                "重复声明",
+                "清理"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "corr-04-axios-settle-abort",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/adapters/http.js",
+          "line": 240,
+          "severity": "blocker",
+          "body": "HTTP/2 的 authority 端口默认硬编码为 80：`options.protocol + '//' + options.hostname + ':' + (options.port || 80)`。当协议为 https 且未显式指定 port 时（绝大多数 https 请求），authority 会是 `https://host:80`，connect 会尝试对 80 端口发起 TLS 连接，直接连接失败。应按协议选择默认端口：`(options.port || (isHttpsRequest ? 443 : 80))`。",
+          "confidence": "high"
+        },
+        {
+          "file": "lib/adapters/http.js",
+          "line": 87,
+          "severity": "blocker",
+          "body": "新建的 http2 session 没有注册 'error' 监听。`connect()` 返回的 session 在连接失败（DNS 失败、拒绝连接、协议错误、GOAWAY 异常等）时会 emit 'error'，没有监听器的 EventEmitter 'error' 事件会作为 uncaught exception 使整个进程崩溃，而不是走请求的 reject 路径。需要在 connect 后（或在每次 request 前确保）挂 `session.on('error', ...)` 把错误传导到当前请求的 reject。",
+          "confidence": "high"
+        },
+        {
+          "file": "lib/adapters/http.js",
+          "line": 704,
+          "severity": "major",
+          "body": "把 `reject` 替换成 `abort` 传给 settle 及其他错误路径（line 704 `settle(resolve, abort, response)`、line ~718 maxContentLength、line ~795 timeout 解析失败），会篡改错误语义：abort 内部 `!reason || reason.type ? new CanceledError(null, config, req) : reason`，而 AxiosError 并没有 `type` 属性，因此 settle 对非 2xx 状态构造的 AxiosError、maxContentLength 超限错误、timeout 配置错误都会被替换成 `CanceledError(null, ...)`——用户拿到的错误类型、message、code 全部丢失，404 会被当成「请求被取消」。这些路径应继续直接 reject（或至少保证带 AxiosError 的 reason 原样透传），abort 只用于取消场景。",
+          "confidence": "high"
+        },
+        {
+          "file": "lib/adapters/http.js",
+          "line": 67,
+          "severity": "minor",
+          "body": "默认 `sessionTimeout: 1000` 过于激进且语义与 HTTP/1 路径不一致：http2 session 的 setTimeout 是基于空闲（无帧活动）触发的，1 秒内服务端没有任何下行的慢响应/慢下载会被 `session.close()` 掐断，正常长请求可能被误杀。建议默认不启用或取一个宽松得多的值（并与文档化的 config 超时语义对齐）。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3780,
+        "outputTokens": 3221,
+        "totalTokens": 7001,
+        "cachedInputTokens": 832
+      },
+      "durationMs": 55645,
+      "score": {
+        "caseId": "corr-04-axios-settle-abort",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/adapters/http.js",
+              "line": 704,
+              "mustMention": [
+                "中断",
+                "销毁",
+                "读不到",
+                "截断",
+                "改道",
+                "错误响应",
+                "non-ok"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 4,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high",
+          "high",
+          "high",
+          "medium"
+        ],
+        "commentTps": [
+          false,
+          false,
+          false,
+          false
+        ],
+        "commentHitCounts": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "corr-05-undici-fragments-bytes",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/web/websocket/receiver.js",
+          "line": 243,
+          "severity": "major",
+          "body": "compressed 分支的 inflate 回调里 `bufferConcat(this.#fragments, this.#fragmentsBytes)` 依赖 `#fragmentsBytes` 与 `#fragments` 同步。但本 diff 只在非 compressed 分支（else 内）对 push 后的字节数累加；如果 compressed 帧的 body 是在本 diff 未展示的位置 push 进 `#fragments` 的（回调里确有 `this.#fragments.length = 0` 的重置，说明该路径下 fragments 非空），那么 `#fragmentsBytes` 会保持 0，`bufferConcat` 在 `length === 0` 时直接返回空 buffer，导致压缩消息被静默替换为空内容。请核对 compressed 路径的 push 点，若有，需同样累加 `#fragmentsBytes`；确认全部 push 都在 diff 展示的 else 分支内的话此条可忽略。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1727,
+        "outputTokens": 2122,
+        "totalTokens": 3849,
+        "cachedInputTokens": 896
+      },
+      "durationMs": 35034,
+      "score": {
+        "caseId": "corr-05-undici-fragments-bytes",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": [
+                "lib/web/websocket/receiver.js",
+                "lib/web/websocket/util.js"
+              ],
+              "line": null,
+              "mustMention": [
+                "压缩",
+                "计数",
+                "截断",
+                "零填充",
+                "truncat",
+                "fragmentsbytes"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "medium"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "corr-06-express-sync-guard",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/router/route.js",
+          "line": 133,
+          "severity": "blocker",
+          "body": "计数器超过 100 后会陷入无限 setImmediate 循环：`sync` 只在 `handle_request` 返回后才重置为 0，而一旦走到 `setImmediate(next, err)` 分支，next 每次被调用时 `++sync` 仍大于 100（101→102→…），于是永远走不到 `handle_request`，形成 setImmediate 自我递归，请求永远不会被处理。修法：在 setImmediate 前重置计数，如 `sync = 0; return setImmediate(next, err)`。lib/router/index.js 第 207 行同样的代码有一模一样的问题。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1388,
+        "outputTokens": 486,
+        "totalTokens": 1874,
+        "cachedInputTokens": 832
+      },
+      "durationMs": 7934,
+      "score": {
+        "caseId": "corr-06-express-sync-guard",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/router/route.js",
+              "line": 133,
+              "mustMention": [
+                "跳过",
+                "丢失",
+                "漏掉",
+                "静默",
+                "中间件",
+                "顺序",
+                "重置",
+                "计数",
+                "丢层"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "corr-07-undici-preserved-buffer",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/api/readable.js",
+          "line": 470,
+          "severity": "blocker",
+          "body": "preserved 分支只覆盖了 setEncoding() 调用那一刻之前已缓冲的 chunk，存在两处系统性缺口：1) super.setEncoding() 会把当时已缓冲的 chunk 重新解码为字符串并留在 state.buffer 中，走 preserved 分支时这些解码结果并未清空/跳过，同一份数据会被推送两次（一次原始字节、一次字符串，字符串进入 chunksDecode 后 Buffer.concat 会抛 TypeError: List has to contain only Buffers 或得到错误结果）；2) setEncoding() 之后、consume 之前新到达的 chunk 都会被解码成字符串放入 state.buffer，preserved 为空时走 else 分支把字符串直接 consumePush，同样破坏字节级消费。正确做法是 setEncoding 后在 consume 路径统一从 decoder 之前的数据源读取（或禁用编码后 drain），而非只快照一个时间点。confidence: high",
+          "confidence": "high"
+        },
+        {
+          "file": "lib/api/readable.js",
+          "line": 340,
+          "severity": "major",
+          "body": "这里用 `typeof buffer.slice === 'function'` 探测 BufferList，但 state.bufferIndex 在有 slice 的节点版本上也可能为 0，此时 `buffer.slice(0)` 返回整个列表，行为一致没问题；真正的问题是当 buffer 是 BufferList 而未实现 Symbol.iterator 的旧形式或 bufferIndex > 0 但 buffer.slice 不可用时，`buffer` 直接整体迭代会从索引 0 开始，把 bufferIndex 之前已消费的 chunk 重复保留。既然上面已经取了 `bufferIndex`，else 分支应从 bufferIndex 起跳过头部而非从头迭代。confidence: medium",
+          "confidence": "medium"
+        },
+        {
+          "file": "lib/api/readable.js",
+          "line": 347,
+          "severity": "minor",
+          "body": "`(this[kPreservedBuffer] || []).concat(preserved)` 只会在 setEncoding 被多次调用时累积，但 consumeStart 一次性置 null 后不再恢复；若 setEncoding 被调用第二次且之间有新缓冲 chunk，前一次 super.setEncoding 之后的 chunk 已变成字符串，永远不会进入 preserved，只会以字符串形式留在 state.buffer——这是第一条意见描述缺口的另一处表现，修第一条时需一并处理重复 setEncoding 的场景。confidence: medium",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1619,
+        "outputTokens": 1067,
+        "totalTokens": 2686,
+        "cachedInputTokens": 832
+      },
+      "durationMs": 18821,
+      "score": {
+        "caseId": "corr-07-undici-preserved-buffer",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/api/readable.js",
+              "line": 477,
+              "mustMention": [
+                "互斥",
+                "丢弃",
+                "截断",
+                "静默",
+                "后续",
+                "之后",
+                "丢失",
+                "不完整",
+                "二选一"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 3,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high",
+          "medium",
+          "medium"
+        ],
+        "commentTps": [
+          false,
+          false,
+          false
+        ],
+        "commentHitCounts": [
+          0,
+          0,
+          0
+        ],
+        "contentComments": 2,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "corr-08-fastify-unconditional-close",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [
+        {
+          "file": "fastify.js",
+          "line": 433,
+          "severity": "major",
+          "body": "当 fastify 实例从未 listen（fastify[kState].listening 为 false）时，server.close(done) 的回调会收到 ERR_SERVER_NOT_RUNNING 错误（Node 在 server 未监听时会以该错误调用 close 回调），done(err) 会把错误传给 avvio 的 close 流程，可能导致原本正常的 close 变成失败。建议在回调里忽略该错误，例如 `instance.server.close(err => err?.code === 'ERR_SERVER_NOT_RUNNING' ? done() : done(err))`。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1116,
+        "outputTokens": 583,
+        "totalTokens": 1699,
+        "cachedInputTokens": 832
+      },
+      "durationMs": 10197,
+      "score": {
+        "caseId": "corr-08-fastify-unconditional-close",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "fastify.js",
+              "line": 433,
+              "mustMention": [
+                "未监听",
+                "回调",
+                "语义",
+                "serverfactory",
+                "挂起",
+                "不触发",
+                "阻塞",
+                "场景"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "medium"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "corr-09-undici-cache-purge-gate",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/handler/cache-handler.js",
+          "line": 78,
+          "severity": "major",
+          "body": "这里把缓存失效条件从 `UNSAFE_METHODS.includes(method)` 改成了 `!this.#methods.includes(method)`，同时 cache.js 里不再把 UNSAFE_METHODS 拼进 methods 数组。结果是：POST/PUT/PATCH/DELETE 请求在拦截器入口处就因 `methods.includes(opts.method)` 不匹配而直接透传，根本不会构造 CacheHandler，`deleteByOrigin` 的失效逻辑（RFC 9111 要求不安全方法使存储响应失效）永远不会被触发，不安全方法修改资源后缓存仍会命中旧值。要么在拦截器的判断里保留对不安全方法的放行，要么恢复 UNSAFE_METHODS 的拼接。confidence: high",
+          "confidence": "high"
+        },
+        {
+          "file": "lib/interceptor/cache.js",
+          "line": 17,
+          "severity": "minor",
+          "body": "对 `opts` 的类型检查放在了参数默认值和解构之后：传入 `undefined` 时默认值已生效为 `{}`，传入 `null` 或原始类型时解构那一行已经先抛 TypeError，所以第 17 行的检查永远不会命中，是不可达的死代码。如需保留友好报错应把校验移到解构之前。confidence: high",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3706,
+        "outputTokens": 675,
+        "totalTokens": 4381,
+        "cachedInputTokens": 832
+      },
+      "durationMs": 12513,
+      "score": {
+        "caseId": "corr-09-undici-cache-purge-gate",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/interceptor/cache.js",
+              "line": 35,
+              "mustMention": [
+                "清删",
+                "失效",
+                "脏",
+                "缓存",
+                "写操作",
+                "增删改",
+                "不再",
+                "过期"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 2,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high",
+          "high"
+        ],
+        "commentTps": [
+          false,
+          false
+        ],
+        "commentHitCounts": [
+          0,
+          0
+        ],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "corr-10-fastify-meta-null",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/reply.js",
+          "line": 967,
+          "severity": "minor",
+          "body": "清理 socket._meta 的时机在 onResponse 钩子执行之前，用户注册的 onResponse 钩子（包括访问 socket 元数据的钩子）将永远看不到 _meta，与清理动作发生在响应结束之后的意图不符。建议把清理移到 onResponseHookRunner 完成之后（或 finish/close 回调内），保持钩子执行期间 _meta 仍可用。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1056,
+        "outputTokens": 346,
+        "totalTokens": 1402,
+        "cachedInputTokens": 832
+      },
+      "durationMs": 7106,
+      "score": {
+        "caseId": "corr-10-fastify-meta-null",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/reply.js",
+              "line": 968,
+              "mustMention": [
+                "置空",
+                "清空",
+                "后续",
+                "读取",
+                "崩溃",
+                "解构",
+                "超时",
+                "悬空",
+                "仍"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 1,
+        "truePositives": 1,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "medium"
+        ],
+        "commentTps": [
+          true
+        ],
+        "commentHitCounts": [
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    }
+  ],
+  "summary": {
+    "recall": 0,
+    "precision": null,
+    "totalExpect": 0,
+    "totalHits": 0,
+    "totalComments": 0,
+    "totalTp": 0,
+    "failed": 0,
+    "usage": {
+      "inputTokens": 17948,
+      "outputTokens": 8968,
+      "totalTokens": 26916,
+      "cachedInputTokens": 7552
+    },
+    "groups": {
+      "correlation": {
+        "recall": 0.5,
+        "precision": 0.35714285714285715,
+        "expectN": 10,
+        "hits": 5,
+        "comments": 14,
+        "tp": 5,
+        "runs": 10,
+        "failed": 0
+      }
+    }
+  }
+}
