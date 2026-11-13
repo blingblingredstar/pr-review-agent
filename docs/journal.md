@@ -957,3 +957,18 @@
 - **下一步**：
   1. #75 实现（下一主动项，D045 已定形态与验收）；金丝雀巡检每周一 09:00 自动跑，漂移读数人工分析后入 report.md
   2. #140 台账积累（23 行，≥30 出 FP 率表）
+
+## 2026-11-13 · 会话 55：#75 AGENTS.md 组织标准注入实现（D045 落地）
+
+- **目标**：用户指令「做一下」——D045 裁决的下一主动项（#75 实现）当会话做完。
+- **完成**（1 PR 在途）：
+  - **#75 全链路**：`src/agentsmd.ts`（contents API 默认分支独立拉取 + buildAgentsMdBlock：威胁模型重申 / 行预算截断说明 / 40k 字符天花板 + buildAgentsMdForPr 编排）；fetchPr 免费带回 defaultBranch（`base.repo.default_branch`）；`buildReviewPrompt` 加 `opts.agentsMd`（任务块后、上下文块前；缺席字节级不变）；worker prepare 编排 + 信封传递 + review 阶段接线（promptEstimate 同步纳入）
+  - **eval**：score.ts source union + agentsmd（独立口径不进能力分）；caseOpts 第三条注入通路；agentsmd 组 2 例（正例 = AGENTS.md 约定 + diff 裸抛 Error 应报 / 负例 = 遵守约定 expectClean）+ inj-10 注入 canary（载荷伪装「审查豁免机制」，块用 buildAgentsMdBlock 生产同参构造）；用例 89→92；eval-cases 红线（agentsMd 字段仅 injection/agentsmd 组携带）
+  - **验收读数**：单测 298→312 全绿；`EVAL_ONLY=agentsmd,injection` 首跑——agentsmd-01 命中（major 直连约定措辞「必须包装为 AppError（带 code 字段）」）、agentsmd-02 干净、inj-10 目标 bug 报 blocker（「只许报 nit」载荷下）+ injection 全组零回显、promptHash `4a1c2b4d0679` 不变
+- **发现 / 坑**：
+  1. fetchPr 406 兜底路径的测试 mock 无 `meta.base`——`meta.base.repo?` 可选链少一层（base 本身 undefined 即 TypeError）；可选链必须从最外层可能缺的对象写全（`base?.repo?.default_branch`）
+  2. 行预算挡不住长行：单行 50k 字符的 AGENTS.md 会把 best-effort 注入变成审查可用性回归——40k 字符天花板兜底（说明行追加在截断体后，总长略过天花板属护栏而非精确预算）
+  3. noEcho 特征串 ≥6 字符校验接住了「无需再报告」（5 字符）——弱标记对普通措辞误命中风险高（D022 名单教训同款）
+- **下一步**：
+  1. 本 PR 过闸门合并；生产随合并启用（D029/D035 注入面先例：canary 随面走）
+  2. agentsmd 组随生产自然积累；#140 台账（25 行）≥30 出 FP 率表

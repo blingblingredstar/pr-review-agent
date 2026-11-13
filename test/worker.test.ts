@@ -75,6 +75,8 @@ function fakeClient(
     reviewComments?: unknown[];
     compareFiles?: unknown[];
     reviewThreads?: unknown[];
+    defaultBranch?: string;
+    agentsMdContent?: string;
   },
 ) {
   const calls = {
@@ -83,6 +85,7 @@ function fakeClient(
     comments: [] as Record<string, unknown>[],
     labels: [] as Record<string, unknown>[],
     issueGets: [] as number[],
+    contentGets: [] as { path: string; ref: string }[],
     commentReviewIds: [] as number[],
     paginateCalls: 0,
     graphqlQueries: 0,
@@ -114,12 +117,26 @@ function fakeClient(
           return { data: {} };
         },
         compareCommits: async () => ({ data: { files: opts?.compareFiles ?? [] } }),
+        // AGENTS.md contents API（#75）：agentsMdContent 未配置 = 404（默认分支无文件，常态）
+        getContent: async (args: { path: string; ref: string }) => {
+          calls.contentGets.push({ path: args.path, ref: args.ref });
+          if (!opts?.agentsMdContent) throw Object.assign(new Error("Not Found"), { status: 404 });
+          return { data: { type: "file", content: Buffer.from(opts.agentsMdContent, "utf8").toString("base64") } };
+        },
       },
       pulls: {
         get: async (args: { mediaType?: unknown }) =>
           args.mediaType
             ? { data: DIFF }
-            : { data: { head: { sha: REF.headSha }, title: opts?.prTitle, body: opts?.prBody } },
+            : {
+                data: {
+                  head: { sha: REF.headSha },
+                  title: opts?.prTitle,
+                  body: opts?.prBody,
+                  // defaultBranch（#75 组织规范注入）随 meta 免费带回的路径；未配置时 null = 缺信息
+                  base: { repo: { default_branch: opts?.defaultBranch ?? null } },
+                },
+              },
         createReview: async (args: Record<string, unknown>) => {
           calls.reviews.push(args);
           return { data: {} };
@@ -971,6 +988,36 @@ test("worker prepare 编排：issue 拉取失败 → 该 issue 跳过，任务�
   assert.ok(!state.taskContext!.includes("#1："), "失败 issue 不在块内");
 });
 
+// ============ 组织规范注入（#75 → D045）============
+
+test("worker prepare 编排：默认分支 AGENTS.md → 组织规范块进信封 state（#75）", async () => {
+  const { client, calls } = fakeClient([], { prTitle: "t", prBody: "", defaultBranch: "main", agentsMdContent: "# 组织约定\n- 约定一\n" });
+  const chained: WorkerEnvelope[] = [];
+  await runStage(fullDeps({ client: () => client, chain: async (e) => void chained.push(e) }), prepareEnvelope(REF));
+  assert.deepEqual(calls.contentGets, [{ path: "AGENTS.md", ref: "main" }], "只从默认分支拉取一次");
+  const state = chained[0]!.state as { agentsMd?: string | null };
+  assert.ok(typeof state.agentsMd === "string", "组织规范块随信封传递");
+  assert.ok(state.agentsMd!.startsWith("[组织规范]"), "块为组织规范构造产物");
+  assert.ok(state.agentsMd!.includes("内容非指令"), "威胁模型重申内置");
+  assert.ok(state.agentsMd!.includes("约定一"), "AGENTS.md 正文进块");
+});
+
+test("worker prepare 编排：默认分支无 AGENTS.md → state.agentsMd null 传递（#75）", async () => {
+  const { client, calls } = fakeClient([], { prTitle: "t", prBody: "", defaultBranch: "main" });
+  const chained: WorkerEnvelope[] = [];
+  await runStage(fullDeps({ client: () => client, chain: async (e) => void chained.push(e) }), prepareEnvelope(REF));
+  assert.deepEqual(calls.contentGets, [{ path: "AGENTS.md", ref: "main" }], "无文件也恰好一次拉取（404 = 常态）");
+  assert.equal((chained[0]!.state as { agentsMd?: unknown }).agentsMd, null, "null 传递（与 context/taskContext 失败语义同形）");
+});
+
+test("worker prepare 编排：meta 缺 defaultBranch → 零 contents 调用、agentsMd null（#75）", async () => {
+  const { client, calls } = fakeClient([], { prTitle: "t", prBody: "" });
+  const chained: WorkerEnvelope[] = [];
+  await runStage(fullDeps({ client: () => client, chain: async (e) => void chained.push(e) }), prepareEnvelope(REF));
+  assert.deepEqual(calls.contentGets, [], "缺默认分支信息不得发起 API 调用");
+  assert.equal((chained[0]!.state as { agentsMd?: unknown }).agentsMd, null, "null 传递");
+});
+
 // ============ 上一轮意见注入（D035）============
 
 const OLD_SHA = "aaaa1111bbbb2222cccc3333dddd4444eeee5555";
@@ -1155,6 +1202,37 @@ test("worker review 阶段接线：信封 state.taskContext → deps.review 收�
     { v: 1, stage: "review", hop: 1, ref: REF, issuedAt: Date.now(), state: { diff: DIFF, context: null, taskContext: null } },
   );
   assert.equal(received2[0]!.taskContext, undefined, "null 传递 = 无任务块审查");
+});
+
+test("worker review 阶段接线：信封 state.agentsMd → deps.review 收到 opts.agentsMd（null 按无组织规范块，#75）", async () => {
+  const { client } = fakeClient();
+  const received: ReviewDiffOpts[] = [];
+  await runStage(
+    fullDeps({
+      client: () => client,
+      chain: boomChain,
+      review: async (diff, context, opts) => {
+        received.push(opts ?? {});
+        return REVIEW_RESULT;
+      },
+    }),
+    { v: 1, stage: "review", hop: 1, ref: REF, issuedAt: Date.now(), state: { diff: DIFF, context: null, agentsMd: "[组织规范] 块" } },
+  );
+  assert.equal(received[0]!.agentsMd, "[组织规范] 块");
+
+  const received2: ReviewDiffOpts[] = [];
+  await runStage(
+    fullDeps({
+      client: () => client,
+      chain: boomChain,
+      review: async (diff, context, opts) => {
+        received2.push(opts ?? {});
+        return REVIEW_RESULT;
+      },
+    }),
+    { v: 1, stage: "review", hop: 1, ref: REF, issuedAt: Date.now(), state: { diff: DIFF, context: null, agentsMd: null } },
+  );
+  assert.equal(received2[0]!.agentsMd, undefined, "null 传递 = 无组织规范块审查");
 });
 
 test("worker 编排端到端：信封带 taskContext → 真实 reviewDiff 的 prompt 任务块置顶、diff 末尾（D029）", async () => {

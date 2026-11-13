@@ -48,7 +48,7 @@ export function getOctokit(): Octokit {
 export async function fetchPr(
   client: Octokit,
   { owner, repo, pullNumber }: PrRef,
-): Promise<{ diff: string; headSha: string; title: string; body: string }> {
+): Promise<{ diff: string; headSha: string; title: string; body: string; defaultBranch: string | null }> {
   // meta 与 diff 并行（正常 PR 行为与延迟不变）。Promise.allSettled 全程接管两个 Promise：
   // 非 406 抛出路径上不会留下无人接管的 meta rejection（unhandled rejection 会砸掉 Vercel 函数）
   const [metaSettled, diffSettled] = await Promise.allSettled([
@@ -58,8 +58,15 @@ export async function fetchPr(
   if (diffSettled.status === "fulfilled") {
     if (metaSettled.status === "rejected") throw metaSettled.reason;
     const meta = metaSettled.value.data;
-    // title/body 随 meta 免费带回（D029 任务上下文的原料）；GitHub 类型 body 可为 null
-    return { diff: String(diffSettled.value.data), headSha: meta.head.sha, title: meta.title ?? "", body: meta.body ?? "" };
+    // title/body 随 meta 免费带回（D029 任务上下文的原料）；GitHub 类型 body 可为 null。
+    // defaultBranch（#75 组织规范注入）= base 仓库默认分支，随 meta 免费带回；base.repo 缺失（已删仓库等）→ null
+    return {
+      diff: String(diffSettled.value.data),
+      headSha: meta.head.sha,
+      title: meta.title ?? "",
+      body: meta.body ?? "",
+      defaultBranch: meta.base?.repo?.default_branch ?? null,
+    };
   }
   const diffErr = diffSettled.reason;
   if (!isStatus(diffErr, 406)) throw diffErr;
@@ -71,7 +78,13 @@ export async function fetchPr(
     `[fetchPr] diff API 406（超大 PR），切 files 分页拼合：changed_files=${meta.changed_files ?? "未知"} +${meta.additions ?? "?"}/-${meta.deletions ?? "?"}`,
   );
   const diff = await assembleDiffViaFiles(client, { owner, repo, pullNumber }, meta.changed_files);
-  return { diff, headSha: meta.head.sha, title: meta.title ?? "", body: meta.body ?? "" };
+  return {
+    diff,
+    headSha: meta.head.sha,
+    title: meta.title ?? "",
+    body: meta.body ?? "",
+    defaultBranch: meta.base?.repo?.default_branch ?? null,
+  };
 }
 
 // files API 单页容量与翻页上限：GitHub 端 files 列表硬上限 3000 文件（30 页 × 100）

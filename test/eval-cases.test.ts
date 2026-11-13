@@ -80,18 +80,19 @@ function parseDiff(diff: string): { files: Set<string>; newLineRanges: Map<strin
   return { files, newLineRanges, errors };
 }
 
-test("用例集：89 个、id 唯一、synthetic 22（bug 12 + linked 10）+ real 15 + dogfood 2 + injection 9 + repo 7 + correlation 10 + incremental 10 + framing 9 + ctxpair 5", async () => {
+test("用例集：92 个、id 唯一、synthetic 22（bug 12 + linked 10）+ real 15 + dogfood 2 + injection 10 + repo 7 + correlation 10 + incremental 10 + framing 9 + ctxpair 5 + agentsmd 2", async () => {
   const cases = await loadCases();
-  assert.equal(cases.length, 89, `应有 89 个用例，实际 ${cases.length}`);
+  assert.equal(cases.length, 92, `应有 92 个用例，实际 ${cases.length}`);
   const ids = cases.map((c) => c.id);
-  assert.equal(new Set(ids).size, 89, "id 有重复");
+  assert.equal(new Set(ids).size, 92, "id 有重复");
   const synthetic = cases.filter((c) => (c.source ?? "synthetic") === "synthetic");
   assert.equal(synthetic.length, 22, "synthetic 应 22 个");
   assert.equal(synthetic.filter((c) => c.kind === "bug").length, 12, "synthetic bug 类应 12 个");
   assert.equal(synthetic.filter((c) => c.kind === "linked").length, 10, "synthetic linked 类应 10 个");
   assert.equal(cases.filter((c) => c.source === "real").length, 15, "real 应 15 个");
   assert.equal(cases.filter((c) => c.source === "dogfood").length, 2, "dogfood 应 2 个");
-  assert.equal(cases.filter((c) => c.source === "injection").length, 9, "injection 应 9 个");
+  assert.equal(cases.filter((c) => c.source === "injection").length, 10, "injection 应 10 个");
+  assert.equal(cases.filter((c) => c.source === "agentsmd").length, 2, "agentsmd 应 2 个");
   assert.equal(cases.filter((c) => c.source === "repo").length, 7, "repo 应 7 个");
   assert.equal(cases.filter((c) => c.source === "correlation").length, 10, "correlation 应 10 个");
   assert.equal(cases.filter((c) => c.source === "incremental").length, 10, "incremental 应 10 个");
@@ -127,6 +128,17 @@ test("用例集：89 个、id 唯一、synthetic 22（bug 12 + linked 10）+ rea
     } else {
       assert.equal(c.taskContext, undefined, `${c.id} 非 injection/framing 用例不得携带 taskContext（能力组裸路径红线）`);
       assert.equal(c.previousFindings, undefined, `${c.id} 非 injection 用例不得携带 previousFindings（裸路径红线）`);
+    }
+    // agentsMd 是注入通路（#75 → D045，agentsmd 组 + inj-10 首用）：非该两组用例不得携带（裸路径红线）；
+    // agentsmd 组必带（组的自变量）；携带时须非空字符串
+    if ((c.source as string) === "agentsmd") {
+      assert.ok(c.id.startsWith("agentsmd-"), `${c.id} source=agentsmd 但 id 前缀不符`);
+      assert.ok(typeof c.agentsMd === "string" && c.agentsMd.length > 0, `${c.id} source=agentsmd 必带非空 agentsMd 字段（组的自变量）`);
+    } else if (c.source !== "injection") {
+      assert.equal(c.agentsMd, undefined, `${c.id} 非 injection/agentsmd 用例不得携带 agentsMd（能力组裸路径红线）`);
+    }
+    if (c.agentsMd !== undefined) {
+      assert.ok(typeof c.agentsMd === "string" && c.agentsMd.length > 0, `${c.id} agentsMd 必须是非空字符串`);
     }
     // repo fixture 组（D031）：source=repo ⇔ repo 字段成对出现，id 前缀防漏写
     if (c.source === "repo") {
