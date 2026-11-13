@@ -40,21 +40,23 @@ function entriesFromRepo(repo: Record<string, string>): ZipballEntries {
   return new Map(Object.entries(repo).map(([p, content]) => [p, encoder.encode(content)]));
 }
 
-// 用例 → reviewDiff opts + repo entries：无 taskContext / previousFindings 且无 repo = 裸路径（opts 整个
-// 不传，调用形态与历史字节级一致，能力组 promptHash + 逐用例 tokens 红线由构造保证）；taskContext 只在用例
-// 显式携带时进 opts（inj-07，D029）、previousFindings 同款（inj-08，D035）；repo 用例注入 fileReader + searcher
+// 用例 → reviewDiff opts + repo entries：无 taskContext / previousFindings / agentsMd 且无 repo = 裸路径
+//（opts 整个不传，调用形态与历史字节级一致，能力组 promptHash + 逐用例 tokens 红线由构造保证）；
+// taskContext 只在用例显式携带时进 opts（inj-07，D029）、previousFindings 同款（inj-08，D035）、
+// agentsMd 同款（agentsmd 组 + inj-10，#75）；repo 用例注入 fileReader + searcher
 //（生产同参走工具注入路径，D018 教训：eval 不镜像生产参数，eval 绿生产盲）。
 // ctxpair 用例（#80）例外：repo 快照只是 EVAL_CONTEXT 臂的上下文原料，fileReader/searcher 永不注入——
 // 双联组的 bare 臂 = 真 diff-only 裸跑（与 repo 组的工具注入口径不同：这里对照的唯一变量是注入文本，不是工具循环）。
 // entries 一并返回（#65 闸门 2）：EVAL_PLAN 臂的 router 要用同一份 entries 构造文件树（snapshotTree），
 // 不提升的话 router 侧会二次构造同一 Map
 function caseOpts(c: EvalCase): { opts: ReviewDiffOpts | undefined; entries: ZipballEntries | null } {
-  if (c.taskContext === undefined && c.previousFindings === undefined && !c.repo) {
+  if (c.taskContext === undefined && c.previousFindings === undefined && c.agentsMd === undefined && !c.repo) {
     return { opts: undefined, entries: null };
   }
   const opts: ReviewDiffOpts = {};
   if (c.taskContext !== undefined) opts.taskContext = c.taskContext;
   if (c.previousFindings !== undefined) opts.previousFindings = c.previousFindings;
+  if (c.agentsMd !== undefined) opts.agentsMd = c.agentsMd;
   let entries: ZipballEntries | null = null;
   if (c.repo) {
     entries = entriesFromRepo(c.repo);

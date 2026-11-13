@@ -145,16 +145,20 @@ export const TOOL_PROMPT_MAX_CHARS = 120_000;
 // 无 taskContext → 字节级现状（evals 直调永无任务块，红线由构造保证，opts.taskContext 只有 worker 编排注入这一条路径）
 // D035 扩展 opts.previousFindings：上一轮意见块放计划块之后、`[diff 开始]` 之前（紧邻 diff——意见引用
 // 其行号，规则对照对象是 diff 本身）；无值 → 字节级现状（opts.previousFindings 只有 worker 编排注入这一条路径）
+// #75 扩展 opts.agentsMd：组织规范块放任务块之后、上下文块之前（阅读顺序 = 任务 → 规范 → 代码——规范
+// 对照作用于下游全部代码内容）；无值 → 字节级现状（opts.agentsMd 只有 worker 编排注入与 evals 用例
+// 显式携带两条通路，promptHash 零接触——prompts/review.md 字节不动）
 export function buildReviewPrompt(
   diff: string,
-  opts?: { context?: string; plan?: ReviewPlan; taskContext?: string; previousFindings?: string },
+  opts?: { context?: string; plan?: ReviewPlan; taskContext?: string; previousFindings?: string; agentsMd?: string },
 ): string {
   const diffText = truncateDiff(diff);
   const taskBlock = opts?.taskContext ? `${opts.taskContext}\n\n` : "";
+  const agentsMdBlock = opts?.agentsMd ? `${opts.agentsMd}\n\n` : "";
   const planBlock = opts?.plan ? `${buildPlanBlock(opts.plan)}\n\n` : "";
   const findingsBlock = opts?.previousFindings ? `${opts.previousFindings}\n\n` : "";
-  if (opts?.context) return `${taskBlock}${opts.context}\n\n${planBlock}${findingsBlock}[diff 开始]\n${diffText}`;
-  return `${taskBlock}${planBlock}${findingsBlock}${diffText}`;
+  if (opts?.context) return `${taskBlock}${agentsMdBlock}${opts.context}\n\n${planBlock}${findingsBlock}[diff 开始]\n${diffText}`;
+  return `${taskBlock}${agentsMdBlock}${planBlock}${findingsBlock}${diffText}`;
 }
 
 // reviewDiff 可选项（D027）：fileReader 注入即启用 read_file 工具循环（两段协议）；
@@ -163,6 +167,8 @@ export function buildReviewPrompt(
 // D028：plan 由 worker 编排注入（router 产物），reviewDiff 自身不调 router——evals 直调永远无 plan。
 // D029：taskContext 由 worker 编排注入（任务块），reviewDiff 自身不做关联解析/issue 拉取——evals 直调永远无任务块
 // D035：previousFindings 由 worker 编排注入（上一轮意见块），reviewDiff 自身不拉 review 历史——同上红线
+// #75：agentsMd 由 worker 编排注入（组织规范块），reviewDiff 自身不拉 AGENTS.md——evals 直调不传（红线同上），
+// evals 用例显式携带时经 run.ts caseOpts 注入（agentsmd 组 + inj-10，生产同参）
 export type ReviewDiffOpts = {
   timeoutMs?: number;
   fileReader?: (path: string) => string | null;
@@ -170,6 +176,7 @@ export type ReviewDiffOpts = {
   plan?: ReviewPlan;
   taskContext?: string;
   previousFindings?: string;
+  agentsMd?: string;
   // eval-only 变体（#127 按方面拆分消融 B 臂）：system 在 review.md 原文后追加段——worker 编排从不注入，
   // evals/run.ts 的 EVAL_PROMPT_SUFFIX 臂专用；不传时 system 字节级现状（基线红线由构造保证）
   promptSuffix?: string;
@@ -204,13 +211,14 @@ export async function reviewDiff(diff: string, context?: string, opts?: ReviewDi
   }
   const llm = createOpenAI({ apiKey: LLM_API_KEY, baseURL: LLM_BASE_URL, fetch: withExtraBody(fetch, extraBody()) });
   // 上下文（D023，best-effort）放 diff 之前：diff（含截断省略行）保持在生成前最近位置，行号锚点不受影响；
-  // eval 不传 context / 无 plan / 无 taskContext / 无 previousFindings（router、任务块与上一轮意见块
-  // 只由 worker 编排注入）→ prompt 字节级不变（promptHash 稳定是回归对照的前提）
+  // eval 不传 context / 无 plan / 无 taskContext / 无 previousFindings / 无 agentsMd（router、任务块、
+  // 上一轮意见块与组织规范块只由 worker 编排注入）→ prompt 字节级不变（promptHash 稳定是回归对照的前提）
   const prompt = buildReviewPrompt(diff, {
     context,
     plan: opts?.plan,
     taskContext: opts?.taskContext,
     previousFindings: opts?.previousFindings,
+    agentsMd: opts?.agentsMd,
   });
   // 一个 abortSignal 贯穿全部步（D027）：调用方 timeoutMs 封顶的是整个工具循环（两段），不只是单次调用；
   // 不传走 LLM_TIMEOUT_MS（D011）

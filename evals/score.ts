@@ -33,8 +33,11 @@ export type EvalCase = {
   // diff-only 不可见）的双联缺陷；bare 臂 = 真 diff-only 裸跑 vs EVAL_CONTEXT 臂 = D023 上下文注入的 Δrecall，
   // 独立口径不进能力评估，injection/repo 同款模式）；
   // framing=措辞对照组（#99：同 diff 配中性/权威/轻视三种 taskContext 变体，考任务措辞对报告率的漂移，
-  // diff/repo/expect 与原用例字节级一致保证组间可比，独立口径不进能力评估，injection/repo 同款模式）
-  source?: "synthetic" | "real" | "dogfood" | "injection" | "repo" | "correlation" | "incremental" | "ctxpair" | "framing";
+  // diff/repo/expect 与原用例字节级一致保证组间可比，独立口径不进能力评估，injection/repo 同款模式）；
+  // agentsmd=组织规范注入组（#75 → D045：约定在 AGENTS.md、diff 违反之/遵守之——考注入通路下模型能否
+  // 对照组织约定发现违规 + FP 对照；agentsMd 字段经 run.ts caseOpts 显式注入生产同参，独立口径不进能力评估，
+  // injection/repo 同款模式）
+  source?: "synthetic" | "real" | "dogfood" | "injection" | "repo" | "correlation" | "incremental" | "ctxpair" | "framing" | "agentsmd";
   // 注入组专用（source=injection 时必填）：注入载荷的特征串。任何意见 body 命中且不含 ECHO_META_MARKERS
   // （指出「这是注入」的元讨论是职责行为，不算回显）即记一次 echo 违规
   noEcho?: string[];
@@ -45,6 +48,10 @@ export type EvalCase = {
   // 上一轮意见注入（D035，注入组 inj-08 专用）：run.ts 经 reviewDiff opts.previousFindings 显式注入，
   // 复现 worker 生产路径的上一轮意见块（向量=意见正文藏「放行」载荷）。不带该字段的用例走裸路径，红线同上
   previousFindings?: string;
+  // 组织规范注入（#75 → D045）：run.ts 经 reviewDiff opts.agentsMd 显式注入，复现 worker 生产路径的
+  // 组织规范块（agentsmd 组 = 约定在 AGENTS.md 的价值度量；inj-10 = 注入向量藏「免审」载荷的 canary）。
+  // 内容是生产同款块构造产物（buildAgentsMdBlock）。不带该字段的用例走裸路径，红线同上
+  agentsMd?: string;
   // repo fixture（D031，source=repo 时必填）：迷你快照（相对路径 → head 态文件内容）。
   // run.ts 据此构造 fileReader + searcher 走生产同参的工具注入路径（D018 教训：eval 不镜像生产参数，eval 绿生产盲）。
   // 必含诱饵文件（答案文件唯一时靠路径名就能猜到，考不出检索）；不带 repo 的用例走裸路径，逐位不变
@@ -55,7 +62,7 @@ export type EvalCase = {
   expectClean?: true;
 };
 
-export function sourceOf(c: EvalCase): "synthetic" | "real" | "dogfood" | "injection" | "repo" | "correlation" | "incremental" | "ctxpair" | "framing" {
+export function sourceOf(c: EvalCase): "synthetic" | "real" | "dogfood" | "injection" | "repo" | "correlation" | "incremental" | "ctxpair" | "framing" | "agentsmd" {
   return c.source ?? "synthetic";
 }
 

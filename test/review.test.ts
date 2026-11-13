@@ -631,6 +631,21 @@ test("buildReviewPrompt：taskContext 任务块置顶（context/计划块之前�
   assert.equal(buildReviewPrompt("DIFF_TEXT", { taskContext: "" }), "DIFF_TEXT");
 });
 
+test("buildReviewPrompt：agentsMd 组织规范块在任务块之后、上下文块之前；无 agentsMd 字节级现状（#75 → D045）", () => {
+  // 全块并存：任务块 → 组织规范块 → 上下文块 → 计划块 → [diff 开始] → diff（阅读顺序 = 任务 → 规范 → 代码）
+  assert.equal(
+    buildReviewPrompt("DIFF_TEXT", { context: "CTX", plan: PLAN, taskContext: TASK_BLOCK, agentsMd: "AGENTS_MD" }),
+    `${TASK_BLOCK}\n\nAGENTS_MD\n\nCTX\n\n${buildPlanBlock(PLAN)}\n\n[diff 开始]\nDIFF_TEXT`,
+  );
+  // 只有组织规范块：规范块 + diff
+  assert.equal(buildReviewPrompt("DIFF_TEXT", { agentsMd: "AGENTS_MD" }), `AGENTS_MD\n\nDIFF_TEXT`);
+  // 组织规范块 + 上下文块（无任务块/计划块）
+  assert.equal(buildReviewPrompt("DIFF_TEXT", { context: "CTX", agentsMd: "AGENTS_MD" }), `AGENTS_MD\n\nCTX\n\n[diff 开始]\nDIFF_TEXT`);
+  // 无 agentsMd → 字节级现状（eval 红线由构造保证，promptHash 零接触）
+  assert.equal(buildReviewPrompt("DIFF_TEXT", { taskContext: TASK_BLOCK }), `${TASK_BLOCK}\n\nDIFF_TEXT`);
+  assert.equal(buildReviewPrompt("DIFF_TEXT", { taskContext: "" }), "DIFF_TEXT", "空串按无组织规范块（falsy 同形）");
+});
+
 // ============ 上一轮意见注入（D035）============
 
 const PREV_BLOCK = buildPrevFindings(

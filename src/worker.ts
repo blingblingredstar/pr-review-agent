@@ -14,6 +14,7 @@ import { decideIncrement, fetchDeltaDiff, latestValidReview, listBotReviews, lis
 import { buildPrevFindingsForPr, fetchDismissedFindings, prevFindingsMaxChars } from "./findings.ts";
 import { buildRepoContext, fileReaderFromEntries, makeSnapshot, searcherFromEntries, snapshotTree } from "./context.ts";
 import { reflectEnabled } from "./reflect.ts";
+import { buildAgentsMdForPr } from "./agentsmd.ts";
 import { buildTaskContextForPr } from "./task.ts";
 import {
   buildReviewPrompt,
@@ -218,7 +219,7 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
       } catch (statusErr) {
         console.error(`[worker] ${key} pending status 写失败`, statusErr);
       }
-      const { diff: fullDiff, title, body } = await fetchPr(client, ref);
+      const { diff: fullDiff, title, body, defaultBranch } = await fetchPr(client, ref);
       // 增量审查决策（D032，best-effort）：base 推导 + block 继承（listBotReviews/listCommitShas），
       // delta 命中则 compare 拉区间 diff 替换全量；任何一层失败 console.log + 保持全量——
       // 增量是优化不是依赖，绝不因增量路径失败导致 push 无审查。fetchPr 仍先拉全量：title/body 是
@@ -263,6 +264,9 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
       // 任务上下文（D029，best-effort）：PR 标题 + 关联 issue 正文进任务块；无关联/拉取失败/预算关闭返回 null，
       // null 随信封传递（「无任务块」与「信封缺字段」同义），4k 字符预算封顶远小于 4.5MB 请求体上限
       const taskContext = await buildTaskContextForPr(client, ref, title, body);
+      // 组织规范块（#75 → D045，best-effort）：base 仓库默认分支的 AGENTS.md；defaultBranch 随 fetchPr 的
+      // meta 免费带回，无文件/拉取失败/预算关闭返回 null（trust 边界 = default-branch-only，绝不读 head 快照）
+      const agentsMd = await buildAgentsMdForPr(client, ref, defaultBranch);
       await deps.chain({
         v: 1,
         stage: "review",
@@ -270,7 +274,7 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
         ref,
         issuedAt: Date.now(),
         // startedAt：run 起点随信封贯通到 publish（RunRecord.startedAt 来源，#122）；state 累积传递自然到达
-        state: { diff, context, taskContext, incrementalBase, previousFindings, startedAt: envelope.issuedAt },
+        state: { diff, context, taskContext, agentsMd, incrementalBase, previousFindings, startedAt: envelope.issuedAt },
       });
       return;
     }
@@ -279,11 +283,14 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
         diff?: string;
         context?: string | null;
         taskContext?: string | null;
+        agentsMd?: string | null;
         previousFindings?: string | null;
       };
       if (typeof state.diff !== "string") throw new Error("review 信封缺 state.diff");
       // taskContext（D029）：null 传递按无任务块审查（与 context 的 `?? undefined` 同形）
       const taskContext = typeof state.taskContext === "string" ? state.taskContext : undefined;
+      // agentsMd（#75）：同形——null 传递按无组织规范块审查
+      const agentsMd = typeof state.agentsMd === "string" ? state.agentsMd : undefined;
       // previousFindings（D035）：同形——null 传递按无上一轮意见块审查
       const previousFindings = typeof state.previousFindings === "string" ? state.previousFindings : undefined;
       // read_file 工具循环（D027）+ 决策路由（D028）共用的快照预判与获取。快照预判（自审 minor）：
@@ -292,10 +299,11 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
       // 用 buildReviewPrompt（与 reviewDiff 同一构造函数，自审三轮：曾用 diff+context 估算出现 +14 偏移
       // 与 >=/> 比较符的边界分叉）——预判与闸吃同一字符串、同一比较符，永不矛盾。
       // 注：预判时 plan 尚不存在（router 在其后才跑），计划块 ~1k 字符的边界漂移属既有软约束口径，不为它加 plumbing；
-      // taskContext 已就绪（prepare 产物随信封到达），直接进预判不漂移；previousFindings（D035）同批就绪
+      // taskContext/agentsMd 已就绪（prepare 产物随信封到达），直接进预判不漂移；previousFindings（D035）同批就绪
       const promptEstimate = buildReviewPrompt(state.diff, {
         context: typeof state.context === "string" ? state.context : undefined,
         taskContext,
+        agentsMd,
         previousFindings,
       }).length;
       const snapshotSkippedByGate = fileToolEnabled() && promptEstimate > TOOL_PROMPT_MAX_CHARS;
@@ -346,6 +354,7 @@ export async function runStage(deps: WorkerDeps, envelope: WorkerEnvelope): Prom
         searcher,
         plan,
         taskContext,
+        agentsMd,
         previousFindings,
         reflect: reflectEnabled(),
       });
