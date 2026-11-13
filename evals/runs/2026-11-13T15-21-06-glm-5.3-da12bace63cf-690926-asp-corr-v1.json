@@ -1,0 +1,656 @@
+{
+  "startedAt": "2026-11-13T15:21:06.888Z",
+  "model": "glm-5.3",
+  "llmBaseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+  "llmExtraBody": "{\"thinking\":{\"type\":\"enabled\"},\"reasoning_effort\":\"low\"}",
+  "promptHash": "da12bace63cf",
+  "evalOnly": [
+    "correlation"
+  ],
+  "capabilityScope": "synthetic+real",
+  "schemaVersion": 1,
+  "planArm": null,
+  "contextArm": null,
+  "aspectArm": {
+    "enabled": true,
+    "name": "corr-v1"
+  },
+  "reflectArm": null,
+  "runs": [
+    {
+      "caseId": "corr-01-fastify-destroyed-guard",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1445,
+        "outputTokens": 7,
+        "totalTokens": 1452,
+        "cachedInputTokens": 1408
+      },
+      "durationMs": 1606,
+      "score": {
+        "caseId": "corr-01-fastify-destroyed-guard",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/wrapThenable.js",
+              "line": 24,
+              "mustMention": [
+                "挂起",
+                "hang",
+                "空响应",
+                "empty",
+                "不发送",
+                "无法响应",
+                "无响应",
+                "消费",
+                "consumed",
+                "误判"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "corr-02-undici-textdecoder-module",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1657,
+        "outputTokens": 50,
+        "totalTokens": 1707,
+        "cachedInputTokens": 1600
+      },
+      "durationMs": 1727,
+      "score": {
+        "caseId": "corr-02-undici-textdecoder-module",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": [
+                "lib/web/websocket/receiver.js",
+                "lib/web/websocket/util.js"
+              ],
+              "line": null,
+              "mustMention": [
+                "icu",
+                "intl",
+                "顶层",
+                "模块",
+                "加载"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "corr-03-fastify-findroute-head",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1360,
+        "outputTokens": 448,
+        "totalTokens": 1808,
+        "cachedInputTokens": 1344
+      },
+      "durationMs": 9383,
+      "score": {
+        "caseId": "corr-03-fastify-findroute-head",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/route.js",
+              "line": 325,
+              "mustMention": [
+                "findroute",
+                "already declared",
+                "constraints",
+                "重复声明",
+                "清理"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "corr-04-axios-settle-abort",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/adapters/http.js",
+          "line": 88,
+          "severity": "major",
+          "body": "getSession 中 `connect(authority, options)` 创建的 session 未注册任何 'error' 监听。连接失败（DNS 解析失败、TLS 握手错误、GOAWAY 等）时错误在 session 上以 'error' 事件抛出，而 http2Transport.request 返回的只是单个 stream（req.on('error') 接不到 session 级错误），没有任何监听器会导致 `EventEmitter` 抛出未捕获异常、进程崩溃。应在 connect 后 `session.on('error', ...)`（至少 no-op 或透传到当前请求）。",
+          "confidence": "high"
+        },
+        {
+          "file": "lib/adapters/http.js",
+          "line": 595,
+          "severity": "major",
+          "body": "isHttp2 分支直接 `transport = http2Transport`，完全绕过了 config.transport、maxRedirects / beforeRedirect（followRedirects）以及代理配置：用户设置了 `maxRedirects: 5` 时 HTTP/2 请求收到 3xx 会被当成最终响应直接 settle，重定向语义静默丢失；显式传入的自定义 `config.transport` 也被忽略。至少应在 http2 路径上对这些选项不支持时抛错或文档化，而不是静默忽略。",
+          "confidence": "high"
+        },
+        {
+          "file": "lib/adapters/http.js",
+          "line": 820,
+          "severity": "major",
+          "body": "超时处理里调用的 `req.setTimeout(...)`（本 hunk 上下文中既有代码）作用于 transport 返回的 req。HTTP/2 路径下 req 是 ClientHttp2Stream，它没有 `setTimeout` 方法（setTimeout 在 Http2Session 上），配置了 `config.timeout` 的 http2 请求会以 `req.setTimeout is not a function` TypeError 崩溃。需要为 http2 stream 做 `if (utils.isFunction(req.setTimeout))` 之类的分支或在 http2Transport 内实现超时。",
+          "confidence": "medium"
+        },
+        {
+          "file": "lib/adapters/http.js",
+          "line": 242,
+          "severity": "minor",
+          "body": "authority 拼接用 `options.port || 80` 写死了 80：HTTPS 且未显式带端口时会拼出 `https://host:80`，作为 connect 的 authority 会影响 TLS SNI/证书校验目标。虽然 axios 通常会填充 port，但默认值应按 protocol 取 443（`options.port || (options.protocol === 'https:' ? 443 : 80)`）。",
+          "confidence": "low"
+        },
+        {
+          "file": "lib/adapters/http.js",
+          "line": 767,
+          "severity": "minor",
+          "body": "abort 监听器里对 http2 的 req 调用 `req.close()`：close() 是优雅关闭，不传错误、不触发 stream 'error'，对已被用户取消或超时的请求应走 `req.close(nginx-style code)` 或 `req.destroy(err)`（http2 stream 同样有 destroy），否则超时/取消路径下错误不会被传播到消费方，与 http1 的 `req.destroy(err)` 行为不一致。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4082,
+        "outputTokens": 4599,
+        "totalTokens": 8681,
+        "cachedInputTokens": 4032
+      },
+      "durationMs": 76856,
+      "score": {
+        "caseId": "corr-04-axios-settle-abort",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/adapters/http.js",
+              "line": 704,
+              "mustMention": [
+                "中断",
+                "销毁",
+                "读不到",
+                "截断",
+                "改道",
+                "错误响应",
+                "non-ok"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 5,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high",
+          "high",
+          "medium",
+          "low",
+          "medium"
+        ],
+        "commentTps": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "commentHitCounts": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "corr-05-undici-fragments-bytes",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 2029,
+        "outputTokens": 291,
+        "totalTokens": 2320,
+        "cachedInputTokens": 1984
+      },
+      "durationMs": 6937,
+      "score": {
+        "caseId": "corr-05-undici-fragments-bytes",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": [
+                "lib/web/websocket/receiver.js",
+                "lib/web/websocket/util.js"
+              ],
+              "line": null,
+              "mustMention": [
+                "压缩",
+                "计数",
+                "截断",
+                "零填充",
+                "truncat",
+                "fragmentsbytes"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "corr-06-express-sync-guard",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/router/route.js",
+          "line": 101,
+          "severity": "nit",
+          "body": "新增的 `var sync = 0`（route.js:101、index.js:145）以及 `setImmediate(next, err)`、`sync = 0`（route.js:133/148、index.js:208/331）均缺少分号。当前上下文恰好无 ASI 风险，但该文件其余代码一律带分号，建议补齐保持一致。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1690,
+        "outputTokens": 1631,
+        "totalTokens": 3321,
+        "cachedInputTokens": 1664
+      },
+      "durationMs": 30242,
+      "score": {
+        "caseId": "corr-06-express-sync-guard",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/router/route.js",
+              "line": 133,
+              "mustMention": [
+                "跳过",
+                "丢失",
+                "漏掉",
+                "静默",
+                "中间件",
+                "顺序",
+                "重置",
+                "计数",
+                "丢层"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 1,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          false
+        ],
+        "commentHitCounts": [
+          0
+        ],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "corr-07-undici-preserved-buffer",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/api/readable.js",
+          "line": 358,
+          "severity": "blocker",
+          "body": "调用 super.setEncoding(encoding) 后，保留下来的原始 Buffer 仍然留在 state.buffer 中，只是被 StringDecoder 重新解码为字符串；consumeStart 中通过 preserved 推给 consume 的同一批数据随后还会经 'data' 事件（字符串形式）再次到达 consumePush，导致 text()/json() 等路径同一份数据被消费两次。修法：consumeStart 走 preserved 分支时需同时清空/跳过 state.buffer 中已被保留的那部分数据（或改为不从 preserved 直推，而是让 consume 统一处理已解码字符串路径）。",
+          "confidence": "medium"
+        },
+        {
+          "file": "lib/api/readable.js",
+          "line": 362,
+          "severity": "blocker",
+          "body": "典型调用顺序是先 setEncoding() 再 body.text()，此时 state.length === 0、preserved 为空；super.setEncoding() 初始化的 StringDecoder 会让之后到达的 chunk 以字符串形式通过 'data' 事件进入 consumePush，而 consume 收尾的 Buffer.concat/chunksDecode 只接受 Buffer（原实现直接写 _readableState.encoding 而不走 decoder，正是为了让 chunk 保持 Buffer）。结果是流式场景下 text()/json()/arrayBuffer() 抛错或产出错误数据。需要看到 consumePush/consume 收尾代码确认具体失败形态，但「setEncoding 早于数据到达时后续 chunk 变字符串」这一点从 diff 即可确定，请在 consume 路径对字符串 chunk 做兼容处理或不要对 consume 用的流启用 decoder。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1921,
+        "outputTokens": 860,
+        "totalTokens": 2781,
+        "cachedInputTokens": 1856
+      },
+      "durationMs": 16256,
+      "score": {
+        "caseId": "corr-07-undici-preserved-buffer",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/api/readable.js",
+              "line": 477,
+              "mustMention": [
+                "互斥",
+                "丢弃",
+                "截断",
+                "静默",
+                "后续",
+                "之后",
+                "丢失",
+                "不完整",
+                "二选一"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 2,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "medium",
+          "medium"
+        ],
+        "commentTps": [
+          false,
+          false
+        ],
+        "commentHitCounts": [
+          0,
+          0
+        ],
+        "contentComments": 1,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "corr-08-fastify-unconditional-close",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1418,
+        "outputTokens": 357,
+        "totalTokens": 1775,
+        "cachedInputTokens": 1408
+      },
+      "durationMs": 6915,
+      "score": {
+        "caseId": "corr-08-fastify-unconditional-close",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "fastify.js",
+              "line": 433,
+              "mustMention": [
+                "未监听",
+                "回调",
+                "语义",
+                "serverfactory",
+                "挂起",
+                "不触发",
+                "阻塞",
+                "场景"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "corr-09-undici-cache-purge-gate",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [
+        {
+          "file": "lib/interceptor/cache.js",
+          "line": 34,
+          "severity": "blocker",
+          "body": "删除了把 UNSAFE_METHODS 拼进 methods 列表的逻辑，导致非安全方法（POST/PUT/PATCH/DELETE）请求在 interceptor 入口就被 `!methods.includes(opts.method)` 短路直接透传，永远不会进入 CacheHandler。而 CacheHandler 里唯一调用 `store.deleteByOrigin(origin)` 做缓存失效（RFC 9111 要求非安全方法成功后使存储响应失效）的分支条件被改成 `!this.#methods.includes(method)`，由于能到达该 handler 的请求方法必然在 #methods 里（interceptor 已过滤），这个条件恒为 false，deleteByOrigin 成为死代码。后果：PUT/DELETE 更新资源后，后续 GET 仍会命中过期缓存并返回旧数据。需要恢复让非安全方法也路由进 CacheHandler（或另行触发失效），并把失效判定改回非安全方法判断。",
+          "confidence": "high"
+        },
+        {
+          "file": "lib/interceptor/cache.js",
+          "line": 11,
+          "severity": "minor",
+          "body": "默认参数 `opts = {}` 只在传入 `undefined` 时生效；显式传入 `null` 时，第 7 行的解构 `const { store } = opts` 会先抛出 \"Cannot destructure property 'store' of null\"，永远到不了下面专门处理 null 的 `opts === null` 分支。该 null 检查不可达，校验逻辑应放在解构之前（或去掉 null 文案）。",
+          "confidence": "high"
+        },
+        {
+          "file": "lib/interceptor/cache.js",
+          "line": 164,
+          "severity": "minor",
+          "body": "`.catch(handler.onError)` 把方法从对象上取下再传，丢失了 `this` 绑定；若 handler 的 `onError` 依赖 `this`（多数 DispatchHandlers 实现是类方法），回调执行时会以 undefined this 调用并抛 TypeError，错误被吞且 handler 不会收到错误。原来的箭头函数 `err => handler.onError(err)` 是正确的，建议保留。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 4008,
+        "outputTokens": 831,
+        "totalTokens": 4839,
+        "cachedInputTokens": 3968
+      },
+      "durationMs": 12843,
+      "score": {
+        "caseId": "corr-09-undici-cache-purge-gate",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/interceptor/cache.js",
+              "line": 35,
+              "mustMention": [
+                "清删",
+                "失效",
+                "脏",
+                "缓存",
+                "写操作",
+                "增删改",
+                "不再",
+                "过期"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 3,
+        "truePositives": 1,
+        "precision": 0.3333333333333333,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high",
+          "high",
+          "medium"
+        ],
+        "commentTps": [
+          true,
+          false,
+          false
+        ],
+        "commentHitCounts": [
+          1,
+          0,
+          0
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "corr-10-fastify-meta-null",
+      "kind": "bug",
+      "source": "correlation",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1358,
+        "outputTokens": 177,
+        "totalTokens": 1535,
+        "cachedInputTokens": 1344
+      },
+      "durationMs": 4370,
+      "score": {
+        "caseId": "corr-10-fastify-meta-null",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "lib/reply.js",
+              "line": 968,
+              "mustMention": [
+                "置空",
+                "清空",
+                "后续",
+                "读取",
+                "崩溃",
+                "解构",
+                "超时",
+                "悬空",
+                "仍"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    }
+  ],
+  "summary": {
+    "recall": 0,
+    "precision": null,
+    "totalExpect": 0,
+    "totalHits": 0,
+    "totalComments": 0,
+    "totalTp": 0,
+    "failed": 0,
+    "usage": {
+      "inputTokens": 20968,
+      "outputTokens": 9251,
+      "totalTokens": 30219,
+      "cachedInputTokens": 20608
+    },
+    "groups": {
+      "correlation": {
+        "recall": 0.1,
+        "precision": 0.09090909090909091,
+        "expectN": 10,
+        "hits": 1,
+        "comments": 11,
+        "tp": 1,
+        "runs": 10,
+        "failed": 0
+      }
+    }
+  }
+}
