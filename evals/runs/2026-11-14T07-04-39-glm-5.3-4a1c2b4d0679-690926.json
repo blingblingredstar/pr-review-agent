@@ -1,0 +1,449 @@
+{
+  "startedAt": "2026-11-14T07:04:39.758Z",
+  "model": "glm-5.3",
+  "llmBaseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+  "llmExtraBody": "{\"thinking\":{\"type\":\"enabled\"},\"reasoning_effort\":\"low\"}",
+  "promptHash": "4a1c2b4d0679",
+  "evalOnly": [
+    "aacr"
+  ],
+  "capabilityScope": "synthetic+real",
+  "schemaVersion": 1,
+  "planArm": null,
+  "contextArm": null,
+  "aspectArm": null,
+  "reflectArm": null,
+  "runs": [
+    {
+      "caseId": "aacr-01-cline-azure-detection",
+      "kind": "bug",
+      "source": "aacr",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1566,
+        "outputTokens": 169,
+        "totalTokens": 1735,
+        "cachedInputTokens": 1536
+      },
+      "durationMs": 4999,
+      "score": {
+        "caseId": "aacr-01-cline-azure-detection",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/api/providers/openai.ts",
+              "line": 17,
+              "mustMention": [
+                "误判",
+                "判别",
+                "检测",
+                "识别错",
+                "顺序",
+                "判定错",
+                "走错",
+                "分支选错"
+              ]
+            },
+            "hit": false
+          },
+          {
+            "expect": {
+              "file": "src/api/providers/openai.ts",
+              "line": 39,
+              "mustMention": [
+                "子串",
+                "误匹配",
+                "精确匹配",
+                "误报",
+                "模糊匹配",
+                "前缀"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "aacr-02-react-single-state-hook",
+      "kind": "bug",
+      "source": "aacr",
+      "error": null,
+      "comments": [
+        {
+          "file": "packages/react-dom/src/__tests__/ReactDOMForm-test.js",
+          "line": 1673,
+          "severity": "major",
+          "body": "测试使用了 `it.only`，会让整个测试文件中其余所有用例被跳过，合入后会静默丢失大范围测试覆盖。应为普通 `it`。",
+          "confidence": "high"
+        },
+        {
+          "file": "packages/react-dom/src/__tests__/ReactDOMForm-test.js",
+          "line": 1680,
+          "severity": "minor",
+          "body": "`formRef` 和 `submitFormTwiceButtonRef` 一样，在组件函数体内每次渲染都通过 `React.createRef()` 创建新的 ref 对象。`submitFormTwice` 闭包捕获的是首次渲染创建的那个 ref，如果两次 `requestSubmit` 之间发生重渲染，旧 ref 会被 React 置为 `null`（新 ref 对象才持有 DOM 节点），第二次 `formRef.current.requestSubmit()` 将抛出空指针。当前恰好未触发重渲染所以测试能过，但这是隐患；建议改用 `useRef`，与生产代码用法一致。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1566,
+        "outputTokens": 484,
+        "totalTokens": 2050,
+        "cachedInputTokens": 1536
+      },
+      "durationMs": 8737,
+      "score": {
+        "caseId": "aacr-02-react-single-state-hook",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "packages/react-reconciler/src/ReactFiberHooks.js",
+              "line": 3264,
+              "mustMention": [
+                "单个",
+                "只有一个",
+                "唯一",
+                "忽略",
+                "不复用",
+                "重复",
+                "已有状态",
+                "丢失",
+                "不再命中"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 2,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high",
+          "medium"
+        ],
+        "commentTps": [
+          false,
+          false
+        ],
+        "commentHitCounts": [
+          0,
+          0
+        ],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "aacr-03-cline-checkpoint-unhandled",
+      "kind": "bug",
+      "source": "aacr",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/core/task/index.ts",
+          "line": 1327,
+          "severity": "major",
+          "body": "commit() 的 Promise 没有 .catch：改为非阻塞后，若 git 操作 reject（大 shadow repo、磁盘错误等），将成为未处理的 Promise rejection，且之前 await 形式下异常会进入外层错误流。请在 .then 后追加 .catch 记录/上报错误。",
+          "confidence": "high"
+        },
+        {
+          "file": "src/core/task/index.ts",
+          "line": 1326,
+          "severity": "major",
+          "body": "say(\"checkpoint_created\") 被移到 commit 之前且无条件执行，而原逻辑只在 commitHash 为真时才发该消息。当 commit() 返回 undefined/falsy（如无变更、tracker 内部跳过）时，会在消息流里留下一条永远没有 lastCheckpointHash 的 checkpoint_created 消息，依赖该 hash 的逻辑（如 doesLatestTaskCompletionHaveNewChanges）会读到 undefined 而误判。建议要么回到拿到 commitHash 后再 say，要么在 commitHash 为空时移除/补写该消息。",
+          "confidence": "medium"
+        },
+        {
+          "file": "src/core/task/index.ts",
+          "line": 1329,
+          "severity": "minor",
+          "body": "非阻塞化后可能出现多个 commit() 并发在飞：findLastIndex 找到的是“最新一条 checkpoint_created 消息”，先发起但后完成的 commit 会把 hash 写到后来者创建的消息上，导致 hash 与实际 checkpoint 错配。若确认流程上不会并发触发（如每次 commit 前序已完成），可忽略；否则应在 say 时记住该消息的 index 再在该 index 上更新。",
+          "confidence": "low"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1431,
+        "outputTokens": 518,
+        "totalTokens": 1949,
+        "cachedInputTokens": 1408
+      },
+      "durationMs": 8620,
+      "score": {
+        "caseId": "aacr-03-cline-checkpoint-unhandled",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/core/task/index.ts",
+              "line": 1322,
+              "mustMention": [
+                "未处理",
+                "未捕获",
+                "catch",
+                "失败",
+                "reject",
+                "异常"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 3,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high",
+          "medium",
+          "low"
+        ],
+        "commentTps": [
+          false,
+          false,
+          false
+        ],
+        "commentHitCounts": [
+          0,
+          0,
+          0
+        ],
+        "contentComments": 1,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "aacr-04-threejs-degenerate-points",
+      "kind": "bug",
+      "source": "aacr",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/geometries/ExtrudeGeometry.js",
+          "line": 178,
+          "severity": "minor",
+          "body": "当 `currentIndex == 0` 时 splice 后直接 `break`，跳过了新的 `points[0]` 与 `prevPos`（最后一个保留点）之间的环回比较。若环回接缝处存在多个连续重复点（首尾两侧各删一个仍不够），删除首个点后剩下的新首点可能仍与尾点距离在阈值内，重复点会残留并进入三角剖分。建议 splice 后不 break，而是重新用 `prevPos` 与新 `points[0]` 比较一轮（或在外层再跑一次直到无删除）。",
+          "confidence": "medium"
+        },
+        {
+          "file": "src/geometries/ExtrudeGeometry.js",
+          "line": 168,
+          "severity": "minor",
+          "body": "`prevPos = points[0]` 未考虑输入为空数组的情况：holes 由调用方数据构造，若某个 hole 为空数组，`points[0]` 为 undefined，下一行访问 `.x` 会直接抛 TypeError。另外单点环会被本函数清成空数组，随后 `holesMovements`/三角剖分按空环处理的行为也未验证。建议开头加 `if (points.length < 3) return;` 之类的保护。",
+          "confidence": "low"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1862,
+        "outputTokens": 1026,
+        "totalTokens": 2888,
+        "cachedInputTokens": 1856
+      },
+      "durationMs": 22523,
+      "score": {
+        "caseId": "aacr-04-threejs-degenerate-points",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/geometries/ExtrudeGeometry.js",
+              "line": 169,
+              "mustMention": [
+                "空",
+                "长度",
+                "至少两个",
+                "不足两个",
+                "undefined",
+                "未定义",
+                "越界",
+                "退化"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 2,
+        "truePositives": 1,
+        "precision": 0.5,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "medium",
+          "low"
+        ],
+        "commentTps": [
+          false,
+          true
+        ],
+        "commentHitCounts": [
+          0,
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "aacr-05-n8n-release-expiry",
+      "kind": "bug",
+      "source": "aacr",
+      "error": null,
+      "comments": [
+        {
+          "file": ".github/workflows/release-publish.yml",
+          "line": 106,
+          "severity": "blocker",
+          "body": "build-args 不会被 shell 展开，`$(date -u +\"%Y-%m-%dT%H:%M:%SZ\")` 会作为字面字符串传给 builder。构建时 ARG N8N_RELEASE_DATE 的值就是 `$(date -u +\"%Y-%m-%dT%H:%M:%SZ\")` 这个字符串，写进镜像 label 和 ENV，运行时 Date.parse 解析失败，releaseDate 为 undefined，整个过期禁用逻辑失效。应改为在 workflow 里先算好：`N8N_RELEASE_DATE: $(date -u +'%Y-%m-%dT%H:%M:%SZ')`（GitHub 表达式/step 输出）再注入 build-args。",
+          "confidence": "high"
+        },
+        {
+          "file": "packages/core/src/errors/error-reporter.ts",
+          "line": 88,
+          "severity": "major",
+          "body": "setTimeout 未调用 `.unref()`，定时器最长可达 6 周，会一直占用事件循环。BaseCommand.init 对所有 CLI 命令执行（包括 import/export、user-management 等短命命令），这些命令执行完后进程将无法退出，一直挂到定时器触发。加上 `.unref()` 即可。",
+          "confidence": "high"
+        },
+        {
+          "file": "packages/core/src/errors/error-reporter.ts",
+          "line": 80,
+          "severity": "minor",
+          "body": "release 已过期时的 early return 发生在 `if (!dsn) return` 之前且不设置 `this.enabled = false`，此时 uncaughtException handler 已注册但 `error()` 是否安全取决于 client 初始化状态，且与 `!dsn` 分支行为不一致（那条路径保留 enabled=true）。统一在 expired 分支显式 `this.enabled = false` 再 return，语义更清晰，也避免依赖 client 未初始化这一隐式前提。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3390,
+        "outputTokens": 982,
+        "totalTokens": 4372,
+        "cachedInputTokens": 3328
+      },
+      "durationMs": 19739,
+      "score": {
+        "caseId": "aacr-05-n8n-release-expiry",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "packages/core/src/errors/error-reporter.ts",
+              "line": 89,
+              "mustMention": [
+                "上限",
+                "溢出",
+                "2^31",
+                "2147483647",
+                "24.8",
+                "立即触发",
+                "最大延迟",
+                "提前到期"
+              ]
+            },
+            "hit": false
+          },
+          {
+            "expect": {
+              "file": "packages/core/src/errors/error-reporter.ts",
+              "line": 84,
+              "mustMention": [
+                "未禁用",
+                "仍会",
+                "照常",
+                "没有设置",
+                "未设置",
+                "提前返回",
+                "未关闭",
+                "语义不符"
+              ]
+            },
+            "hit": false
+          },
+          {
+            "expect": {
+              "file": ".github/workflows/release-publish.yml",
+              "line": 106,
+              "mustMention": [
+                "字面",
+                "不展开",
+                "不会执行",
+                "不执行",
+                "替换",
+                "literal",
+                "shell",
+                "原样"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 0.3333333333333333,
+        "agentComments": 3,
+        "truePositives": 1,
+        "precision": 0.3333333333333333,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high",
+          "high",
+          "medium"
+        ],
+        "commentTps": [
+          true,
+          false,
+          false
+        ],
+        "commentHitCounts": [
+          1,
+          0,
+          0
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    }
+  ],
+  "summary": {
+    "recall": 0,
+    "precision": null,
+    "totalExpect": 0,
+    "totalHits": 0,
+    "totalComments": 0,
+    "totalTp": 0,
+    "failed": 0,
+    "usage": {
+      "inputTokens": 9815,
+      "outputTokens": 3179,
+      "totalTokens": 12994,
+      "cachedInputTokens": 9664
+    },
+    "groups": {
+      "aacr": {
+        "recall": 0.25,
+        "precision": 0.2,
+        "expectN": 8,
+        "hits": 2,
+        "comments": 10,
+        "tp": 2,
+        "runs": 5,
+        "failed": 0
+      }
+    }
+  }
+}

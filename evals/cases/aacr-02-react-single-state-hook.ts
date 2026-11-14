@@ -79,7 +79,7 @@ index 967be9be94fa..e92801f5fc1a 100644
     {
       file: "packages/react-reconciler/src/ReactFiberHooks.js",
       line: 3264,
-      mustMention: ["单个", "只有一个", "唯一", "忽略", "不复用", "重复", "已有状态", "next", "丢失"],
+      mustMention: ["单个", "只有一个", "唯一", "忽略", "不复用", "重复", "已有状态", "丢失", "不再命中"],
     },
   ],
 } as EvalCase;

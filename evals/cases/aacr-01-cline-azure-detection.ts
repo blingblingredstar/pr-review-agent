@@ -64,12 +64,12 @@ index 7309d5bb988..dc7649228f7 100644
     {
       file: "src/api/providers/openai.ts",
       line: 17,
-      mustMention: ["误判", "判别", "检测", "识别", "顺序", "azure", "判定错", "走错"],
+      mustMention: ["误判", "判别", "检测", "识别错", "顺序", "判定错", "走错", "分支选错"],
     },
     {
       file: "src/api/providers/openai.ts",
       line: 39,
-      mustMention: ["子串", "误匹配", "精确匹配", "误报", "includes", "前缀"],
+      mustMention: ["子串", "误匹配", "精确匹配", "误报", "模糊匹配", "前缀"],
     },
   ],
 } as EvalCase;

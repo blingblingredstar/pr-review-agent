@@ -258,12 +258,12 @@ index 3c0bffcd4ba7..ed9189511c74 100644
     {
       file: "packages/core/src/errors/error-reporter.ts",
       line: 89,
-      mustMention: ["上限", "溢出", "2^31", "2147483647", "24.8", "立即触发", "最大延迟", "setTimeout"],
+      mustMention: ["上限", "溢出", "2^31", "2147483647", "24.8", "立即触发", "最大延迟", "提前到期"],
     },
     {
       file: "packages/core/src/errors/error-reporter.ts",
       line: 84,
-      mustMention: ["enabled", "未禁用", "仍", "照常", "没有设置", "提前返回", "关闭", "未关闭"],
+      mustMention: ["未禁用", "仍会", "照常", "没有设置", "未设置", "提前返回", "未关闭", "语义不符"],
     },
     {
       file: ".github/workflows/release-publish.yml",
