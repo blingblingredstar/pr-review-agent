@@ -73,7 +73,7 @@ flowchart TD
 ```bash
 npm install
 cp .env.example .env   # 填 LLM_BASE_URL / LLM_API_KEY / LLM_MODEL / GITHUB_TOKEN
-npm test               # 284 例单测
+npm test               # 313 例单测
 npm run review:local   # hardcode 样例 diff 冒烟（快速验证端点连通）
 npm run review:pr -- owner/repo#N [--post]   # 真实 PR 试跑（默认只打印）
 npm run eval           # 107 用例打分表，结果落盘 evals/runs/
@@ -148,7 +148,7 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 | 合并闸门 | 无——工具定位是给建议，合并决策在人 | REQUEST_CHANGES 原生禁合并 + 双 status 硬闸门（D017） |
 | 上下文对照源 | 上下文工具 + 60+ 文件类型的内置语言规则清单 | 仓库快照全文 + 文件树（D023）+ 关联 issue 需求原文（D029）+ 仓库默认分支 AGENTS.md 组织约定（D045） |
 | 语言面 | 60+ 文件类型，10 语言基准 | 评测域聚焦：107 用例主 diff 文件 95% 为 .ts/.js，质量读数在前端主语言域校准 |
-| 规模验证 | 阿里内部两年、数万开发者、数百万缺陷（README 自述） | 单仓 dogfood：122 次生产审查台账、107 用例、284 单测 |
+| 规模验证 | 阿里内部两年、数万开发者、数百万缺陷（README 自述） | 单仓 dogfood：122 次生产审查台账、107 用例、313 单测 |
 
 它的取舍恰好映出本项目的位置：对方把「宁可漏报不可吵人」做进默认管线（独立反思模块默认启用——正是本仓库实测 1:1 不划算后关闭的那个机制），用规则清单和包范围硬约束换 precision 与 1/9 成本；更高召回档（Ultra Mode）在其 2026 下半年路线图上。本仓库在召回端已经配齐任务上下文（D029）、组织规范（D045）、复审记忆（D035）并在评测里单列对抗性关联与增量盲区组；质量读数双高且每一条都有公开的迭代数据支撑。规模差距如实：对方有内部两年实战背书，本仓库是单仓 dogfood。
 
