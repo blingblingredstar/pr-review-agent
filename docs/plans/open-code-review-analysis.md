@@ -63,12 +63,12 @@ ROADMAP 两个时间点值得记：
 | 审查范围锚定 | bundle 内文件（`<review_files>` 硬约束） | PR diff 修改锚定 + search/read 扩大验证半径不扩大审查范围 |
 | 上下文来源 | 上下文工具（access/search/read）+ 每语言内置规则清单 | 快照触及文件全文 + 文件树（D023）+ 任务上下文：PR 标题与关联 issue 正文（D029）+ 组织规范：仓库默认分支 AGENTS.md（D045） |
 | 质量取舍 | 高精度低召回（自述刻意），token ~1/9 | recall 88.9% / precision 97.1% 双高（36 条能力期望，生产同款模型与提示词，2026-11-12 两轮微平均；基线五轮 recall 带 82.9–94.3）；假阳性过滤实测 1:1 不划算后不启用（D043），宁在生成侧规则防 |
-| 评测 | AACR-Bench：50 仓 / 200 PR / 10 语言 / 1,505 条正例标注（另有 640 条负例），数据集 + 被测仓库快照 + 评测 harness 三件套全公开（HF + 独立基准仓库 alibaba/aacr-bench）；打分用 LLM-judge 文件级语义覆盖，行号不作硬过滤 | 102 用例在库：确定性打分（无 LLM 裁判）、promptHash 基线红线、改 prompt 必跑回归、注入拦截率独立口径、迭代曲线公开（evals/report.md）、金丝雀周巡检 |
+| 评测 | AACR-Bench：50 仓 / 200 PR / 10 语言 / 1,505 条正例标注（另有 640 条负例），数据集 + 被测仓库快照 + 评测 harness 三件套全公开（HF + 独立基准仓库 alibaba/aacr-bench）；打分用 LLM-judge 文件级语义覆盖，行号不作硬过滤 | 107 用例在库：确定性打分（无 LLM 裁判）、promptHash 基线红线、改 prompt 必跑回归、注入拦截率独立口径、迭代曲线公开（evals/report.md）、金丝雀周巡检 |
 | 注入抗性 | 威胁模型标注 git 仓库半可信（ASSURANCE_CASE.md，"diffs may contain adversarial content"）；无注入回归用例可见 | 10 例注入 canary 覆盖六个注入面（diff 注释/文件名/元数据/issue 正文/上一轮意见/AGENTS.md）持续回归 + 每个注入面威胁模型重申 + 无 approve 路径（最坏后果是多误报，不存在被注入放行合并） |
 | 合并闸门 | 无——工具定位是给建议，合并决策在人 | REQUEST_CHANGES 原生禁合并（重审无意见自动解除）+ `pr-review` / `review-threads` 双 status 硬闸门（D017） |
 | 严重度 | critical/high/medium/low + category | blocker/major/minor/nit + confidence 内部信号 |
-| 语言面 | 60+ 文件类型规则，10 语言基准；TS/JS 规则含 React 专节 | 评测域聚焦：102 用例主 diff 文件 95% 为 .ts/.js，质量读数在前端主语言域校准 |
-| 规模验证 | 阿里内部两年、数万开发者、数百万缺陷（README 自述） | 单仓 dogfood：122 次生产审查台账、284 单测、102 用例 |
+| 语言面 | 60+ 文件类型规则，10 语言基准；TS/JS 规则含 React 专节 | 评测域聚焦：107 用例主 diff 文件 95% 为 .ts/.js，质量读数在前端主语言域校准 |
+| 规模验证 | 阿里内部两年、数万开发者、数百万缺陷（README 自述） | 单仓 dogfood：122 次生产审查台账、284 单测、107 用例 |
 | 可观测 | OpenTelemetry + session viewer（回放/标记） | 逐 run token 落盘 + 前缀缓存读数 + RunRecord 面板（D041）+ 生产台账 |
 
 两处公允性声明，防止对照表吹过头：

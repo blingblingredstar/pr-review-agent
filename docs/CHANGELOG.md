@@ -12,6 +12,7 @@
 
 ### Changed
 
+- #157 续批：AACR-Bench 外部 golden 再转译 5 例（aacr-06..10，svelte / gemini-cli / n8n / cline / immich，11 期望；含一个口径差压力例）——全组 10 例 recall 15.8%（3/19）/ precision 16.7%（3/18，关键词修正后干净轮；修正前污染轮为 18.8% 仅作对照不引用），首批 8 期望干净两轮一致 25%；±3 容差离线校准：K=5 恰好回收全部锚点伪影类（25%→37.5%）后饱和，残差 = 零意见 ×3 / 同行另一真缺陷 ×1 / 词形变体 ×1（词表健壮性）；PR #166 两笔裁定落账（rulings 25→27）
 - #157 首批：AACR-Bench 外部 golden 转译 5 例落库为新 `aacr` 组（`evals/cases/aacr-01..05`，独立口径不进能力分）——human/AI golden 混选（cline#1808、react#33059、cline#5177、three.js#30750、n8n#13323），锚点人工对位机制行零漂移、机制词中文转译；首跑 recall 25.0%（2/8）/ precision 20.0%（2/10）（bot 自审抓出初版关键词混入 diff 字面词虚增 25pp，剔除后重跑终态），miss 归因（锚点伪影 1 两轮稳定 / 真能力缺口 1 两轮稳定 / 单例方差主导其余）与 #107 同谱系，已评论 #157；score.ts / KNOWN_SOURCES 注册 aacr；台账回收 122→127 run
 - 门面数字修正（#158 合并 golden 后陈旧两日）：README / architecture / open-code-review 分析文档 92→102 用例、real 15→20（15 自建 + #107 转译 5）、能力期望 36→47 并拆口径（88.9/97.1 系 36 自标口径读数，外部 golden 批次独立口径：#107 45.5%、aacr 组首跑 25.0%（剔除字面词后终态））；eval 表新增 aacr 行
 - AACR-Bench 外部基准接入：`scripts/aacr-bench.sh` 钉版本拉取 [aacr-bench](https://github.com/alibaba/aacr-bench) 评测框架（数据零复制、自动下载 + sha256 校验），`scripts/aacr/prra.py` 适配器 + `scripts/aacr/pipeline-prra.patch`（4 hunk 注册 prra reviewer，钉版 sha 上生成、reset 后重放）+ `scripts/aacr-review.ts` 桥接 CLI（裸调 `reviewDiff` 与 evals 同构，OCR 形状结果 JSON）——本 bot 以 `prra` 身份在该基准上跑同尺读数（judge 亦 LLM、钉模型）；TS/JS 子集自动过滤（417 条专家确认参考意见 / 40 PR）；preview 模式零成本验机械、mock/real 分级、limit>20 需 FORCE=1 预算闸门；README 同类工具对照与路线图补外部对照条目。首跑两坑已修：npm banner 污染 stdout（结果改走 `--out` 文件）、大 diff 超 execFile 默认 1MB maxBuffer（64MB）

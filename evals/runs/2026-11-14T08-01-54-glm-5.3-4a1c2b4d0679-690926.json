@@ -1,0 +1,872 @@
+{
+  "startedAt": "2026-11-14T08:01:54.707Z",
+  "model": "glm-5.3",
+  "llmBaseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+  "llmExtraBody": "{\"thinking\":{\"type\":\"enabled\"},\"reasoning_effort\":\"low\"}",
+  "promptHash": "4a1c2b4d0679",
+  "evalOnly": [
+    "aacr"
+  ],
+  "capabilityScope": "synthetic+real",
+  "schemaVersion": 1,
+  "planArm": null,
+  "contextArm": null,
+  "aspectArm": null,
+  "reflectArm": null,
+  "runs": [
+    {
+      "caseId": "aacr-01-cline-azure-detection",
+      "kind": "bug",
+      "source": "aacr",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/api/providers/openai.ts",
+          "line": 17,
+          "severity": "major",
+          "body": "deepseek 分支放在 azure.com 分支之前会遮蔽 Azure 判断。changeset 说明本次目的就是「在 Azure 上使用 DeepSeek」，而 Azure 资源名或部署名含 deepseek 时（如 https://<xxx-deepseek>.openai.azure.com），URL 同时包含 \"deepseek\" 和 \"azure.com\"，会命中新增的第一个分支，用普通 OpenAI 客户端访问 Azure 端点——缺 api-version 查询参数，Azure 会拒绝请求，恰好破坏了本次想修复的场景。应把 deepseek 判断放在 azure.com 判断之后，或条件中排除 azure.com（如 includes(\"deepseek\") && !includes(\"azure.com\")）。",
+          "confidence": "medium"
+        },
+        {
+          "file": "src/api/providers/deepseek.ts",
+          "line": 26,
+          "severity": "nit",
+          "body": "两处（deepseek.ts:26 与 openai.ts:39）复制了相同的判断表达式 model.id.includes(\"deepseek-reasoner\") || model.id.includes(\"deepseek-r1\")，建议提取为共享的 helper（如 isDeepSeekReasonerModel），避免后续新增模型名时漏改其中一处。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1566,
+        "outputTokens": 662,
+        "totalTokens": 2228,
+        "cachedInputTokens": 1536
+      },
+      "durationMs": 11210,
+      "score": {
+        "caseId": "aacr-01-cline-azure-detection",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/api/providers/openai.ts",
+              "line": 17,
+              "mustMention": [
+                "误判",
+                "判别",
+                "检测",
+                "识别错",
+                "顺序",
+                "判定错",
+                "走错",
+                "分支选错"
+              ]
+            },
+            "hit": false
+          },
+          {
+            "expect": {
+              "file": "src/api/providers/openai.ts",
+              "line": 39,
+              "mustMention": [
+                "子串",
+                "误匹配",
+                "精确匹配",
+                "误报",
+                "模糊匹配",
+                "前缀"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 2,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "medium",
+          "medium"
+        ],
+        "commentTps": [
+          false,
+          false
+        ],
+        "commentHitCounts": [
+          0,
+          0
+        ],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "aacr-02-react-single-state-hook",
+      "kind": "bug",
+      "source": "aacr",
+      "error": null,
+      "comments": [
+        {
+          "file": "packages/react-dom/src/__tests__/ReactDOMForm-test.js",
+          "line": 1673,
+          "severity": "blocker",
+          "body": "测试使用了 `it.only`，会让整个测试文件中的其他所有用例被跳过，CI 里这些回归将失去保护。提交前必须移除 `.only`。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1566,
+        "outputTokens": 162,
+        "totalTokens": 1728,
+        "cachedInputTokens": 1536
+      },
+      "durationMs": 3546,
+      "score": {
+        "caseId": "aacr-02-react-single-state-hook",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "packages/react-reconciler/src/ReactFiberHooks.js",
+              "line": 3264,
+              "mustMention": [
+                "单个",
+                "只有一个",
+                "唯一",
+                "忽略",
+                "不复用",
+                "重复",
+                "已有状态",
+                "丢失",
+                "不再命中"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 1,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high"
+        ],
+        "commentTps": [
+          false
+        ],
+        "commentHitCounts": [
+          0
+        ],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "aacr-03-cline-checkpoint-unhandled",
+      "kind": "bug",
+      "source": "aacr",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/core/task/index.ts",
+          "line": 1325,
+          "severity": "major",
+          "body": "commit() 的 Promise 没有挂 .catch，改为非阻塞后任何 git 异常（大 shadow repo 操作失败、仓库损坏等）都会变成 unhandled rejection，且调用方无从感知 checkpoint 写入失败，后续依赖 lastCheckpointHash 的回滚/对比逻辑会静默拿不到哈希。建议加 .catch 做日志（并考虑与既有错误上报路径打通）。",
+          "confidence": "high"
+        },
+        {
+          "file": "src/core/task/index.ts",
+          "line": 1327,
+          "severity": "minor",
+          "body": "并发竞态：commit 变为异步后台执行后，若两次 saveCheckpoint 间隔很短（前一个 commit 尚未落盘），后完成的那个 commit 的 findLastIndex 会命中最新的 checkpoint_created 消息，可能把哈希写到属于另一次 checkpoint 的消息上，导致哈希与消息错配。可考虑在发起时记下本次 say 的消息索引，完成后直接更新该索引。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1431,
+        "outputTokens": 351,
+        "totalTokens": 1782,
+        "cachedInputTokens": 1408
+      },
+      "durationMs": 7013,
+      "score": {
+        "caseId": "aacr-03-cline-checkpoint-unhandled",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/core/task/index.ts",
+              "line": 1322,
+              "mustMention": [
+                "未处理",
+                "未捕获",
+                "catch",
+                "失败",
+                "reject",
+                "异常"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 2,
+        "truePositives": 1,
+        "precision": 0.5,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high",
+          "medium"
+        ],
+        "commentTps": [
+          true,
+          false
+        ],
+        "commentHitCounts": [
+          1,
+          0
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "aacr-04-threejs-degenerate-points",
+      "kind": "bug",
+      "source": "aacr",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/geometries/ExtrudeGeometry.js",
+          "line": 429,
+          "severity": "major",
+          "body": "faces 改为对 bevel 循环里 t==0 层收集的 contractedContourVertices / expandedHoleVertices 做三角化，但如果 bevelSegments 为 0（bevelEnabled 为 true 时传 0），bevel 循环一次都不执行，两个数组保持为空，triangulateShape 返回空、flen=0，前后端盖面全部丢失；旧实现中 faces 是对原始 vertices 三角化的，bevelSegments=0 时仍有端盖。建议在 bevelSegments 为 0 时回退到用原始 vertices/holes 三角化，或将收集逻辑不依赖 bevel 循环。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1862,
+        "outputTokens": 1943,
+        "totalTokens": 3805,
+        "cachedInputTokens": 1856
+      },
+      "durationMs": 38095,
+      "score": {
+        "caseId": "aacr-04-threejs-degenerate-points",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/geometries/ExtrudeGeometry.js",
+              "line": 169,
+              "mustMention": [
+                "空",
+                "长度",
+                "至少两个",
+                "不足两个",
+                "undefined",
+                "未定义",
+                "越界",
+                "退化"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 1,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "medium"
+        ],
+        "commentTps": [
+          false
+        ],
+        "commentHitCounts": [
+          0
+        ],
+        "contentComments": 1,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "aacr-05-n8n-release-expiry",
+      "kind": "bug",
+      "source": "aacr",
+      "error": null,
+      "comments": [
+        {
+          "file": ".github/workflows/release-publish.yml",
+          "line": 106,
+          "severity": "major",
+          "body": "build-args 中的 `N8N_RELEASE_DATE=$(date -u +\"%Y-%m-%dT%H:%M:%SZ\")` 不会执行命令替换。GitHub Actions 的 YAML 值不做 shell 展开，docker build 收到的是字面字符串 `$(date ...)`，不是时间戳；随后 Date.parse 失败，镜像 label 和 ENV 都会拿到垃圾值，错误上报的 6 周过期逻辑也因此失效（releaseDate 未定义时整个检查被跳过）。应在前面的某个 step 中先 `run: echo \"N8N_RELEASE_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)\" >> \"$GITHUB_ENV\"`，再在 build-args 里引用 `${{ env.N8N_RELEASE_DATE }}`。",
+          "confidence": "high"
+        },
+        {
+          "file": "packages/core/src/errors/error-reporter.ts",
+          "line": 92,
+          "severity": "major",
+          "body": "未过期的 release 会注册一个最长 6 周的 `setTimeout`，但没有调用 `.unref()`。这个挂起的定时器会阻止 Node 进程自然退出，导致 n8n 实例正常 shutdown（graceful shutdown 完成后）一直挂住直到定时器到期或被强杀。修法：`setTimeout(..., releaseExpiresInMs).unref()`。",
+          "confidence": "high"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3390,
+        "outputTokens": 806,
+        "totalTokens": 4196,
+        "cachedInputTokens": 3328
+      },
+      "durationMs": 15849,
+      "score": {
+        "caseId": "aacr-05-n8n-release-expiry",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "packages/core/src/errors/error-reporter.ts",
+              "line": 89,
+              "mustMention": [
+                "上限",
+                "溢出",
+                "2^31",
+                "2147483647",
+                "24.8",
+                "立即触发",
+                "最大延迟",
+                "提前到期"
+              ]
+            },
+            "hit": false
+          },
+          {
+            "expect": {
+              "file": "packages/core/src/errors/error-reporter.ts",
+              "line": 84,
+              "mustMention": [
+                "未禁用",
+                "仍会",
+                "照常",
+                "没有设置",
+                "未设置",
+                "提前返回",
+                "未关闭",
+                "语义不符"
+              ]
+            },
+            "hit": false
+          },
+          {
+            "expect": {
+              "file": ".github/workflows/release-publish.yml",
+              "line": 106,
+              "mustMention": [
+                "字面",
+                "不展开",
+                "不会执行",
+                "不执行",
+                "替换",
+                "literal",
+                "shell",
+                "原样"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 0.3333333333333333,
+        "agentComments": 2,
+        "truePositives": 1,
+        "precision": 0.5,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high",
+          "high"
+        ],
+        "commentTps": [
+          true,
+          false
+        ],
+        "commentHitCounts": [
+          1,
+          0
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "aacr-06-svelte-elseif-render-arg",
+      "kind": "bug",
+      "source": "aacr",
+      "error": null,
+      "comments": [
+        {
+          "file": "packages/svelte/src/internal/client/dom/blocks/if.js",
+          "line": 37,
+          "severity": "major",
+          "body": "`if_block(node, fn, [root_index, hydrate_index] = [0, 0])` 用数组解构做参数，配合 `update_branch` 里 `hydrate_index = 0/Infinity/parseInt(...)` 的写赋值：解构出的 `hydrate_index` 是函数局部 let，这个没问题；但 `set_branch`/`update_branch` 是闭包捕获同一个变量，而递归调用传入的 `[root_index + 1, hydrate_index]` 会把当前已解析的 `hydrate_index` 传给下一层。问题在于：嵌套 `if_block` 只有在 `root_index === 0` 时才解析锚点注释数据，而顶层 `if_block` 在第一次 `update_branch` 执行时（`hydrate_index` 仍为初始 0）就把 `[root_index+1, 0]` 传给了 alternate 分支；alternate 内部再进入 `update_branch` 时 `root_index === 1`，跳过解析，`hydrate_index` 恒为 0，`is_else = 0 > 1 = false`，`:else if` 命中时会被误判为 hydration mismatch（`!!condition === is_else` 恒成立被绕过或恒判 mismatch，取决于解析时机）。解析实际发生在 `$.if` 的 render 回调里，即 alternate 的 `if_block` 创建之前，顶层首次 `update_branch(true→false)` 时才写 `hydrate_index`，此时嵌套 `if_block(node, fn, [1, hydrate_index])` 已是正确值——但 `consequent`（root_index=0 的真分支）正常路径下也执行 `fn(anchor, [root_index+1, hydrate_index])`？请核对：`branch(() => fn(anchor, [root_index + 1, hydrate_index]))` 在 else 分支处传入，真分支（`consequent_effect = branch(() => fn(anchor))`，diff 外）不带 elseif 参数——若真分支里的嵌套 `{:else if}` 链也走这条路径（Fragment.js 的 elseif 单子优化会把 IfBlock 当 fragment 根），真分支内首个 elseif `if_block` 会以 root_index=0 重新开始，这可能是刻意的。建议为 elseif 链补 hydration 顺序的多层嵌套快照测试（`{#if a}{:else if b}{:else}` SSR→hydrate），diff 内未见对应测试。",
+          "confidence": "low"
+        },
+        {
+          "file": "packages/svelte/src/compiler/phases/3-transform/client/visitors/IfBlock.js",
+          "line": 73,
+          "severity": "major",
+          "body": "`args.push(b.id('$$elseif'))` 把原本的 `b.literal(true)` 换成参数引用：`$$elseif` 是 `if_block` 第三参 `[root_index, hydrate_index]` 数组解构的来源，即传的是 `[root_index + 1, hydrate_index]`。当该箭头函数不是 elseif 分支（`node.elseif` 为 false 的普通嵌套 if，位于 alternate 内部、由 Fragment 单子优化直接内联）时，`$$elseif` 形参不存在于该箭头函数作用域——需要确认编译产物中该箭头函数的参数列表是否包含 `$$elseif`。当前 diff 只在 `node.alternate` 为单 elseif 时给 alternate 箭头加了 `$$elseif` 形参，而 push `b.id('$$elseif')` 的条件只看 `node.elseif`；若一个 `node.elseif === true` 的块同时有 `has_transition` 类逻辑走到这个 push（原代码 `elseif` 为 true 时），其外层箭头由 `alternate_args` 提供 `$$elseif`，链式一致；但顶层 `{#if}`（elseif=false）永不 push，链上首块正确。风险点在 `context.state.init.push(...statements)` 的改动：原来包一层 block 使 `$$anchor`/`$$elseif` 参数遮蔽外层同名标识符，现在 statements 直接平铺进外层作用域，`b.id('$$anchor')`（第 44 行 `node.elseif ? b.id('$$anchor')`）引用的名字必须在平铺后仍指向当前分支函数的形参——若外层还有名为 `$$anchor` 的形参（典型如 alternate 箭头首个参数就叫 `$$anchor`），elseif 块平铺后会错误捕获外层的 `$$anchor`，导致锚点错位。建议核对嵌套两层以上的 elseif 链生成的代码。",
+          "confidence": "low"
+        },
+        {
+          "file": "packages/svelte/src/compiler/phases/3-transform/server/visitors/IfBlock.js",
+          "line": 26,
+          "severity": "major",
+          "body": "服务端输出 `<!--[${index}-->`（如 `<!--[1-->`）作为 elseif 的 hydration 标记，而客户端 `if.js` 里解析用 `parseInt(data.substring(1))`：`'<!--[1-->'.substring(1)` 得到 `!--[1-->`，`parseInt` 结果为 NaN，落到 `isNaN(hydrate_index)` 的 mismatch 分支，所有 else-if 链在 hydration 时必判 mismatch。substring 应从能取到数字的位置开始（如 `data.substring(4)` 或用正则），两端格式需对齐。此外注释内容 `<!--[1-->` 不是合法/常规注释形态（应为 `<!--1-->`），需确认序列化后浏览器解析保留的 data 是否就是 `!--[1`，若 DOM 解析器处理有差异两端同样会对不上。建议用 SSR 输出对照客户端解析逻辑补一条 else-if hydration 测试。",
+          "confidence": "medium"
+        },
+        {
+          "file": "packages/svelte/src/compiler/phases/3-transform/server/visitors/IfBlock.js",
+          "line": 35,
+          "severity": "minor",
+          "body": "循环内 `if_statement = if_statement.alternate = b.if(...)` 依赖赋值表达式从左到右求值：先执行 `if_statement.alternate = b.if(...)`（返回新节点），再把它赋给 `if_statement`，最终 `if_statement.alternate` 与 `if_statement` 指向同一节点，正确；但随后第 40 行 `if_statement.alternate = ...` 又被无条件覆盖，且 `if_statement.alternate.body.unshift(BLOCK_OPEN_ELSE)` 对链尾节点操作——逻辑目前自洽，但 `@import ... IfStatement` 引入后未使用类型注解（`if_statement` 无类型标注），jsdoc import 可能触发 lint 的 unused-import 规则；同时深链 else-if（如 10 层）输出 10 条独立注释 `<!--[N-->` 与客户端 `hydrate_index > root_index` 的比较语义需配对验证。若 lint 无此规则可忽略。",
+          "confidence": "low"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3588,
+        "outputTokens": 1562,
+        "totalTokens": 5150,
+        "cachedInputTokens": 3584
+      },
+      "durationMs": 30703,
+      "score": {
+        "caseId": "aacr-06-svelte-elseif-render-arg",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "packages/svelte/src/compiler/phases/3-transform/client/visitors/IfBlock.js",
+              "line": 44,
+              "mustMention": [
+                "第三参",
+                "参数错",
+                "传错",
+                "元组",
+                "应为",
+                "类型不符"
+              ]
+            },
+            "hit": false
+          },
+          {
+            "expect": {
+              "file": "packages/svelte/src/compiler/phases/3-transform/client/visitors/IfBlock.js",
+              "line": 23,
+              "mustMention": [
+                "假定",
+                "存在",
+                "为空",
+                "校验",
+                "未定义",
+                "防护"
+              ]
+            },
+            "hit": false
+          },
+          {
+            "expect": {
+              "file": "packages/svelte/src/compiler/phases/3-transform/client/visitors/IfBlock.js",
+              "line": 26,
+              "mustMention": [
+                "标记",
+                "格式",
+                "解析",
+                "不匹配",
+                "不一致",
+                "水合"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 4,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "low",
+          "low",
+          "medium",
+          "low"
+        ],
+        "commentTps": [
+          false,
+          false,
+          false,
+          false
+        ],
+        "commentHitCounts": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "contentComments": 1,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "aacr-07-gemini-runcommand-spawn",
+      "kind": "bug",
+      "source": "aacr",
+      "error": null,
+      "comments": [
+        {
+          "file": "integration-tests/test-helper.ts",
+          "line": 355,
+          "severity": "minor",
+          "body": "`child.on('close')` 的 `code` 在进程被信号杀死时为 `null`（diff 中还显式标注为 `number`，与 Node 类型定义不符），此时会走进 reject 分支并输出 `Process exited with code null`，丢失诊断信息且类型不安全。建议处理 `code === null` 的情况并附上 signal 信息。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1852,
+        "outputTokens": 278,
+        "totalTokens": 2130,
+        "cachedInputTokens": 1792
+      },
+      "durationMs": 6325,
+      "score": {
+        "caseId": "aacr-07-gemini-runcommand-spawn",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "integration-tests/test-helper.ts",
+              "line": 316,
+              "mustMention": [
+                "未初始化",
+                "未调用",
+                "初始化之前",
+                "前置校验",
+                "为空"
+              ]
+            },
+            "hit": false
+          },
+          {
+            "expect": {
+              "file": "integration-tests/test-helper.ts",
+              "line": 343,
+              "mustMention": [
+                "error",
+                "失败时",
+                "监听",
+                "永不",
+                "挂起",
+                "ENOENT"
+              ]
+            },
+            "hit": false
+          },
+          {
+            "expect": {
+              "file": "integration-tests/test-helper.ts",
+              "line": 329,
+              "mustMention": [
+                "隐式",
+                "拼接",
+                "转换",
+                "toString",
+                "乱码",
+                "显式"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 1,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "medium"
+        ],
+        "commentTps": [
+          false
+        ],
+        "commentHitCounts": [
+          0
+        ],
+        "contentComments": 1,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "aacr-08-n8n-delete-flatten-transaction",
+      "kind": "bug",
+      "source": "aacr",
+      "error": null,
+      "comments": [
+        {
+          "file": "packages/cli/test/integration/folder/folder.controller.test.ts",
+          "line": 760,
+          "severity": "minor",
+          "body": "被测代码新增的 `skipArchived` 分支（workflow 已处于归档状态时直接返回而不抛 `BadRequestError`）在新增测试中零触达：两个测试工作流都不是预归档的。建议补一个用例——文件夹内包含一个 `isArchived: true` 的工作流，删除文件夹后应整体成功且该工作流仍为归档态。缺少此用例时，若有人把 `skipArchived` 逻辑改错（例如误抛异常），现有测试无法发现。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3017,
+        "outputTokens": 813,
+        "totalTokens": 3830,
+        "cachedInputTokens": 3008
+      },
+      "durationMs": 15316,
+      "score": {
+        "caseId": "aacr-08-n8n-delete-flatten-transaction",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "packages/cli/src/controllers/folder.controller.ts",
+              "line": 115,
+              "mustMention": [
+                "事务",
+                "原子",
+                "一致性",
+                "回滚",
+                "部分成功",
+                "中间态"
+              ]
+            },
+            "hit": false
+          },
+          {
+            "expect": {
+              "file": "packages/cli/src/databases/repositories/workflow.repository.ts",
+              "line": 309,
+              "mustMention": [
+                "根目录",
+                "根节点",
+                "误包含",
+                "占位符",
+                "哨兵",
+                "根标识"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 1,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "medium"
+        ],
+        "commentTps": [
+          false
+        ],
+        "commentHitCounts": [
+          0
+        ],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "aacr-09-cline-encoding-errorhandling",
+      "kind": "bug",
+      "source": "aacr",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/integrations/misc/extract-text.ts",
+          "line": 30,
+          "severity": "major",
+          "body": "把 isBinaryFile 检查移到 chardet.detect 之后，只有 detect 完全返回空才判二进制，这会使二进制误判回归：jschardet 对几乎任意字节序列都会给出一个结果（二进制内容常被低置信度地判成 ascii/windows-1252 等），于是原本应抛 \"Cannot read text for file type\" 的二进制文件现在会被 iconv.decode 解码成乱码并塞进上下文——正是这个 changeset 声称要修的问题。另外两处（本文件 default 分支与 IPYNB 分支、DiffViewProvider.open）都完全没用 detect 的 confidence 字段做阈值过滤，低置信度结果被当成确定结论。建议保留原有的 isBinaryFile 前置检查，并对 confidence（如 < 0.5）回退到 utf8。",
+          "confidence": "high"
+        },
+        {
+          "file": "src/integrations/misc/extract-text.ts",
+          "line": 60,
+          "severity": "minor",
+          "body": "IPYNB 按格式规范就是 UTF-8 JSON，这里改成 chardet 探测反而引入风险：notebook 源码单元格里较多的非 ASCII 字符可能让探测结果偏向 windows-1252 等编码，解码后 JSON.parse 要么失败要么字符串内容乱码。这个分支直接用 utf8 即可，不需要探测。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 2419,
+        "outputTokens": 1639,
+        "totalTokens": 4058,
+        "cachedInputTokens": 2368
+      },
+      "durationMs": 34972,
+      "score": {
+        "caseId": "aacr-09-cline-encoding-errorhandling",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/integrations/editor/DiffViewProvider.ts",
+              "line": 50,
+              "mustMention": [
+                "无异常处理",
+                "失败路径",
+                "错误处理",
+                "异常",
+                "抛错",
+                "失败时"
+              ]
+            },
+            "hit": false
+          },
+          {
+            "expect": {
+              "file": "src/integrations/editor/DiffViewProvider.ts",
+              "line": 240,
+              "mustMention": [
+                "无异常处理",
+                "失败路径",
+                "错误处理",
+                "异常",
+                "抛错",
+                "失败时"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 2,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high",
+          "medium"
+        ],
+        "commentTps": [
+          false,
+          false
+        ],
+        "commentHitCounts": [
+          0,
+          0
+        ],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "aacr-10-immich-earliest-date-null",
+      "kind": "bug",
+      "source": "aacr",
+      "error": null,
+      "comments": [
+        {
+          "file": "server/src/services/metadata.service.ts",
+          "line": 598,
+          "severity": "major",
+          "body": "`asset.fileModifiedAt < asset.fileCreatedAt` 未处理 `fileCreatedAt` 为 null 的情况。原代码在 motion 分支用 `asset.fileCreatedAt ?? asset.createdAt` 兜底，说明该字段可能为空；新逻辑中若 `fileCreatedAt` 为 null，比较结果走 falsy 分支得到 `earliestDate = fileCreatedAt = null`，随后 `localDateTime.toISOString()` 会抛 TypeError。建议在比较前对空值做兜底（如回退到 `asset.createdAt`），并在新增测试中补一条 fileCreatedAt 为 null 的用例。",
+          "confidence": "medium"
+        },
+        {
+          "file": "server/src/services/metadata.service.ts",
+          "line": 453,
+          "severity": "minor",
+          "body": "motion 分支删掉了 `asset.fileCreatedAt ?? asset.createdAt` 的兜底，改为完全依赖 `getDates` 的结果。若 `getDates` 的兜底分支会返回 null 的 `dateTimeOriginal`（见上一条），此处会把 null 写入 `fileCreatedAt`/`localDateTime`，与原先保证非空的行为不一致；需确认 `getDates` 对空日期的处理覆盖了这一调用点。",
+          "confidence": "low"
+        }
+      ],
+      "usage": {
+        "inputTokens": 2381,
+        "outputTokens": 714,
+        "totalTokens": 3095,
+        "cachedInputTokens": 2368
+      },
+      "durationMs": 19043,
+      "score": {
+        "caseId": "aacr-10-immich-earliest-date-null",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "server/src/services/metadata.service.ts",
+              "line": 600,
+              "mustMention": [
+                "可空",
+                "为空",
+                "未定义",
+                "缺省值",
+                "保护",
+                "空值"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 2,
+        "truePositives": 1,
+        "precision": 0.5,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "medium",
+          "low"
+        ],
+        "commentTps": [
+          true,
+          false
+        ],
+        "commentHitCounts": [
+          1,
+          0
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    }
+  ],
+  "summary": {
+    "recall": 0,
+    "precision": null,
+    "totalExpect": 0,
+    "totalHits": 0,
+    "totalComments": 0,
+    "totalTp": 0,
+    "failed": 0,
+    "usage": {
+      "inputTokens": 23072,
+      "outputTokens": 8930,
+      "totalTokens": 32002,
+      "cachedInputTokens": 22784
+    },
+    "groups": {
+      "aacr": {
+        "recall": 0.15789473684210525,
+        "precision": 0.16666666666666666,
+        "expectN": 19,
+        "hits": 3,
+        "comments": 18,
+        "tp": 3,
+        "runs": 10,
+        "failed": 0
+      }
+    }
+  }
+}
