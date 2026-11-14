@@ -8,6 +8,7 @@
 - 每个 prompt 版本跑 3 轮 `npm run eval`，指标取**跨轮微平均**（recall = Σhits/Σ期望，precision = Σtp/Σ意见）——单轮 precision 波动大（历史 65-91%），单轮数字不可作结论。
 - 每轮 run 的 JSON 元数据带 `promptHash`（prompt 内容 sha256 前 12 位），同 prompt 多轮与改版 run 机械可分；对比数据由 `evals/compare.ts` 聚合产出，不手工抄表。
 - 能力评估 = synthetic + real；dogfood 是回归集（考过的原题），单独记录不进能力结论。
+- 多轮微平均与 dogfood 单列的外部佐证（2026-11-14 补记）：JEPA 机器人学 600 实验综述（haddyalchaer.com/jepa）量化了小样本基准的两类噪声——同一系统只换随机种子，250 回合中 38 回合（15%）成败翻转；官方固定 50 集读出的 68% 成功率，换同分布新采 250 集只剩 44%（−24pp）。前者与「单轮 precision 波动 65-91%、多轮微平均才作数」同型（本 eval 的随机源 = LLM 采样）；后者即「能力结论只认新场景来源（real 组持续补真实仓库新案例 + #107 外部 golden 转译）、dogfood 原题单列只作回归」的同一警示——固定小集合给出通胀读数。
 
 ## 结论
 
