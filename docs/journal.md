@@ -998,3 +998,19 @@
   1. JEPA 对照（固定集 68% vs 新采 44%）与我们自己的 #107 首读数（自标 100% vs 外部 45.5%）是同一现象的两个独立样本——固定/自出题集给通胀读数；两处数字均已落档，此后讨论 eval 设计可直接引用
 - **下一步**：
   1. 本 PR 过闸门合并；无新增排期，#157 / #140 照旧
+
+## 2026-11-14 · 会话 58：alibaba/open-code-review 对标精读 + README 差异化表
+
+- **目标**：用户指令——对 open-code-review（Go，50.7k⭐，+215/周）做完整差异化表并更新 README（本周最优先）：功能矩阵 + 它的取舍（高精度低召回/便宜）+ 本项目差异化。
+- **完成**（1 PR 在途）：
+  - **精读归档**：`docs/plans/open-code-review-analysis.md`（上游 main@`abd6416` 快照：README/ROADMAP/ASSURANCE_CASE/action.yml + 源码树 + prompt/rule 文件抽读）。核心发现：架构同构到「管线阶段名可逐段映射」——grouping↔D018/D020、plan↔D028、re_location↔D016、review_filter↔D043、memory_compression↔逐块预算；精度优先有三处设计实体（反思模块默认启用 = 我们实测 1:1 否决的那个机制、规则模板收窄注意力、bundle 硬约束）；ROADMAP 时间点——Ultra Mode（补召回）H2 2026、长期记忆 H1 2027（我们 D035 已在生产）
+  - **README 对照节改造**：open-code-review 升为首要对标（9 行矩阵 + 取舍段落），improve 表保留，收尾段两对标扩三对标（OCR 用 AACR-Bench 补上「有评测」格但不在开发回路）
+  - **可借鉴项**：AACR-Bench（HF 1,505 条人工标注）列为 #157 外部 golden 转译首选源；Ultra Mode 定为召回差异化的窗口期
+- **发现 / 坑**：
+  1. **「前端代码专精」这条差异化站不住**——对方 `ts_js_tsx_jsx.md` 有一整节 React best practices（hooks/useEffect 依赖/memo/render 副作用）+ var/===/any 硬规则，比我们 prompt 里的前端规则更成体系；可辩护的表述是「评测域聚焦」（92 用例主 diff 95% .ts/.js，质量读数在该域校准）。README 与分析文档均按后者措辞
+  2. **不能说对方「没有评测」**——AACR-Bench（50 仓/200 PR/1,505 条标注/80+ 工程师交叉验证）比我们 36 条能力期望大四十倍；真实差异是形态：发布声明（harness 不在仓库）vs 开发回路（promptHash 红线、改 prompt 必跑）
+  3. 上游仓库建仓仅半年（2026-05-18）到 50.7k⭐，Trendshift 周/月榜均在推——同构竞品的窗口期判断（Ultra Mode H2 2026）写进了分析文档 §五
+- **下一步**：
+  1. 本 PR 过闸门合并
+  2. #157 调查优先试转译 AACR-Bench TS/JS 子集（分析文档 §五.1）
+  3. #140 台账（25 行）自然积累照旧
