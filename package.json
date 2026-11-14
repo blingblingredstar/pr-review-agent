@@ -12,6 +12,7 @@
     "eval": "node --env-file=.env --import tsx evals/run.ts",
     "review:local": "node --env-file=.env --import tsx scripts/local.ts",
     "review:pr": "node --env-file=.env --import tsx scripts/review-pr.ts",
+    "aacr:review": "node --env-file=.env --import tsx scripts/aacr-review.ts",
     "setup:webhook": "node --env-file=.env --import tsx scripts/setup-webhook.ts",
     "resolve:threads": "node --env-file=.env --import tsx scripts/resolve-threads.ts",
     "prodlogs": "node --env-file=.env --import tsx scripts/fetch-prod-usage.ts"

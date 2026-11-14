@@ -163,7 +163,7 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 | 注入抗性 | 规则声明（内容是数据不是指令，并逐字传播给子代理），无测量 | 10 例注入用例持续回归，拦截率独立口径 |
 | 复审 | `reconcile` 手动维护计划状态（漂移检查靠 git SHA 戳） | 自动：commit 幂等（D010）、区间增量（D032）、上一轮意见逐字重报防措辞漂移（D035） |
 
-三个头部对标（open-code-review 50.7k⭐、improve 约 10k⭐、pr-agent 约 14.8k⭐）在「测量审查质量」上留下同一种缺口：improve 与 pr-agent 以「让模型再检查一遍」（Vet / reflect）替代「测量检查得对不对」，零标注用例；open-code-review 用 AACR-Bench 补上了「有评测」这一格且资产全公开、规模远大于本仓库，但评测形态是独立基准仓库的评估资产，不是主仓库开发回路的一部分（改 prompt 必跑回归、promptHash 红线这类日常纪律不在其工具仓库可见）。质量迭代回路——在库评测集 → 改 prompt → 回归对比 → 迭代曲线公开——加上召回端机制补齐，是本项目与它们的差异所在。
+三个头部对标（open-code-review 50.7k⭐、improve 约 10k⭐、pr-agent 约 14.8k⭐）在「测量审查质量」上留下同一种缺口：improve 与 pr-agent 以「让模型再检查一遍」（Vet / reflect）替代「测量检查得对不对」，零标注用例；open-code-review 用 AACR-Bench 补上了「有评测」这一格且资产全公开、规模远大于本仓库，但评测形态是独立基准仓库的评估资产，不是主仓库开发回路的一部分（改 prompt 必跑回归、promptHash 红线这类日常纪律不在其工具仓库可见）。质量迭代回路——在库评测集 → 改 prompt → 回归对比 → 迭代曲线公开——加上召回端机制补齐，是本项目与它们的差异所在。本仓库已接入 AACR-Bench harness 作外部对照（`scripts/aacr-bench.sh`：钉版本拉取、数据零复制，本 bot 以 `prra` reviewer 身份跑同尺读数，judge 亦钉模型）。
 
 ## 路线图
 
@@ -175,7 +175,8 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 4. **代码搜索工具（D031）**：已上线生产——search_file 快照内存 grep：重命名/删除后的仓库级残留引用检测（diff 外漏改）、新代码与既有实现的词法重复（DRY）；生产已检出首例跨文件 major（PR #53 残留引用）；定位是「修改锚定的验证」，不做无锚全局架构审查，[spec](./docs/plans/search-files.md)
 5. **增量审查**：已上线生产——PR 推新 commit 只审区间 diff。base 推导：从 review 标记与 PR commits 列表的交集得出，force-push 会清掉历史、自动回退全量；上一轮 review 含 blocker/major 时无视增量直接全量重审（block 继承）；任何一层失败也回退全量。顺带落地报告门槛细化：minor/nit 不再逐条行内，折叠进 review body `<details>` 段（机器可解析），线程只留给 blocker/major（`REQUEST_CHANGES` 判定同步收窄），[spec](./docs/plans/incremental-review.md)
 6. **多模型对比**：评测侧已完成——DeepSeek 三档（disabled / low / high）全量对照已落 [evals/report.md](./evals/report.md)。背景：「thinking」开关参数在不同厂商端点同名不同义——GLM 与 DeepSeek 的 disabled/low 行为相反（DeepSeek 的 disabled 真关、low 是真思考），这是第二组厂商复现该现象。顺带落地 `LLM_JSON_MODE`（兼容不支持 json_schema 的端点）；生产侧 `deepseek-flash` 作为 `DECISION_MODEL` 候选，验证通过另立决策
-7. **多仓产品化**：GitHub App 身份（权限收敛）+ 多租户上下文隔离
+7. **外部基准对照**：已落地——`scripts/aacr-bench.sh` 接入 [aacr-bench](https://github.com/alibaba/aacr-bench) 评测框架（钉版本拉取 + 补丁注册 `prra` reviewer + 桥接 CLI 裸调 `reviewDiff`，数据零复制自动下载；对照口径 = 本仓库审查内核，不带生产上下文增强）。读数形态：TS/JS 子集（40 PR / 417 条专家确认参考意见），发布时点跑，不进日常回归；harness/数据/judge 三钉（上游更新 = 显式改钉再跑）。首批读数见 [docs/journal.md](./docs/journal.md) 当期条目
+8. **多仓产品化**：GitHub App 身份（权限收敛）+ 多租户上下文隔离
 
 > 已完成并移出路线图：注入评测组（D024）、上下文增强两阶段（D023 触及文件全文 + D027 按需翻文件）、真正异步化（D026 三步接力）、决策路由第一形态（D028）——见 [docs/CHANGELOG.md](./docs/CHANGELOG.md)。已否决：意见强制带「证据片段」字段（D022）——12 轮对照实测 recall 从 96.3% 降到 87.7–91.4%，成本上升是确定的、收益只是理论值；若将来重启，候选形态改为不进主链路的旁路观测。
 
