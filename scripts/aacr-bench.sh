@@ -29,7 +29,7 @@ case "$MODE" in
   *) echo "mode 须为 preview|mock|real，收到：$MODE"; exit 1 ;;
 esac
 if [[ "$MODE" == "real" && "$LIMIT" -gt 20 && "${FORCE:-0}" != "1" ]]; then
-  echo "real + limit>$LIMIT 全量成本约 1.5-2.5M tokens；确认跑请 FORCE=1"; exit 1
+  echo "real + limit>20 全量成本约 1.5-2.5M tokens；确认跑请 FORCE=1"; exit 1
 fi
 
 # ---- 1) 钉版本 clone ----
