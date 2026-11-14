@@ -1097,7 +1097,7 @@
   1. 逐 verdict 读数不看分数：aacr-05 第二轮 1/3 我按 run1 惯性当成 @84 命中，实际是 @106——归因结论差点错一个类
   2. 容差校准的离线重打分脚本第一版三处 bug（分母、文件规范化、词表读取）——先对官方 hit 数验算再出表
   3. svelte 编译器例 109 秒零意见是「想了很久但没找到可锚定的」——零意见 ≠ 没思考，耗时可作深度指标旁证
-- **续批 bot 自审 r1（major）再抓字面词 ×4**（try/catch 在 extract-text.ts 上下文行、PROJECT_ROOT 在 moveToFolder hunk、hydration 在 import 行、null 在测试断言）——「逐词检查」我又用了肉眼没对完整 diff 文本机械执行；修法两层：换词 + **test/eval-cases.test.ts 加 aacr 组 tripwire**（mustMention 逐词 assert 不在 diff 中，313 测试）——这道闸永久化，不再靠人眼。修正后重跑读数稳定（recall 15.8% 不变、precision 16.7%）
+- **续批 bot 自审 r1（major）再抓字面词 ×4**（try/catch 在 extract-text.ts 上下文行、PROJECT_ROOT 在 moveToFolder hunk、hydration 在 import 行、null 在测试断言）——「逐词检查」我又用了肉眼没对完整 diff 文本机械执行；修法两层：换词 + **test/eval-cases.test.ts 加 aacr 组 tripwire**（mustMention 逐词 assert 不在 diff 中，313 测试）——这道闸永久化，不再靠人眼。修正后重跑读数稳定（recall 15.8% 不变、precision 16.7%）；**污染轮（07:51）run 工件删除**——同组同模型同 promptHash 与干净轮并存会混进 compare 聚合，污染轮数据无独立价值（journal 留痕即可）
 - **下一步**：
   1. 本 PR 过闸门合并；#157 三批证据同谱系，结题报告素材已齐（是否关闭留用户）
   2. K=5 单列读数若采纳，改 compare.ts 加外部组容差维度（小改动，等 #157 讨论）
