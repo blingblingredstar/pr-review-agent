@@ -129,8 +129,9 @@ def review_instance(
 
     started_at = datetime.now(timezone.utc).isoformat()
     start_time = time.monotonic()
-    # 桥接结果文件放 results_dir 下的临时名（不占 <safe_id>.json 结果位）
-    payload_out_path = results_dir / f".prra-payload-{config.safe_id(instance.instance_id)}.json"
+    # 桥接结果文件放 results_dir 下的临时名（不占 <safe_id>.json 结果位）。
+    # 必须 resolve 成绝对路径：桥接 CLI 的 cwd 是 PRRA 仓库，相对路径会写到别处去（ENOENT 白烧 LLM 调用）
+    payload_out_path = results_dir.resolve() / f".prra-payload-{config.safe_id(instance.instance_id)}.json"
     if preview:
         # 预览模式：只验证 clone/checkout/结果文件机械，不调 LLM（与框架 --preview 语义一致）
         review_process = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
