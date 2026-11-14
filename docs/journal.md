@@ -1076,9 +1076,9 @@
   - **台账回收**：prodlogs 122→127 run（GitHub 派生 40/41 runKey 匹配）
 - **发现 / 坑**：
   1. AACR 的锚点纪律比自采好一档：from_line 是评论所贴代码行（这批五个全部精确对位机制行），#107 的「0-6 行漂移」是自采 PR 评论的锚位习惯——转译源本身带锚质量红利
-2. **mustMention 字面词污染是自伤式偏差**：关键词里留 diff 字面词，模型复述代码行即算命中——本批初版 5 处污染虚增 recall 25pp，bot 自审（「azure/includes/next/setTimeout 混入」）比自己复查先抓到；转译时关键词表应机械过一遍「词在 diff 里出现即剔除」
-  2. 反引号/`${` 转义手写必错：用例生成走脚本从 diff 文件注入（esc 三件套），手改模板字符串风险高
-  3. zsh `set -- $var` 不分词 + heredoc 内嵌 f-string 条件相等判断两坑连踩，跨进程取 SHA 的脚本用 python -c 直接打印最稳
+  2. **mustMention 字面词污染是自伤式偏差**：关键词里留 diff 字面词，模型复述代码行即算命中——本批初版 5 处污染虚增 recall 25pp，bot 自审（「azure/includes/next/setTimeout 混入」）比自己复查先抓到；转译时关键词表应机械过一遍「词在 diff 里出现即剔除」
+  3. 反引号/`${` 转义手写必错：用例生成走脚本从 diff 文件注入（esc 三件套），手改模板字符串风险高
+  4. zsh `set -- $var` 不分词 + heredoc 内嵌 f-string 条件相等判断两坑连踩，跨进程取 SHA 的脚本用 python -c 直接打印最稳
 - **下一步**：
   1. 本 PR 过闸门合并
   2. #157 后续（±3 容差校准讨论 / CI yml aspect 候选）挂 issue；#165 放量等端点
