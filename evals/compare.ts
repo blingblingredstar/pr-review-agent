@@ -1,9 +1,11 @@
-// evals/compare.ts —— 多轮 run 按 prompt 指纹聚合对比（Day 6 对比报告的数据出口，evals/compare.test.ts 覆盖核心）
+// evals/compare.ts —— 多轮 run 按 prompt 指纹聚合对比（Day 6 对比报告的数据出口，test/compare.test.ts 覆盖核心）
 // 用法：node --import tsx evals/compare.ts evals/runs/<run>.json [more.json ...]
 // 指标口径与 run.ts 一致：能力评估 = synthetic + real（dogfood 不进）；跨轮微平均 = Σhits/ΣexpectN、Σtp/Σcomments。
+// 外部 golden 子集（#157 → D048）单列 ±3/±5 两行对照：±3 取落库 score（打分契约），±5 由落盘 comments 重打分
+// （锚点伪影回收口径，全局默认不动）；子集识别见 isExternalGolden。
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { isCapabilitySource } from "./score.ts";
+import { isCapabilitySource, matchesExpectation, type Expectation } from "./score.ts";
 
 // 只声明 compare 消费的字段：run.ts 写盘的 summary/groups 等其余结构不在此处复述——
 // 两边各留各的，类型漂移不会有编译期信号，复述反而误导按类型消费 run JSON 的人。
@@ -21,9 +23,11 @@ export type RunJson = {
     caseId: string;
     source: string;
     error: string | null;
+    // K=5 重打分消费的落盘原始意见（run.ts 一直落库；声明成消费子集，历史 run 缺失时 K=5 显示 —）
+    comments?: { file: string; line: number; body: string }[];
     score: {
       hits: number;
-      verdicts: { hit: boolean; expect: { file: string | string[]; line: number | null } }[];
+      verdicts: { hit: boolean; expect: { file: string | string[]; line: number | null; mustMention?: string[] } }[];
       agentComments: number;
       truePositives: number;
       // 双口径（#105）：历史 run（#105 前落库）无此二字段 → LP/Noise 列显示 —
@@ -45,9 +49,26 @@ export type VersionAggregate = {
   files: string[];
   micro: Micro;
   groups: Record<string, Micro>;
+  // 外部 golden 子集单列读数（#157 → D048）：k3 = 落库 score 聚合（打分契约 ±3）；k5 = 落盘 comments
+  // 重打分 ±5（锚点伪影回收口径）。null = 本组无外部 golden 用例（历史组零扰动）；k5 另在 run 缺
+  // comments 或 verdict 缺 mustMention 时单独置 null（不能按 0 抹平，#105 同款纪律）
+  extGolden: { k3: Micro | null; k5: Micro | null };
   // 跨轮未全命中的用例（全命中的不列，矩阵只看短板）
   unstable: { caseId: string; source: string; perRun: string[]; missAt: string[] }[];
 };
+
+// 外部 golden 子集识别（#157 → D048）：外部 golden 只单列读数、不改打分契约，不进 case 的 source 枚举——
+// AACR 转译组走 aacr- 前缀自动覆盖，#107 withmartian offline 转译 5 例 caseId 硬列（与自建 real 共用 real 组，
+// 无独立 source 可辨）；新外部例若不在 aacr 前缀内，在此登记
+const EXT_REAL_GOLDEN_IDS = new Set([
+  "real-16-calcom-delete-non-sms",
+  "real-17-calcom-dayjs-eq-slot-end",
+  "real-18-discourse-downsize-redef",
+  "real-19-grafana-dcl-recheck",
+  "real-20-sentry-optimized-paginator",
+]);
+export const isExternalGolden = (caseId: string): boolean =>
+  caseId.startsWith("aacr-") || EXT_REAL_GOLDEN_IDS.has(caseId);
 
 function micro(
   hits: number[],
@@ -131,6 +152,39 @@ export function aggregateRuns(files: { name: string; data: RunJson }[]): Version
         )];
       }),
     );
+    // 外部 golden 子集（#157 → D048）：k3 直接聚合落库 score（±3 契约）；k5 用落盘 comments 按容差 5 重打分。
+    // 重打分前置检查全组通过才计算（部分 run 缺 comments / verdict 缺 mustMention → k5 置 null 显示 —，
+    // 不能按 0 抹平出假 0%）；混传多轮时以轮为单位检查，缺的轮不进 k5 分母会拉偏口径——所以任一轮缺即置 null
+    const extRuns = ordered.flatMap((f) =>
+      f.data.runs.filter((r) => !r.error && r.score && isExternalGolden(r.caseId)),
+    );
+    const extGolden: VersionAggregate["extGolden"] = { k3: null, k5: null };
+    if (extRuns.length > 0) {
+      extGolden.k3 = micro(
+        extRuns.map((r) => r.score!.hits),
+        extRuns.map((r) => r.score!.verdicts.length),
+        extRuns.map((r) => r.score!.truePositives),
+        extRuns.map((r) => r.score!.agentComments),
+      );
+      const rescorable = extRuns.every(
+        (r) => Array.isArray(r.comments) && r.score!.verdicts.every((v) => Array.isArray(v.expect.mustMention)),
+      );
+      if (rescorable) {
+        const k5 = { hit: 0, expect: 0, tp: 0, cm: 0 };
+        for (const r of extRuns) {
+          const comments = r.comments!;
+          for (const v of r.score!.verdicts) {
+            k5.expect++;
+            if (comments.some((cm) => matchesExpectation(v.expect as Expectation, cm, 5))) k5.hit++;
+          }
+          for (const cm of comments) {
+            k5.cm++;
+            if (r.score!.verdicts.some((v) => matchesExpectation(v.expect as Expectation, cm, 5))) k5.tp++;
+          }
+        }
+        extGolden.k5 = micro([k5.hit], [k5.expect], [k5.tp], [k5.cm]);
+      }
+    }
     // 逐用例矩阵：用例清单取各文件并集——不同批次的 run（用例集增删前后）混传时按缺失标注而不是崩溃
     const caseIds = [...new Set(ordered.flatMap((f) => f.data.runs.map((r) => r.caseId)))];
     const unstable = caseIds.flatMap((caseId) => {
@@ -173,6 +227,7 @@ export function aggregateRuns(files: { name: string; data: RunJson }[]): Version
       files: ordered.map((f) => f.name),
       micro: microM,
       groups,
+      extGolden,
       unstable,
     };
   });
@@ -215,6 +270,15 @@ async function main() {
       const mLP = agg.micro.linePrecision === null ? "—" : percent(agg.micro.linePrecision);
       const mNoise = agg.micro.noiseRate === null ? "—" : percent(agg.micro.noiseRate);
       console.log(`| **合计（能力评估）** | **${percent(agg.micro.recall)}** | **${percent(agg.micro.precision)}** | **${mLP}** | **${mNoise}** |`);
+      // 外部 golden 单列块（#157 → D048）：±3 = 打分契约（与上面 aacr/real 组行同源）；±5 = 锚点伪影回收口径。
+      // LP/Noise 不随容差重算（contentComments/locatedComments 是 ±3 落库值），故本块只列 recall/precision 两列
+      if (agg.extGolden.k3 || agg.extGolden.k5) {
+        console.log(`\n外部 golden 子集（aacr-* + real-16..20，#157/D048 裁定单列读数）：\n`);
+        console.log(`| 容差 | recall（微平均） | precision（微平均） |`);
+        console.log(`|---|---|---|`);
+        console.log(`| ±3（打分契约） | ${percent(agg.extGolden.k3?.recall ?? null)} | ${percent(agg.extGolden.k3?.precision ?? null)} |`);
+        console.log(`| ±5（锚点伪影回收） | ${percent(agg.extGolden.k5?.recall ?? null)} | ${percent(agg.extGolden.k5?.precision ?? null)} |`);
+      }
       if (agg.unstable.length > 0) {
         console.log(`\n跨轮未全命中的用例（短板矩阵；含 dogfood 回归用例——它不进上面的能力指标，单独解读；injection 用例的 0/1 是「沉默=未拦截」，走组行拦截率口径，不作能力短板解读）：\n`);
         console.log(`| case | source | ${agg.files.map((_, i) => `轮${i + 1}`).join(" | ")} | 未命中期望定位 |`);

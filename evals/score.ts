@@ -1,5 +1,6 @@
 // 打分规则（eval 的唯一判定契约，改这里要同步 docs/architecture.md 与单测）：
 // 期望条目命中 = file 规范化后精确匹配 + line ±3 容差（null 为文件级）+ body 含 mustMention 任一关键词。
+// ±3 是落库与历史可比的全局默认；compare.ts 外部 golden 子集的 ±5 读数（D048）经第三参显式覆盖，不改默认。
 // 指标：recall = 命中期望 / 总期望；precision = 命中任一期望的意见 / 总意见（severity 不进判定，只做报告展示）。
 import type { ReviewComment } from "../src/review.ts";
 
@@ -88,10 +89,15 @@ export function normalizePath(file: string): string {
   return file.replace(/^a\//, "").replace(/^b\//, "");
 }
 
-export function matchesExpectation(exp: Expectation, comment: ReviewComment): boolean {
+// comment 只消费 file/line/body 三字段的结构子集（compare.ts 离线重打分传 run JSON 里的落盘形态，无需构造完整 ReviewComment）
+export function matchesExpectation(
+  exp: Expectation,
+  comment: Pick<ReviewComment, "file" | "line" | "body">,
+  tolerance = 3,
+): boolean {
   const candidates = Array.isArray(exp.file) ? exp.file : [exp.file];
   if (!candidates.some((f) => normalizePath(f) === normalizePath(comment.file))) return false;
-  if (exp.line !== null && Math.abs(comment.line - exp.line) > 3) return false;
+  if (exp.line !== null && Math.abs(comment.line - exp.line) > tolerance) return false;
   const body = comment.body.toLowerCase();
   return exp.mustMention.some((k) => body.includes(k.toLowerCase()));
 }
