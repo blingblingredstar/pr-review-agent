@@ -141,7 +141,7 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 |---|---|---|
 | 形态 | 本地 CLI（`ocr review` / `ocr scan`）+ CI 触发（GitHub Action / GitLab / Gerrit）+ IDE 插件、coding-agent 插件、MCP | webhook 服务，PR 事件自动触发，无人值守 |
 | 质量取舍 | 高精度低召回——README 自述 recall 低于通用 agent 是刻意取舍，token 约为通用 agent 的 1/9 | recall 88.9% / precision 97.1% 双高（36 条能力期望，生产同款模型与提示词）；假阳性二次过滤实测「真阳性换假阳性 1:1」后不启用（D043），宁在生成侧规则防 |
-| 评测 | AACR-Bench（50 仓 / 200 PR / 10 语言 / 1,505 条人工标注，HuggingFace 公开）——规模大，但 harness 不在仓库，是发布时点的声明证据 | 92 用例在库：确定性打分、promptHash 基线红线、改 prompt 必跑回归、注入拦截率独立口径、迭代曲线公开 |
+| 评测 | AACR-Bench（50 仓 / 200 PR / 10 语言 / 1,505 条人工标注；数据集、仓库快照、评测 harness 均公开——独立基准仓库 + HuggingFace），打分用 LLM-judge 文件级语义覆盖（行号不作硬过滤） | 92 用例在库：确定性打分（无 LLM 裁判）、promptHash 基线红线、改 prompt 必跑回归、注入拦截率独立口径、迭代曲线公开 |
 | 注入抗性 | 威胁模型标注 diff 半可信（安全保证文档），无注入回归用例 | 10 例注入 canary 覆盖六个注入面持续回归 + 无 approve 路径（最坏后果是多误报，不存在被注入放行合并） |
 | PR 多轮复审 | CI 重跑不重复发帖；跨轮审查记忆在路线图（2027 计划） | commit 幂等 + block 继承重审 + 上一轮意见逐字重报（D035，已在生产）+ 区间增量（D032） |
 | 合并闸门 | 无——工具定位是给建议，合并决策在人 | REQUEST_CHANGES 原生禁合并 + 双 status 硬闸门（D017） |
@@ -163,7 +163,7 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 | 注入抗性 | 规则声明（内容是数据不是指令，并逐字传播给子代理），无测量 | 10 例注入用例持续回归，拦截率独立口径 |
 | 复审 | `reconcile` 手动维护计划状态（漂移检查靠 git SHA 戳） | 自动：commit 幂等（D010）、区间增量（D032）、上一轮意见逐字重报防措辞漂移（D035） |
 
-三个头部对标（open-code-review 50.7k⭐、improve 约 10k⭐、pr-agent 约 14.8k⭐）在「测量审查质量」上留下同一种缺口：improve 与 pr-agent 以「让模型再检查一遍」（Vet / reflect）替代「测量检查得对不对」，零标注用例；open-code-review 用 AACR-Bench 补上了「有评测」这一格且规模远大于本仓库，但评测是发布时点的声明证据，不在开发回路里（harness 不在仓库、无改 prompt 必跑回归的纪律可见）。质量迭代回路——在库评测集 → 改 prompt → 回归对比 → 迭代曲线公开——加上召回端机制补齐，是本项目与它们的差异所在。
+三个头部对标（open-code-review 50.7k⭐、improve 约 10k⭐、pr-agent 约 14.8k⭐）在「测量审查质量」上留下同一种缺口：improve 与 pr-agent 以「让模型再检查一遍」（Vet / reflect）替代「测量检查得对不对」，零标注用例；open-code-review 用 AACR-Bench 补上了「有评测」这一格且资产全公开、规模远大于本仓库，但评测形态是独立基准仓库的评估资产，不是主仓库开发回路的一部分（改 prompt 必跑回归、promptHash 红线这类日常纪律不在其工具仓库可见）。质量迭代回路——在库评测集 → 改 prompt → 回归对比 → 迭代曲线公开——加上召回端机制补齐，是本项目与它们的差异所在。
 
 ## 路线图
 

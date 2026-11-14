@@ -1014,3 +1014,18 @@
   1. 本 PR 过闸门合并
   2. #157 调查优先试转译 AACR-Bench TS/JS 子集（分析文档 §五.1）
   3. #140 台账（25 行）自然积累照旧
+
+## 2026-11-14 · 会话 58 补记：AACR-Bench 实测核查 + 公允性勘误
+
+- **目标**：用户问「evals 可以参考吗」——实测核查 AACR-Bench 可用性。
+- **完成**（1 PR 在途）：
+  - **数据实测**（HF 下载全量 2,145 行）：1,505 正例 + 640 负例；TS/JS 563 行、正例 417 条（Code Defect 189 / Maintainability 185 / Performance 36 / Security 7）分布 40 个真实 PR，行锚零缺失、note 中位 263 字符、diff 中位 210 行（≤200 行 20 个）；license Apache-2.0。字段含 pr_url + source/target commit（可重建精确 diff）+ is_ai_comment/source_model（ground truth 是「AI 意见 + 专家确认」形态）
+  - **勘误**：初版分析文档与 README 写「harness 不在仓库」有误——harness 在独立仓库 alibaba/aacr-bench 公开（Python：converters 可插拔评审器适配 / hooks / metrics 文档），数据集与被测仓库快照都在 HF。README 两处 + 分析文档三处 + CHANGELOG 已改口径：「独立基准仓库的评估资产、非主仓库开发回路」，分析文档头部留勘误注记
+  - **方法论发现**：其打分是 LLM-judge 文件级语义覆盖（metric-migration.md 从逐条行锚匹配迁来，行号只当上下文）——动机与 #107 锚点漂移同题，是 #157 锚点伪影的第三种解法（±3 容差 / 人工核锚 / 语义判定谱系）；数据集自述设计目标是评「反思模型拦截低质意见」，640 负例 = D043 重开条件 rubric 校准的现成语料
+  - **分析文档 §五 扩为八条**：AACR-Bench 三种用法（转译进 #157 / 用对方 harness 跑本 bot 得同尺对照数字 / 负例做 rubric 对照集）
+- **发现 / 坑**：
+  1. 对外表述的事实核对要在写作当天做完——「harness 不在仓库」是昨天写今天就被自己推翻的表述；datasets-server 的 filter 端点对引号编码敏感，直接下 dataset.json（2.1MB）本地分析更稳
+  2. HF 数据集 README 自述用途（评反思模型）≠ 工具 README 引用同一数据集的用途（审查器 precision/F1/recall 基准）——引用外部基准前先读数据集自己的 README，两边口径可能不同
+- **下一步**：
+  1. 本 PR 过闸门合并
+  2. #157 调查素材已备（转译优先 TS/JS Code Defect 子集）；「用对方 harness 跑本 bot」待评估 judge 端点成本后另议
