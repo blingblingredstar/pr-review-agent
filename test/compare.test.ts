@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { aggregateRuns, type RunJson } from "../evals/compare.ts";
+import { aggregateRuns, isExternalGolden, type RunJson } from "../evals/compare.ts";
 
 function runJson({ runs, ...rest }: Partial<RunJson> & { runs: RunJson["runs"] }): RunJson {
   return {
@@ -139,4 +139,63 @@ test("aggregateRuns：planArm 分组——EVAL_PLAN 臂与 baseline 不混聚，
   const baseAgg = aggs.find((a) => a.planArm === "")!;
   assert.equal(planAgg.files.length, 1, "plan 臂独立成组");
   assert.equal(baseAgg.files.length, 2, "null 臂与 legacy 同归 baseline 组");
+});
+
+// 外部 golden 单列读数（#157 → D048）：意见行距 4 = ±3 miss / ±5 hit 的最小样本
+const extVerdict = (line: number) => ({
+  hit: false,
+  expect: { file: "src/x.ts", line, mustMention: ["溢出"] },
+});
+const extComment = (line: number) => ({ file: "src/x.ts", line, severity: "major", body: "存在 2^31 溢出问题", confidence: null });
+
+test("aggregateRuns：外部 golden 子集单列 ±3/±5——行距 4 的锚点伪影在 ±5 回收，±3 取落库 score（#157/D048）", () => {
+  const f = runJson({
+    runs: [
+      {
+        caseId: "aacr-01-test",
+        source: "aacr",
+        error: null,
+        comments: [extComment(14)],
+        score: {
+          hits: 0,
+          verdicts: [extVerdict(10)],
+          agentComments: 1,
+          truePositives: 0,
+        },
+      },
+      // 同 run 混入一个非外部用例：不进 extGolden 分母
+      { caseId: "s-01", source: "synthetic", error: null, score: score(1, 1, 1, 1) },
+    ],
+  });
+  const [agg] = aggregateRuns([{ name: "a.json", data: f }]);
+  assert.ok(agg.extGolden.k3, "有外部用例时 k3 必有值");
+  assert.equal(agg.extGolden.k3!.recall, 0, "±3 契约口径：行距 4 记 miss（与落库 score 一致）");
+  assert.equal(agg.extGolden.k3!.precision, 0);
+  assert.ok(agg.extGolden.k5, "comments + mustMention 齐备时 k5 必有值");
+  assert.equal(agg.extGolden.k5!.recall, 1, "±5 回收行距 4 的锚点伪影");
+  assert.equal(agg.extGolden.k5!.precision, 1);
+});
+
+test("aggregateRuns：无外部 golden 用例时 extGolden 双 null（历史组零扰动）；外部例缺 comments 时 k5 单独置 null 不按 0 抹平", () => {
+  const noExt = runJson({
+    runs: [{ caseId: "s-01", source: "synthetic", error: null, score: score(1, 1, 1, 1) }],
+  });
+  const [aggNoExt] = aggregateRuns([{ name: "a.json", data: noExt }]);
+  assert.equal(aggNoExt.extGolden.k3, null);
+  assert.equal(aggNoExt.extGolden.k5, null);
+
+  const noComments = runJson({
+    runs: [{ caseId: "real-16-calcom-delete-non-sms", source: "real", error: null, score: score(0, 1, 1, 0) }],
+  });
+  const [aggNoCm] = aggregateRuns([{ name: "b.json", data: noComments }]);
+  assert.ok(aggNoCm.extGolden.k3, "real-16 硬列 id 计入外部子集，k3 取落库 score");
+  assert.equal(aggNoCm.extGolden.k5, null, "缺 comments 不能重打分，置 null 而非假 0%");
+});
+
+test("isExternalGolden：aacr 前缀自动覆盖 + #107 转译 5 例硬列 + 普通用例不误收", () => {
+  assert.ok(isExternalGolden("aacr-01-cline-azure-detection"));
+  assert.ok(isExternalGolden("aacr-99-future-case"), "前缀匹配，新 aacr 例免登记");
+  assert.ok(isExternalGolden("real-20-sentry-optimized-paginator"));
+  assert.ok(!isExternalGolden("real-01-fastify-setcookie"), "自建 real 不进外部子集");
+  assert.ok(!isExternalGolden("dogfood-01-webhook-guard"));
 });
