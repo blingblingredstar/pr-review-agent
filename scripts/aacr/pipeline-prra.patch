@@ -1,0 +1,45 @@
+diff --git a/evaluation/pipeline.py b/evaluation/pipeline.py
+index 63b2585..0de3859 100644
+--- a/evaluation/pipeline.py
++++ b/evaluation/pipeline.py
+@@ -27,6 +27,7 @@ from repo_utils import RepoError, log
+ from reviewers import claude as claude_reviewer
+ from reviewers import codex as codex_reviewer
+ from reviewers import ocr as ocr_reviewer
++from reviewers import prra as prra_reviewer
+ from schema import ReviewInstance, load_instances
+ 
+ try:
+@@ -70,6 +71,14 @@ def _review_one_instance(
+     codex_home 仅 codex 评审器需要（pipeline 在 review 阶段开始时一次性生成）。
+     """
+     try:
++        if reviewer == "prra":
++            return prra_reviewer.review_instance(
++                instance=instance,
++                repo_dir=repo_dir,
++                results_dir=results_dir,
++                timeout_minutes=timeout_minutes,
++                preview=preview,
++            )
+         if reviewer == "ocr":
+             return ocr_reviewer.review_instance(
+                 instance=instance,
+@@ -129,6 +138,8 @@ def run_review_stage(
+     if reviewer == "ocr":
+         ocr_reviewer.ensure_ocr_installed(ocr_command)
+         ocr_reviewer.check_env(preview)
++    elif reviewer == "prra":
++        prra_reviewer.check_env(preview)
+     elif reviewer == "claude":
+         claude_reviewer.ensure_claude_installed()
+         if not preview:
+@@ -381,7 +392,7 @@ def build_parser() -> argparse.ArgumentParser:
+     )
+     run_parser.add_argument(
+         "--reviewer",
+-        choices=["ocr", "claude", "codex"],
++        choices=["ocr", "claude", "codex", "prra"],
+         required=True,
+         help="使用哪个评审器",
+     )

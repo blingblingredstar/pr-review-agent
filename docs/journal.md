@@ -1029,3 +1029,21 @@
 - **下一步**：
   1. 本 PR 过闸门合并
   2. #157 调查素材已备（转译优先 TS/JS Code Defect 子集）；「用对方 harness 跑本 bot」待评估 judge 端点成本后另议
+
+## 2026-11-14 · 会话 59：AACR-Bench harness 接入落地 + 首批外部读数
+
+- **目标**：用户指令「做一下」——按分析文档 §五.2 用法②把本 bot 接进 aacr-bench 评测框架跑同尺读数，链接拉取零复制、钉版本。
+- **完成**（1 PR 在途 + 首批读数落袋）：
+  - **接入件四件**：`scripts/aacr-bench.sh`（钉版拉取 alibaba/aacr-bench@c648685 + reset --hard 重放补丁 + uv venv + TS/JS 过滤 + preview/mock/real 三档 + limit>20 FORCE 预算闸门）；`scripts/aacr/prra.py` 适配器（prepare_repo → npm 桥接 → OCR 形状结果文件，失败兜底空意见）；`scripts/aacr/pipeline-prra.patch`（4 hunk 注册 prra reviewer——pipeline 硬编码三 reviewer 名，未知名 ValueError）；`scripts/aacr-review.ts` 桥接 CLI（git diff base..head → 裸 reviewDiff → --out 文件，与 evals 直调同构）。数据零复制（meta.json 自动下载 + sha256 校验）
+  - **接口关键发现**：evaluate.py `load_target_comments` 对 claude/codex 外的 reviewer 名一律走 OCR 解析器（review.comments[].path/start_line/end_line/content + review.summary token）——结果文件长成 ocr 形状即零改动接入
+  - **首跑两坑**：npm run banner + src/review.ts console.log 污染 stdout 击穿 json.loads（改 --out 文件直传）；大 diff 超 execFile 默认 1MB maxBuffer（64MB）
+  - **首批读数**（TS/JS 子集 seed=42 抽 20 例，真 judge glm-5.3）：precision 7.1%（6/85）、recall 3.4%（6/179）、933k tokens、18 分钟；16/20 成功——3 例 immich 撞 GLM 5 小时配额（15:00 重置）、1 例数据集 commit 上游已不存在（not our ref，数据集陈旧性问题）
+  - **读数诊断**（judge 真跑验证过：85 条 judge_reason 里 82 条实质推理、仅 1 条出错标记）：85 条生成意见仅 11 条落在有参考意见的文件上、其中 6 条语义命中（有参考文件内命中率 55%）——瓶颈是**意见集合不重叠**不是意见质量；结构因素三层：参考集 44% 是维护性/可读性意见（我方刻意不发）、参考集是多模型集成（GPT-5.2/GLM-4.7/Gemini/Qwen）发现并集（单模型单遍天然低重叠）、我方裸 reviewDiff 无上下文/工具（参考意见产自带 workspace 工具的模型）
+- **发现 / 坑**：
+  1. AACR-Bench 的 precision 是**与参考集的一致率**不是绝对 FP 率——87% 意见落在参考集未标记的文件上，在自家 92 例上是 97% precision 的同一个审查器在这里读 7.1%；两个口径都真，引用时必须带口径
+  2. 上游 bench 的数据集有陈旧性：commit 被上游 force-push 掉的实例会 "not our ref" 失败（20 例中 1 例）——读数时 failed 实例的参考意见仍进 recall 分母，失败率要单独披露
+  3. GLM 个人 coding plan 有 5 小时滚动配额，20 例一批（933k tokens）就撞顶——外部基准跑批要按配额窗口切批，或 judge/评审分端点
+- **下一步**：
+  1. 配额重置后补跑 3 例 immich 完整化首批读数；「同尺对照」还差对方 ocr reviewer 同 bench 一跑（OCR_* 指到 GLM 端点，另耗配额，单独排期）
+  2. 读数引用口径写进 README（对照表脚注或 evals/report.md 外部基准节）
+  3. #157 golden 转译路线（用法①）不受影响照旧
