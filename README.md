@@ -142,7 +142,7 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 |---|---|---|
 | 形态 | 本地 CLI（`ocr review` / `ocr scan`）+ CI 触发（GitHub Action / GitLab / Gerrit）+ IDE 插件、coding-agent 插件、MCP | webhook 服务，PR 事件自动触发，无人值守 |
 | 质量取舍 | 高精度低召回——README 自述 recall 低于通用 agent 是刻意取舍，token 约为通用 agent 的 1/9 | recall 88.9% / precision 97.1% 双高（36 条能力期望，生产同款模型与提示词）；假阳性二次过滤实测「真阳性换假阳性 1:1」后不启用（D043），宁在生成侧规则防 |
-| 评测 | AACR-Bench（50 仓 / 200 PR / 10 语言 / 1,505 条人工标注；数据集、仓库快照、评测 harness 均公开——独立基准仓库 + HuggingFace），打分用 LLM-judge 文件级语义覆盖（行号不作硬过滤） | 107 用例在库：确定性打分（无 LLM 裁判）、promptHash 基线红线、改 prompt 必跑回归、注入拦截率独立口径、迭代曲线公开；并经 harness 接入在 AACR-Bench 上跑同尺对照（`scripts/aacr-bench.sh`） |
+| 评测 | AACR-Bench（50 仓 / 200 PR / 10 语言 / 1,505 条人工标注；数据集、仓库快照、评测 harness 均公开——独立基准仓库 + HuggingFace），打分用 LLM-judge 文件级语义覆盖（行号不作硬过滤） | 107 用例在库：确定性打分（无 LLM 裁判）、promptHash 基线红线、改 prompt 必跑回归、注入拦截率独立口径、迭代曲线公开；并经 harness 接入在 AACR-Bench 上跑同尺对照（`scripts/aacr-bench.sh`；19 例终读数：ocr 完整管线 38.1% / 40.2%（一致率）@ 均 102 万 tokens/例 vs 本仓库裸审查内核 6.1% / 3.4% @ 均 5.6 万——1/18 成本，口径注脚见 #165） |
 | 注入抗性 | 威胁模型标注 diff 半可信（安全保证文档），无注入回归用例 | 10 例注入 canary 覆盖六个注入面持续回归 + 无 approve 路径（最坏后果是多误报，不存在被注入放行合并） |
 | PR 多轮复审 | CI 重跑不重复发帖；跨轮审查记忆在路线图（2027 计划） | commit 幂等 + block 继承重审 + 上一轮意见逐字重报（D035，已在生产）+ 区间增量（D032） |
 | 合并闸门 | 无——工具定位是给建议，合并决策在人 | REQUEST_CHANGES 原生禁合并 + 双 status 硬闸门（D017） |
