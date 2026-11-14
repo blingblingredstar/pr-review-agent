@@ -83,7 +83,7 @@ function parseDiff(diff: string): { files: Set<string>; newLineRanges: Map<strin
 // 分组计数不做硬断言（#119 C3 去脆：每批量加用例必改断言的脆点）——tripwire 由
 // 「source 必属已知枚举 + 已知组不得为空」承担：拼错 source、组被整组删空仍会红，
 // 加用例则零测试改动。组数现状以 evals/report.md 各轮 runs 计数为准
-const KNOWN_SOURCES = ["synthetic", "real", "dogfood", "injection", "repo", "correlation", "incremental", "framing", "ctxpair", "agentsmd"] as const;
+const KNOWN_SOURCES = ["synthetic", "real", "dogfood", "injection", "repo", "correlation", "incremental", "framing", "ctxpair", "agentsmd", "aacr"] as const;
 
 test("用例集：id 唯一、source 显式且属已知枚举、已知组非空、synthetic 两 kind 并存", async () => {
   const cases = await loadCases();

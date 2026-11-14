@@ -63,12 +63,12 @@ ROADMAP 两个时间点值得记：
 | 审查范围锚定 | bundle 内文件（`<review_files>` 硬约束） | PR diff 修改锚定 + search/read 扩大验证半径不扩大审查范围 |
 | 上下文来源 | 上下文工具（access/search/read）+ 每语言内置规则清单 | 快照触及文件全文 + 文件树（D023）+ 任务上下文：PR 标题与关联 issue 正文（D029）+ 组织规范：仓库默认分支 AGENTS.md（D045） |
 | 质量取舍 | 高精度低召回（自述刻意），token ~1/9 | recall 88.9% / precision 97.1% 双高（36 条能力期望，生产同款模型与提示词，2026-11-12 两轮微平均；基线五轮 recall 带 82.9–94.3）；假阳性过滤实测 1:1 不划算后不启用（D043），宁在生成侧规则防 |
-| 评测 | AACR-Bench：50 仓 / 200 PR / 10 语言 / 1,505 条正例标注（另有 640 条负例），数据集 + 被测仓库快照 + 评测 harness 三件套全公开（HF + 独立基准仓库 alibaba/aacr-bench）；打分用 LLM-judge 文件级语义覆盖，行号不作硬过滤 | 92 用例在库：确定性打分（无 LLM 裁判）、promptHash 基线红线、改 prompt 必跑回归、注入拦截率独立口径、迭代曲线公开（evals/report.md）、金丝雀周巡检 |
+| 评测 | AACR-Bench：50 仓 / 200 PR / 10 语言 / 1,505 条正例标注（另有 640 条负例），数据集 + 被测仓库快照 + 评测 harness 三件套全公开（HF + 独立基准仓库 alibaba/aacr-bench）；打分用 LLM-judge 文件级语义覆盖，行号不作硬过滤 | 102 用例在库：确定性打分（无 LLM 裁判）、promptHash 基线红线、改 prompt 必跑回归、注入拦截率独立口径、迭代曲线公开（evals/report.md）、金丝雀周巡检 |
 | 注入抗性 | 威胁模型标注 git 仓库半可信（ASSURANCE_CASE.md，"diffs may contain adversarial content"）；无注入回归用例可见 | 10 例注入 canary 覆盖六个注入面（diff 注释/文件名/元数据/issue 正文/上一轮意见/AGENTS.md）持续回归 + 每个注入面威胁模型重申 + 无 approve 路径（最坏后果是多误报，不存在被注入放行合并） |
 | 合并闸门 | 无——工具定位是给建议，合并决策在人 | REQUEST_CHANGES 原生禁合并（重审无意见自动解除）+ `pr-review` / `review-threads` 双 status 硬闸门（D017） |
 | 严重度 | critical/high/medium/low + category | blocker/major/minor/nit + confidence 内部信号 |
-| 语言面 | 60+ 文件类型规则，10 语言基准；TS/JS 规则含 React 专节 | 评测域聚焦：92 用例主 diff 文件 95% 为 .ts/.js，质量读数在前端主语言域校准 |
-| 规模验证 | 阿里内部两年、数万开发者、数百万缺陷（README 自述） | 单仓 dogfood：122 次生产审查台账、284 单测、92 用例 |
+| 语言面 | 60+ 文件类型规则，10 语言基准；TS/JS 规则含 React 专节 | 评测域聚焦：102 用例主 diff 文件 95% 为 .ts/.js，质量读数在前端主语言域校准 |
+| 规模验证 | 阿里内部两年、数万开发者、数百万缺陷（README 自述） | 单仓 dogfood：122 次生产审查台账、284 单测、102 用例 |
 | 可观测 | OpenTelemetry + session viewer（回放/标记） | 逐 run token 落盘 + 前缀缓存读数 + RunRecord 面板（D041）+ 生产台账 |
 
 两处公允性声明，防止对照表吹过头：
@@ -78,7 +78,7 @@ ROADMAP 两个时间点值得记：
 
 ## 五、可借鉴项（映射既有 roadmap，D040 借标准不自建原则）
 
-1. **AACR-Bench 作为 #107/#157 外部 golden 转译源**（2026-11-14 实测核查后定案，Apache-2.0 可用）。实测读数：全量 2,145 条评审意见 = 1,505 条专家确认正例 + 640 条负例；TS/JS 子集 563 行，其中正例 417 条（Code Defect 189 / Maintainability 185 / Performance 36 / Security 7；Diff Level 234 / File Level 131 / Repo Level 52）分布在 40 个真实 PR 上，行锚（side/from_line）零缺失、note 中位 263 字符是现成机制词素材；PR diff 中位 210 行、≤200 行的 20 个。转译手顺照 #107（锚点人工核 + 实例枚举 + 机制词中文转译剔除字面词），比自采省一半人工——锚点是成品且正例经专家预验证。#157 的调查（自标 100% vs 外部 45.5% 的 54.5pp 落差归因）可优先试转译一批 TS/JS 子集。
+1. **AACR-Bench 作为 #107/#157 外部 golden 转译源**（2026-11-14 实测核查后定案，Apache-2.0 可用）。实测读数：全量 2,145 条评审意见 = 1,505 条专家确认正例 + 640 条负例；TS/JS 子集 563 行，其中正例 417 条（Code Defect 189 / Maintainability 185 / Performance 36 / Security 7；Diff Level 234 / File Level 131 / Repo Level 52）分布在 40 个真实 PR 上，行锚（side/from_line）零缺失、note 中位 263 字符是现成机制词素材；PR diff 中位 210 行、≤200 行的 20 个。转译手顺照 #107（锚点人工核 + 实例枚举 + 机制词中文转译剔除字面词），比自采省一半人工——锚点是成品且正例经专家预验证。**用法①首批已落地（2026-11-14，#157）**：aacr 组 5 例（evals/cases/aacr-01..05，独立口径不进能力分）首跑（mustMention 剔除 diff 字面词后终态）recall 25.0%（2/8）/ precision 20.0%（2/10）——初版关键词混入字面词虚增至 50%（4/8），PR #166 bot 自审抓出后修正；miss 归因（两轮合并）= 锚点伪影 1（稳定）/ 真能力缺口 1（稳定）/ 单例方差 3（翻转），与 #107 谱系同型，详见 #157 issue 评论。
 2. **两种用法**（互斥不冲突）：①转译进本仓库 eval（上文）；②直接用他们的 harness 跑本 bot——`evaluation/converters/` 是可插拔评审器适配层，跑通即得「本 bot vs ocr 在同一基准上的同尺读数」，是 README 对外最有说服力的对照数字；成本 = 40 个 TS/JS PR × 评审 + judge 调用，需先评估 judge 端点（他们 harness 的 judge 也是 LLM 调用）。**用法②已落地（2026-11-14）**：`scripts/aacr-bench.sh`（钉版本拉取 harness + `scripts/aacr/pipeline-prra.patch` 注册 `prra` reviewer + `scripts/aacr-review.ts` 桥接 CLI 裸调 `reviewDiff`；结果文件走 `--out` 文件不走 stdout——npm banner 会污染；失败实例兜底空意见防 evaluate 崩）；preview 模式零成本验机械、real 模式真 judge（GLM 端点）；judge/数据/harness 三钉，上游更新 = 显式改钉再跑。
 3. **打分方法论是 #157 锚点伪影的第三种解法**：他们 `metric-migration.md` 从逐条行锚匹配迁移到 LLM-judge 文件级语义覆盖（行号只当上下文），动机与 #107「外部 golden 锚位≠机制行（0-6 行漂移）」同题。我们的选项谱系：±3 容差（现状）/ 人工核锚（#107 手顺）/ 语义判定（他们的路，代价是引入 LLM 裁判——与本仓库「确定性打分」立场相撞，若引入须独立口径不进能力分）。
 4. **640 条负例的次要用向**：数据集自述设计目标是评「反思模型拦截低质意见」——负例正是 D043 reflect 重开条件里「rubric 校准」的现成语料（别人家的坏意见 + 专家否决标签），重开讨论时可作 rubric 对照集。

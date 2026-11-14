@@ -1,0 +1,453 @@
+{
+  "startedAt": "2026-11-14T06:54:23.668Z",
+  "model": "glm-5.3",
+  "llmBaseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+  "llmExtraBody": "{\"thinking\":{\"type\":\"enabled\"},\"reasoning_effort\":\"low\"}",
+  "promptHash": "4a1c2b4d0679",
+  "evalOnly": [
+    "aacr"
+  ],
+  "capabilityScope": "synthetic+real",
+  "schemaVersion": 1,
+  "planArm": null,
+  "contextArm": null,
+  "aspectArm": null,
+  "reflectArm": null,
+  "runs": [
+    {
+      "caseId": "aacr-01-cline-azure-detection",
+      "kind": "bug",
+      "source": "aacr",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/api/providers/openai.ts",
+          "line": 17,
+          "severity": "minor",
+          "body": "用 baseURL 是否包含 \"deepseek\" 来判断走原生 OpenAI 客户端过于脆弱：用户若使用自定义网关/代理（URL 中恰好含 deepseek 字样）或 Azure 上部署名为 deepseek 的 deployment，会误判分支。既然 intent 是显式选择 DeepSeek，更稳妥的是新增一个 provider 选项或依据 openAiModelId 前缀（deepseek-r1 等）判断。",
+          "confidence": "medium"
+        },
+        {
+          "file": "src/api/providers/deepseek.ts",
+          "line": 26,
+          "severity": "minor",
+          "body": "isDeepseekReasoner 的匹配新增了 \"deepseek-r1\"，但 deepseek-r1 的模型 id 还存在 deepseek-chat 之外的变体（如 deepseek-ai/deepseek-r1 的带前缀形式），\"deepseek-reasoner\" 与 \"deepseek-r1\" 两处判断逻辑在 openai.ts:39 重复出现，属复制粘贴副本；若后续再调整规则需两处同步，建议抽公共函数（如 isDeepSeekReasonerModel）供两个 handler 共用。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1566,
+        "outputTokens": 257,
+        "totalTokens": 1823,
+        "cachedInputTokens": 832
+      },
+      "durationMs": 5925,
+      "score": {
+        "caseId": "aacr-01-cline-azure-detection",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/api/providers/openai.ts",
+              "line": 17,
+              "mustMention": [
+                "误判",
+                "判别",
+                "检测",
+                "识别",
+                "顺序",
+                "azure",
+                "判定错",
+                "走错"
+              ]
+            },
+            "hit": true
+          },
+          {
+            "expect": {
+              "file": "src/api/providers/openai.ts",
+              "line": 39,
+              "mustMention": [
+                "子串",
+                "误匹配",
+                "精确匹配",
+                "误报",
+                "includes",
+                "前缀"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 1,
+        "recall": 0.5,
+        "agentComments": 2,
+        "truePositives": 1,
+        "precision": 0.5,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "medium",
+          "medium"
+        ],
+        "commentTps": [
+          true,
+          false
+        ],
+        "commentHitCounts": [
+          1,
+          0
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "aacr-02-react-single-state-hook",
+      "kind": "bug",
+      "source": "aacr",
+      "error": null,
+      "comments": [
+        {
+          "file": "packages/react-dom/src/__tests__/ReactDOMForm-test.js",
+          "line": 1673,
+          "severity": "major",
+          "body": "新增测试使用了 it.only，这会让整个测试文件中的其余用例被跳过，进入主干后 CI 将只跑这一个用例，掩盖其他回归。应改回普通的 it。",
+          "confidence": "high"
+        },
+        {
+          "file": "packages/react-reconciler/src/ReactFiberHooks.js",
+          "line": 3264,
+          "severity": "major",
+          "body": "新增的 `existingStateHook.next !== null` 条件改变了判定的语义：原来只要 memoizedState 存在就视为已升级为 stateful 并直接返回；现在存在但 next 为 null 的 hook 会落到后续路径重新初始化。如果函数组件 form 的 memoizedState 是仅有单个 hook（next === null）的正常形态，会在每次 startHostTransition 时重复走升级路径，可能覆盖已有 state 或重复挂 hook。diff 上下文看不到该函数后半段如何处理这种情况，需要确认 next === null 时后续分支的完整行为（是否安全地复用/重建 hook、旧 state 是否保留），否则这是一个会破坏既有 form state 的风险点。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1566,
+        "outputTokens": 476,
+        "totalTokens": 2042,
+        "cachedInputTokens": 832
+      },
+      "durationMs": 8683,
+      "score": {
+        "caseId": "aacr-02-react-single-state-hook",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "packages/react-reconciler/src/ReactFiberHooks.js",
+              "line": 3264,
+              "mustMention": [
+                "单个",
+                "只有一个",
+                "唯一",
+                "忽略",
+                "不复用",
+                "重复",
+                "已有状态",
+                "next",
+                "丢失"
+              ]
+            },
+            "hit": true
+          }
+        ],
+        "hits": 1,
+        "recall": 1,
+        "agentComments": 2,
+        "truePositives": 1,
+        "precision": 0.5,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high",
+          "medium"
+        ],
+        "commentTps": [
+          false,
+          true
+        ],
+        "commentHitCounts": [
+          0,
+          1
+        ],
+        "contentComments": 1,
+        "locatedComments": 1
+      }
+    },
+    {
+      "caseId": "aacr-03-cline-checkpoint-unhandled",
+      "kind": "bug",
+      "source": "aacr",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/core/task/index.ts",
+          "line": 1328,
+          "severity": "major",
+          "body": "`this.checkpointTracker.commit()` 的 Promise 没有任何 `.catch` 处理。改为非阻塞后，一旦 commit 被拒绝（git 操作失败并不罕见），这里会成为 unhandled rejection，可能触发进程级警告甚至崩溃（取决于全局处理），而且 UI 已显示 checkpoint_created 但用户不会得到任何失败反馈。建议在 `.then` 后追加 `.catch` 做静默或日志处理。",
+          "confidence": "high"
+        },
+        {
+          "file": "src/core/task/index.ts",
+          "line": 1328,
+          "severity": "major",
+          "body": "非阻塞化后存在竞态：`say(\"checkpoint_created\")` 先入列，但 `lastCheckpointHash` 要等 commit 完成才写入消息。若在此期间任务结束并进入 `doesLatestTaskCompletionHaveNewChanges()` 之类的流程，读到的最新 checkpoint 消息没有 hash，会误判为“无新变更”或回退到错误 checkpoint。diff 中可见本函数后续逻辑（attempt completion 相关路径）正是依赖 hash 已写入；除非能确认此处调用方从不在此窗口读取该消息，否则应保证 attempt completion 路径阻塞等待 commit 完成（正如注释中 NOTE 对 saveCheckpoint(true) 的要求），或为该路径保留同步版本。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1431,
+        "outputTokens": 384,
+        "totalTokens": 1815,
+        "cachedInputTokens": 832
+      },
+      "durationMs": 8222,
+      "score": {
+        "caseId": "aacr-03-cline-checkpoint-unhandled",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/core/task/index.ts",
+              "line": 1322,
+              "mustMention": [
+                "未处理",
+                "未捕获",
+                "catch",
+                "失败",
+                "reject",
+                "异常"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 2,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high",
+          "medium"
+        ],
+        "commentTps": [
+          false,
+          false
+        ],
+        "commentHitCounts": [
+          0,
+          0
+        ],
+        "contentComments": 1,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "aacr-04-threejs-degenerate-points",
+      "kind": "bug",
+      "source": "aacr",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/geometries/ExtrudeGeometry.js",
+          "line": 176,
+          "severity": "minor",
+          "body": "cleanPoints 在循环删除中可能把一个小洞（或短轮廓）的所有/大部分点删掉，留下 0、1 或 2 个点的数组仍留在 holes 里参与后续 triangulateShape 和 bevel 生成，会产生非法三角化或退化几何。建议在清理后过滤掉长度小于 3 的洞（并对主轮廓做空保护，points 为空时 points[0].x 会直接抛错）。",
+          "confidence": "medium"
+        },
+        {
+          "file": "src/geometries/ExtrudeGeometry.js",
+          "line": 191,
+          "severity": "minor",
+          "body": "当 currentIndex == 0 时 splice 后直接 break，跳过了对新的 points[0]（原 points[1]）与 prevPos（尾点）的距离检查，这条闭合边上的重复点可能漏删；另外 `==` 应统一为 `===`。可改为 splice 后 continue（i 不回退）继续检查，或去掉 break 前的分支差异。",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1862,
+        "outputTokens": 1180,
+        "totalTokens": 3042,
+        "cachedInputTokens": 832
+      },
+      "durationMs": 24306,
+      "score": {
+        "caseId": "aacr-04-threejs-degenerate-points",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/geometries/ExtrudeGeometry.js",
+              "line": 169,
+              "mustMention": [
+                "空",
+                "长度",
+                "至少两个",
+                "不足两个",
+                "undefined",
+                "未定义",
+                "越界",
+                "退化"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 2,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "medium",
+          "medium"
+        ],
+        "commentTps": [
+          false,
+          false
+        ],
+        "commentHitCounts": [
+          0,
+          0
+        ],
+        "contentComments": 1,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "aacr-05-n8n-release-expiry",
+      "kind": "bug",
+      "source": "aacr",
+      "error": null,
+      "comments": [
+        {
+          "file": "packages/core/src/errors/error-reporter.ts",
+          "line": 87,
+          "severity": "major",
+          "body": "这个 setTimeout（最长 6 周）没有调用 .unref()，会作为活动句柄阻止 Node 进程退出，导致 CLI 命令跑完后进程挂住不退出（也干扰 graceful shutdown 的超时退出）。修法：const timer = setTimeout(...); timer.unref();",
+          "confidence": "high"
+        },
+        {
+          "file": "packages/core/src/errors/error-reporter.ts",
+          "line": 84,
+          "severity": "minor",
+          "body": "已过期分支只 warn 后 return，但没有设置 this.enabled = false。此时 uncaughtException 监听器已注册且 enabled 仍为 true，后续 this.error() 调用会走完整上报路径（依赖 dsn/client 未初始化才静默），与「禁用错误追踪」的语义不符。应在 return 前加 this.enabled = false;",
+          "confidence": "medium"
+        }
+      ],
+      "usage": {
+        "inputTokens": 3390,
+        "outputTokens": 776,
+        "totalTokens": 4166,
+        "cachedInputTokens": 832
+      },
+      "durationMs": 15257,
+      "score": {
+        "caseId": "aacr-05-n8n-release-expiry",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "packages/core/src/errors/error-reporter.ts",
+              "line": 89,
+              "mustMention": [
+                "上限",
+                "溢出",
+                "2^31",
+                "2147483647",
+                "24.8",
+                "立即触发",
+                "最大延迟",
+                "setTimeout"
+              ]
+            },
+            "hit": true
+          },
+          {
+            "expect": {
+              "file": "packages/core/src/errors/error-reporter.ts",
+              "line": 84,
+              "mustMention": [
+                "enabled",
+                "未禁用",
+                "仍",
+                "照常",
+                "没有设置",
+                "提前返回",
+                "关闭",
+                "未关闭"
+              ]
+            },
+            "hit": true
+          },
+          {
+            "expect": {
+              "file": ".github/workflows/release-publish.yml",
+              "line": 106,
+              "mustMention": [
+                "字面",
+                "不展开",
+                "不会执行",
+                "不执行",
+                "替换",
+                "literal",
+                "shell",
+                "原样"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 2,
+        "recall": 0.6666666666666666,
+        "agentComments": 2,
+        "truePositives": 2,
+        "precision": 1,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "high",
+          "medium"
+        ],
+        "commentTps": [
+          true,
+          true
+        ],
+        "commentHitCounts": [
+          1,
+          1
+        ],
+        "contentComments": 2,
+        "locatedComments": 2
+      }
+    }
+  ],
+  "summary": {
+    "recall": 0,
+    "precision": null,
+    "totalExpect": 0,
+    "totalHits": 0,
+    "totalComments": 0,
+    "totalTp": 0,
+    "failed": 0,
+    "usage": {
+      "inputTokens": 9815,
+      "outputTokens": 3073,
+      "totalTokens": 12888,
+      "cachedInputTokens": 4160
+    },
+    "groups": {
+      "aacr": {
+        "recall": 0.5,
+        "precision": 0.4,
+        "expectN": 8,
+        "hits": 4,
+        "comments": 10,
+        "tp": 4,
+        "runs": 5,
+        "failed": 0
+      }
+    }
+  }
+}

@@ -1065,3 +1065,21 @@
   1. 本 PR 过闸门合并；头对头 3 例数字按「同尺对照首读」口径引用（README 暂不写数字，样本 3 例不达引用门槛）
   2. ocr 全 20 例放量：等换端点或配额宽裕窗口，非当前优先
   3. #157 golden 转译 / #140 台账照旧
+
+## 2026-11-14 · 会话 60：#157 AACR golden 转译首批落地 + 门面数字修正
+
+- **目标**：用户指令「能做的都做下」——开放清单逐项过闸：#157 转译可动（主件）、#165 配额闸、#160/#76 远期闸、#74 无生产实证、#82 无复报证据、#119 C1-C5 全在自然时点后、C6 查证（architecture.md 已无数字化计数，无需动作）。
+- **完成**（1 PR 在途）：
+  - **aacr 组 5 例**（`evals/cases/aacr-01..05`，新 source 组独立口径不进能力分）：cline#1808（human golden ×2）、react#33059（human）、cline#5177（human）、three.js#30750（AI）、n8n#13323（AI ×3）——选例偏向小 diff + Code Defect；diff 走 compare API 拉真提交对（react 301 重定向用 repositories/{id} 兜底）；锚点逐条人工对位机制行（五个全部零漂移——AACR 的 from_line 是评论锚，与机制行的天然漂移这批没出现，锚在评论所贴的代码行上）；score.ts source union + KNOWN_SOURCES + isCapabilitySource 注释同步
+  - **首跑读数（bot 审查修正后终态）**：recall 25.0%（2/8）/ precision 20.0%（2/10）。初版关键词混入 diff 字面词（azure/includes/next/setTimeout/enabled）虚增 recall 至 50%——PR #166 bot 自审抓出 major（aacr-05@89 的 hit 纯靠 setTimeout 字面词、实为 .unref() 缺失另一缺陷），剔字面词重跑后 4→2。miss 归因（两轮合并视角）：锚点伪影 1（aacr-03 两轮稳定：机制全对、行差 6 超 ±3）/ 真能力缺口 1（aacr-05@106 CI yml $() 两轮稳定）/ 单例方差主导其余（aacr-01 hit→零意见、aacr-02 hit→注意力被测试文件吸走、aacr-04 miss→hit，两轮逐例翻转）——与 #107 分布同谱系；反向抓到 3 条参考集未标真 bug（it.only / 竞态 / setTimeout 未 unref）
+  - **门面数字修正**：README/architecture/分析文档 92→102、real 15→20（15 自建 + #107 转译 5）、能力期望 36→47（拆分口径注明：88.9/97.1 系 36 自标口径读数）、eval 表加 aacr 行、效果节拆自标/外部两个口径——#158 合并 golden 后门面数字陈旧两天无人察觉（C3 去脆的设计代价首次显形，README 总数以后随批量加用例的 PR 同步改）
+  - **台账回收**：prodlogs 122→127 run（GitHub 派生 40/41 runKey 匹配）
+- **发现 / 坑**：
+  1. AACR 的锚点纪律比自采好一档：from_line 是评论所贴代码行（这批五个全部精确对位机制行），#107 的「0-6 行漂移」是自采 PR 评论的锚位习惯——转译源本身带锚质量红利
+  2. **mustMention 字面词污染是自伤式偏差**：关键词里留 diff 字面词，模型复述代码行即算命中——本批初版 5 处污染虚增 recall 25pp，bot 自审（「azure/includes/next/setTimeout 混入」）比自己复查先抓到；转译时关键词表应机械过一遍「词在 diff 里出现即剔除」
+  3. 反引号/`${` 转义手写必错：用例生成走脚本从 diff 文件注入（esc 三件套），手改模板字符串风险高
+  4. zsh `set -- $var` 不分词 + heredoc 内嵌 f-string 条件相等判断两坑连踩，跨进程取 SHA 的脚本用 python -c 直接打印最稳
+- **下一步**：
+  1. 本 PR 过闸门合并
+  2. #157 后续（±3 容差校准讨论 / CI yml aspect 候选）挂 issue；#165 放量等端点
+  3. #140 台账 127 run，裁定 25 行照旧

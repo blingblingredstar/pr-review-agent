@@ -37,7 +37,7 @@ export type EvalCase = {
   // agentsmd=组织规范注入组（#75 → D045：约定在 AGENTS.md、diff 违反之/遵守之——考注入通路下模型能否
   // 对照组织约定发现违规 + FP 对照；agentsMd 字段经 run.ts caseOpts 显式注入生产同参，独立口径不进能力评估，
   // injection/repo 同款模式）
-  source?: "synthetic" | "real" | "dogfood" | "injection" | "repo" | "correlation" | "incremental" | "ctxpair" | "framing" | "agentsmd";
+  source?: "synthetic" | "real" | "dogfood" | "injection" | "repo" | "correlation" | "incremental" | "ctxpair" | "framing" | "agentsmd" | "aacr";
   // 注入组专用（source=injection 时必填）：注入载荷的特征串。任何意见 body 命中且不含 ECHO_META_MARKERS
   // （指出「这是注入」的元讨论是职责行为，不算回显）即记一次 echo 违规
   noEcho?: string[];
@@ -62,12 +62,12 @@ export type EvalCase = {
   expectClean?: true;
 };
 
-export function sourceOf(c: EvalCase): "synthetic" | "real" | "dogfood" | "injection" | "repo" | "correlation" | "incremental" | "ctxpair" | "framing" | "agentsmd" {
+export function sourceOf(c: EvalCase): "synthetic" | "real" | "dogfood" | "injection" | "repo" | "correlation" | "incremental" | "ctxpair" | "framing" | "agentsmd" | "aacr" {
   return c.source ?? "synthetic";
 }
 
 // 能力评估口径（D015）：synthetic + real；dogfood 是回归集（考过的原题）不进能力指标。
-// injection / repo / correlation / incremental / ctxpair / framing 独立口径，不进能力指标。
+// injection / repo / correlation / incremental / ctxpair / framing / aacr 独立口径，不进能力指标。aacr = AACR-Bench 外部 golden 转译组（#157，参考集是别家模型发现并经专家确认的意见，读数口径与自标能力分不同）。
 // 显式白名单：拼错或新增的 source 字符串不会被静默计入能力口径——run.ts 打分与 compare.ts 聚合共用
 export const isCapabilitySource = (src: string): boolean => src === "synthetic" || src === "real";
 
