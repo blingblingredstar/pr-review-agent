@@ -127,7 +127,7 @@ index e0566c84b72d25..311b3be790c8af 100644
     {
       file: "server/src/services/metadata.service.ts",
       line: 600,
-      mustMention: ["可空", "为空", "未定义", "null", "缺省值", "保护"],
+      mustMention: ["可空", "为空", "未定义", "缺省值", "保护", "空值"],
     },
   ],
 } as EvalCase;

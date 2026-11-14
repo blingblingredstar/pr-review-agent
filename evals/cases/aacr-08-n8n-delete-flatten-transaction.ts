@@ -210,7 +210,7 @@ index 38b759e0f4e6..5634efd6b7f1 100644
     {
       file: "packages/cli/src/databases/repositories/workflow.repository.ts",
       line: 309,
-      mustMention: ["根目录", "根节点", "PROJECT_ROOT", "误包含", "占位符", "哨兵"],
+      mustMention: ["根目录", "根节点", "误包含", "占位符", "哨兵", "根标识"],
     },
   ],
 } as EvalCase;

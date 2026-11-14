@@ -151,12 +151,12 @@ index f413de44fa0..2b8efde08b6 100644
     {
       file: "src/integrations/editor/DiffViewProvider.ts",
       line: 50,
-      mustMention: ["错误处理", "try", "catch", "失败", "异常", "抛错"],
+      mustMention: ["无异常处理", "失败路径", "错误处理", "异常", "抛错", "失败时"],
     },
     {
       file: "src/integrations/editor/DiffViewProvider.ts",
       line: 240,
-      mustMention: ["错误处理", "try", "catch", "失败", "异常", "抛错"],
+      mustMention: ["无异常处理", "失败路径", "错误处理", "异常", "抛错", "失败时"],
     },
   ],
 } as EvalCase;

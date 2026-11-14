@@ -291,3 +291,20 @@ test("每个用例：diff 结构合法，expect 的 file/line 落在 diff 内", 
     }
   }
 });
+
+// aacr 组 tripwire（#157，PR #167 教训）：外部 golden 转译的 mustMention 逐词不得出现在该用例 diff 中——
+// 字面词会让「复述代码行」的意见空命中，虚增 recall（首批曾虚增 25pp、续批又混入 4 词，均被 bot 自审抓出）。
+// 转译时关键词表必须机械过这道闸，不再靠肉眼。
+test("aacr 组：mustMention 逐词不在该用例 diff 中出现（#44 判分纪律的机械化）", async () => {
+  const cases = await loadCases();
+  for (const c of cases) {
+    if (c.source !== "aacr") continue;
+    for (const e of c.expect ?? []) {
+      const offenders = e.mustMention.filter((k) => c.diff.includes(k));
+      assert.ok(
+        offenders.length === 0,
+        `${c.id} expect@${e.line} 的 mustMention 含 diff 字面词：${offenders.join("、")}——换为不在 diff 中出现的机制词`,
+      );
+    }
+  }
+});

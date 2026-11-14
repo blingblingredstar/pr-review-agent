@@ -240,7 +240,7 @@ index 36790c05c135..c64b3daa81d6 100644
     {
       file: "packages/svelte/src/compiler/phases/3-transform/client/visitors/IfBlock.js",
       line: 26,
-      mustMention: ["标记", "格式", "解析", "不匹配", "不一致", "hydration"],
+      mustMention: ["标记", "格式", "解析", "不匹配", "不一致", "水合"],
     },
   ],
 } as EvalCase;
