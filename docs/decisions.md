@@ -607,3 +607,14 @@
 - **背景**：#157 三批外部对照证据收敛于「锚点伪影是度量侧问题」——±3 容差校准（离线零 LLM）显示 K=5 恰好回收全部锚点伪影类（首批 8 期望 25.0%→37.5%）后饱和，K=7 与 K=∞（≈文件级）无增量。改全局默认会破坏 19 个组的历史可比性；不动则外部读数永远背着伪影类 miss。
 - **决策**：三层拆开——①打分契约（score.ts `matchesExpectation`）默认 ±3 不动，容差经第三参显式覆盖（comment 参数同时放宽为 file/line/body 结构子集，compare 传 run JSON 落盘形态无需构造完整 ReviewComment）；②外部 golden 子集识别不放 source 枚举（compare.ts `isExternalGolden`：aacr-* 前缀自动覆盖 + #107 withmartian 转译 5 例 caseId 硬列）——这 5 例与自建 real 共组无独立 source，动枚举会牵连 19 组口径与全部历史 run JSON；③compare.ts 聚合块输出 ±3/±5 两行（±3 取落库 score、±5 用落盘 comments 离线重打分，零 LLM），LP/Noise 不随容差重算（落库值是 ±3 的，本块只列 recall/precision）。K=5 重打分任一轮缺 comments 或 verdict 缺 mustMention 即整组置 null（不按 0 抹平，#105 同款纪律）。
 - **后果**：历史 run JSON 零改动即可出 K=5 读数；非外部组零扰动（extGolden 双 null 不打印块）；词形变体（「不设置」vs「没有设置」）不在此修——看着结果补词是事后调参虚增读数，须盲定同义词表再动（#157 结题报告记档）；新外部例不在 aacr 前缀内时需在 EXT_REAL_GOLDEN_IDS 登记。
+
+## D049 — 数据库访问控制检测 aspect 接入单遍 prompt（2026-11-15，会话 63）：RLS 缺失进可指认缺陷清单，rls 用例对进能力口径
+
+- **状态**：已接受（2026-11-15，会话 63；issue #171，触发条件 = 用户确认启动；架构形态先经对话裁定——维持单遍不加 agent，supervisor/特定 agent 形态依 D042/D036 与 2026-11-10 Anthropic 模式对照既有裁定不重开）。
+- **背景**：Crissy Field 2026-11 研究（转述快照 `docs/plans/lovable-rls-research.md`）：Lovable 生态 15.9 万项目抽样中 2.4 万+ 应用未认证可直读 Supabase 数据库，根因 = 建表迁移漏配行级安全（RLS 缺失 / policy `using (true)` 全放行）——AI 生成应用的系统性缺陷形态，README 引言已引用。缺陷信号在 diff 内（迁移建表无 RLS/policy + 同 diff 客户端 anon key 直查），满足 aspect 准入判据（D044 同款：无 diff 外上下文依赖）；检测形态为清单式检查，与 corr 组推理深度缺口（D046）不同族，prompt 可达。
+- **决策**：
+  1. **接入形态 = 单遍 prompt 一条规则 + 「访问控制缺失」进可指认缺陷清单**（D044 模式，不加新遍不加 agent）：迁移建表 + 同 diff 客户端直连迹象（公开 anon key 直查该表）时检查行级安全/等价访问控制，缺 = 匿名全表读写安全漏洞，锚建表迁移行；policy `using (true)` 全放行视同没有；**否定面显式化**（客户端直连迹象不存在不适用——纯服务端持连接串的表不要求 RLS；其他问题照常按其他规则报——#138 首版压制教训复用）
+  2. **用例对进 synthetic 能力口径**（aspect 价值必须被能力线度量）：rls-01 正例（迁移建表无 RLS + 前端 anon key 直查，锚 CREATE TABLE 行，mustMention 机制词——缺失型缺陷的机制词天然不在 diff 中，字面词闸自然通过）+ rls-02 负例（service role 服务端持连接、表无 RLS，expectClean 考 precision）——负例刻意取「服务端持连接」方向而非「RLS 已正确配置」方向：后者不报是显然行为、低信息量，前者才是规则否定面与「权限类高影响照报」泛化条款（既有规则）冲突的 FP 主方向
+  3. **回归数据**（两轮，全量 run 落 evals/runs/）：rls-01 两轮全命中（blocker、直连机制描述完整）、rls-02 两轮零意见；既有组零压制（对三个基线轮逐用例对账 ×2 轮，synthetic/real 命中无一回退，aacr 单例翻转属已定性方差谱系）；自标口径两轮微平均 recall 90.5%（67/74）/ precision 93.4%（71/76），高于基线五轮带均值（86.9%/91.4%）；promptHash 基线换代 `4a1c2b4d0679` → `4dae3bd5072b`
+- **备选**：独立 source 组独立口径——aspect 价值不进能力读数则验收无从谈起（D044 同款否决）；supervisor 路由 + 特定安全 agent——D042（按方面拆分无召回增益、precision 反降、3.3×）/ D036（并行合并税）/ Anthropic 模式对照（supervisor 补裁不需要）三重既有裁定关闭，翻转唯一入口 #76 多仓产品化；负例取「RLS 已正确配置」方向——不报是显然行为、低信息量。均否决。
+- **后果**：README 效果口径换新读数（37 条自标期望、两轮微平均 90.5%/93.4%）；#171 关闭（验收闸门逐项 ✓）；金丝雀周巡检自动覆盖新基线（同 model+promptHash 对照）；caveman 拆解裁定降级落点 = #74 上游参照评论（2026-11-15：读更少压缩作 #74 触发后的实现参照，成本非当前短板、触发前不拆）
