@@ -1,7 +1,11 @@
 #!/bin/zsh
 # 金丝雀周巡检（2026-11-13 落地，随 D045 批次）：每周在独立 worktree 跑一次全量 eval，
-# 与上一次同 model+promptHash 的 run 对比能力口径（synthetic+real）recall/precision——
-# 下滑 ≥6pp（≈2 例，单例方差 ±2.9pp）或失败用例 ≥3 弹 macOS 通知。防端点静默演进。
+# 与同 model+promptHash 最近 3 轮 run 的逐指标 median 对比能力口径（synthetic+real）recall/precision——
+# 下滑 ≥10pp 或失败用例 ≥3 弹 macOS 通知。防端点静默演进。
+# 告警口径换代（2026-11-18，D050）：单 prev 锚（取最新同 key run）会撞上轮间带宽的 band 顶——
+# 首告警（2026-11-16，-16pp）经期望丢失重叠判别（0/10）证实为噪声：同 key 四轮 precision
+# 82.1/91.5/75.5/75.0，带宽 16.5pp 远大于原阈值 6pp。改为 median-of-3 锚 + 历史不足 3 轮只记录不告警
+# + 阈值 6→10pp（median 锚下实测最大噪声偏移 -7.1pp，10pp 之上视为真漂移）。
 # 裁定出处：金丝雀巡检（2026-11-10）——评测集/漂移分析/面板均已存在，唯一缺口 = 周期性无改动基线巡检；
 # 形态 = 零新代码本地 cron（非 Vercel、非 ZCode subagent）。
 #
@@ -25,8 +29,8 @@ REPO="${PRRA_REPO:-/Users/liuyong/Developments/pr-review-agent}"
 WT="${PRRA_WORKTREE:-$HOME/.canary-patrol/pr-review-agent}"
 STATE="$HOME/.canary-patrol"
 LOG="$WT/canary-patrol.log"
-THRESHOLD=6          # 百分点；recall 或 precision 相对上一次同 key run 的下滑告警线
-FAILED_THRESHOLD=3   # 单次 run 失败用例数告警线
+THRESHOLD=10         # 百分点；recall/precision 相对同 key 最近 3 轮 median 的下滑告警线（D050）
+FAILED_THRESHOLD=3   # 单次 run 失败用例数告警线（与锚点无关，独立判定）
 
 export PATH="/opt/homebrew/bin:$PATH"
 export NVM_DIR="$HOME/.nvm"
@@ -90,35 +94,45 @@ recall=$(jq -r '(.summary.recall*10000|round)/100' "$new")
 precision=$(jq -r '(.summary.precision*10000|round)/100' "$new")
 failed=$(jq -r '.summary.failed // 0' "$new")
 
-# ---- 对照：上一次「同口径」的 run（worktree 内 = 主库已提交历史 + 既往巡检 run） ----
+# ---- 对照：同口径 run 最近 3 轮的逐指标 median 作锚（D050，worktree 内 = 主库已提交历史 + 既往巡检 run） ----
 # 文件名只含 model+promptHash+extraBody 指纹，过滤不掉 ctx/reflect/plan 臂与 EVAL_ONLY 子集 run
 #（后缀 -ctx/-reflect 在 extraBody 指纹之后，EVAL_ONLY 更是不留名）——逐个开 JSON 验内容：
-# 必须 evalOnly 为空、三臂全 false、llmExtraBody 与本次一致（thinking 档位变了也不可比）
+# 必须 evalOnly 为空、三臂全 false、summary 有 recall/precision、llmExtraBody 与本次一致（thinking 档位变了也不可比）
 newextra=$(jq -c '.llmExtraBody' "$new")
-prev=""
+hist=()
 for candname in $(ls evals/runs 2>/dev/null | grep -F -- "-${model}-${hash}-" | grep '\.json$' | sort -r); do
   [ "$candname" = "$newname" ] && continue
   if jq -e --argjson extra "$newextra" \
-       '(.evalOnly == null) and (.planArm != true) and (.contextArm != true) and (.reflectArm != true) and (.llmExtraBody == $extra)' \
+       '(.summary.recall != null) and (.summary.precision != null) and (.evalOnly == null) and (.planArm != true) and (.contextArm != true) and (.reflectArm != true) and (.llmExtraBody == $extra)' \
        "evals/runs/$candname" >/dev/null 2>&1; then
-    prev="evals/runs/$candname"
-    break
+    hist+=("evals/runs/$candname")
+    [ ${#hist[@]} -ge 3 ] && break
   fi
 done
 
 alert=""
-if [ -z "$prev" ]; then
+if [ "$failed" -ge "$FAILED_THRESHOLD" ] 2>/dev/null; then alert="失败用例 ${failed}"; fi
+
+if [ ${#hist[@]} -eq 0 ]; then
   log "基线建立：model=$model prompt=$hash recall=$recall precision=$precision failed=$failed（无同 key 历史对照）"
+elif [ ${#hist[@]} -lt 3 ]; then
+  # 历史不足 3 轮时 median 锚不稳（实测纯噪声即可偏离 band 顶 -16pp），只记录不判漂移
+  log "对照（同 key 历史 ${#hist[@]} 轮 <3 仅记录，不判漂移）：model=$model prompt=$hash recall=$recall precision=$precision failed=$failed"
 else
-  precall=$(jq -r '(.summary.recall*10000|round)/100' "$prev")
-  preprecision=$(jq -r '(.summary.precision*10000|round)/100' "$prev")
-  dr=$(awk -v a="$recall" -v b="$precall" 'BEGIN{printf "%.1f", a-b}')
-  dp=$(awk -v a="$precision" -v b="$preprecision" 'BEGIN{printf "%.1f", a-b}')
-  if awk -v d="$dr" -v t="$THRESHOLD" 'BEGIN{exit !(d < -t)}'; then alert="recall ${dr}pp"; fi
+  recs=(); pres=()
+  for f in "${hist[@]}"; do
+    recs+=("$(jq -r '(.summary.recall*10000|round)/100' "$f")")
+    pres+=("$(jq -r '(.summary.precision*10000|round)/100' "$f")")
+  done
+  med_recall=$(printf '%s\n' "${recs[@]}" | sort -n | sed -n '2p')
+  med_precision=$(printf '%s\n' "${pres[@]}" | sort -n | sed -n '2p')
+  dr=$(awk -v a="$recall" -v b="$med_recall" 'BEGIN{printf "%.1f", a-b}')
+  dp=$(awk -v a="$precision" -v b="$med_precision" 'BEGIN{printf "%.1f", a-b}')
+  if awk -v d="$dr" -v t="$THRESHOLD" 'BEGIN{exit !(d < -t)}'; then alert="${alert:+$alert、}recall ${dr}pp"; fi
   if awk -v d="$dp" -v t="$THRESHOLD" 'BEGIN{exit !(d < -t)}'; then alert="${alert:+$alert、}precision ${dp}pp"; fi
-  if [ "$failed" -ge "$FAILED_THRESHOLD" ] 2>/dev/null; then alert="${alert:+$alert、}失败用例 ${failed}"; fi
-  log "对照：model=$model prompt=$hash recall=$recall（prev $precall Δ${dr}）precision=$precision（prev $preprecision Δ${dp}）failed=$failed ${alert:+⚠ 漂移：$alert}"
-  if [ -n "$alert" ]; then
-    note "能力漂移（prompt $hash）：$alert —— recall $precall→$recall / precision $preprecision→$precision，详见 $LOG"
-  fi
+  log "对照：model=$model prompt=$hash recall=$recall（锚 ${med_recall} Δ${dr}）precision=$precision（锚 ${med_precision} Δ${dp}）failed=$failed ${alert:+⚠ 漂移：$alert}"
+fi
+
+if [ -n "$alert" ]; then
+  note "巡检告警（prompt $hash）：$alert —— recall $recall / precision $precision，详见 $LOG"
 fi
