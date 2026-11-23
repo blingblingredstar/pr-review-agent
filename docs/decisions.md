@@ -626,3 +626,19 @@
 - **决策**：`scripts/canary-patrol.sh` 三点——①锚点换 median-of-3（同 model+promptHash 最近 3 轮同口径 run 的逐指标 median；候选内容校验沿用并补 summary recall/precision 非空守卫）；②同 key 历史 <3 轮只记录不判漂移（median 不稳，原告警场景正是 2 轮历史撞 band 顶）；③阈值 6→10pp（median 锚下实测最大噪声偏移 −7.1pp，之上视为真漂移）。失败用例 ≥3 告警与锚点解耦（原实现挂在 prev 存在分支下，基线轮失败静默——顺手修正）。
 - **验证**：PRRA_REUSE_LAST 干跑三例（临时 worktree + 真实 run JSON，零 eval 成本）——真实四轮回放不告警（锚 83.33/82.14，Δ−6.2/−7.1）；原告警场景回放（2 轮历史）仅记录，旧逻辑此处弹 −16pp；伪造大滑坡（0.70/0.60）双告警触发（recall −13.3pp、precision −22.1pp）。
 - **后果**：漂移检测下限从 −6pp 放宽至 −10pp，8-9pp 的周级真漂移可能晚 1-2 周由 median 老化带出——接受，换取消灭噪声告警；告警复核的人工判据 = 期望丢失重叠率（会话 64 发现：逐用例 hits 零重叠即随机翻转），先跑判别再升级排查；巡检 run 不入主库、通知与日志形态不变。
+
+## D051 — 单测与类型检查进 CI 并设为 required check，Dependabot 周更（2026-11-24，会话 67）
+
+- **状态**：已接受（2026-11-24，会话 67；用户「根据建议做一下」，「设成 required」是建议里的一项）。第 1、3 项已落地；第 2 项的仓库配置待手动完成（见验证）。
+- **背景**：`.github/workflows/` 此前只有 `review-threads.yml`——316 个单测与 `tsc --noEmit` 只在本地跑，合并前跑没跑靠人记。本机开发环境是 Node 24（nvm 只装了 24），D001 定的运行时基线 Node 22 没有任何地方在验证。这个缺口是 2026-11-19 裁定「依赖漏洞 + 升级验证」审查维度不做（未单独立条；重开条件 = #76 多仓产品化时作为确定性扫描器挂进管线）时确认的：那个维度的缺陷信号不在 diff 内，违反 aspect 准入判据（D044 / D049 同款）；但「依赖有没有已知漏洞、升级后测试挂不挂」这个担忧是真的，该由仓库自己的 CI 和 Dependabot 来答。
+- **决策**：
+  1. 新增 `.github/workflows/test.yml`：PR 上依次跑 `npm ci` → `npm run typecheck` → `npm test`；Node 22；`permissions: contents: read`；`timeout-minutes: 10`
+  2. `test` 进 branch protection 的 required check，与 `pr-review` / `review-threads` 并列（管理员同样受限）；AGENTS.md「合并闸门」同步为四项
+  3. 新增 `.github/dependabot.yml`：npm 与 github-actions 两个生态每周查一次；npm 的 minor / patch 合成一个 PR，major 各自单独成 PR
+- **备选**：
+  - 只做信息性 check、不设 required——红灯可见但能越过，等于把「记得看」交回给人。否决
+  - Node 22 + 24 矩阵——24 是本机开发环境，推 PR 前本地已经在跑，CI 的增量在 22。先只跑 22；出现只在 24 上通过的差异再加矩阵
+  - Dependabot 全部依赖合成一个 PR（含 major）——major 需要逐个看破坏性变更，混在小版本更新里会被顺手合并。否决
+  - 审查 agent 内跑依赖审计或测试——2026-11-19 已否决：等于在 agent 里造第二套 CI，且把 webhook 的最坏后果从烧 token 升级为执行 PR 作者的代码
+- **验证**：本 PR 首跑——Node v22.23.5 上 `test` check 29 秒通过，316 单测全绿、typecheck 无错，D001 的 Node 22 基线首次被真实验证。配置第 2 项时发现钥匙串 PAT 对分支保护只读（`PATCH` / `PUT` 均 404，原样写回也是 404；读正常），浏览器也没有 GitHub 登录态——required 的添加需要在仓库 Settings → Branches 手动完成。
+- **后果**：合并闸门多一项（public 仓库 Actions 免费）。required 配置完成前，`test` 靠 AGENTS.md 合并闸门清单约束（红灯不合并），不是 GitHub 硬闸门。Dependabot 启用后开始为过期依赖开 PR，首批可能有几个，需要人工合并，同样要过 `test`。

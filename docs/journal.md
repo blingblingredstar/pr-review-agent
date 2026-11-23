@@ -1199,3 +1199,24 @@
   4. 实验做完没有写 journal / report，run 工件在主工作树以未跟踪状态留了一夜——纯实验会话也要在收尾时落档
 - **下一步**：
   1. 换不换 5.4 等用户裁定；要补成本这一半证据需要一次生产规模对照（eval 集回答不了）
+
+## 2026-11-24 · 会话 67：glm-5.4 落档 + 缓存门槛探针（#175）+ 单测 CI / Dependabot（D051，#176）
+
+- **目标**：用户睡前「根据建议做一下，明天看结果」——按开工时给的清单做两件：glm-5.4 对照实验落档；单测上 CI + Dependabot 并设成 required。
+- **完成**（2 PR：#175 已合并，#176 在途）：
+  - **#175 glm-5.4 落档**（补会话 66）：report 新增对照节，5 个 run 工件入库；bot 零意见一次过闸
+  - **缓存探针**（裸 `chat/completions`，同前缀连发读 `cached_tokens`，5.3 对照，约 26 积分）：5.4 的前缀缓存可用，门槛在 2,255–2,714 tokens 之间——1,063 / 1,691 / 2,255 不命中（1,063 档 8 秒后仍为 0），2,714 命中 1,024，3,236 起 3,200 / 4,160 / 6,272 / 12,736；4.2k 前缀零间隔紧跟 5 次全中。eval 集的重复前缀只有共享系统提示（约 1.1k）和工具循环上一步（约 2.2k），都在门槛下，所以 eval 积分 +23% 是结构性的
+  - **生产规模对照缺口**：生产台账 40 次审查的 review 段 input 最小 1.9 万、中位 7.0 万 tokens，全在门槛上。eval 的成本结论不迁移，5.4 在生产规模下没测过
+  - **#176 单测 CI + Dependabot（D051）**：`.github/workflows/test.yml`（PR 上 Node 22 跑 `npm ci` → typecheck → test）+ `.github/dependabot.yml`（npm / github-actions 周更，npm 的 minor + patch 合并）；首跑在 Node v22.23.5 上 29 秒通过、316 单测全绿。AGENTS.md 合并闸门三项 → 四项；architecture / README（决策范围）/ PLAN.md（顶层目录树、去数字化的项目描述、首周记录标注）同步
+  - **`test` 进 required 没做成**：钥匙串 PAT 对分支保护只读（PATCH / PUT / 原样写回都是 404），浏览器也没有 GitHub 登录态。配置留待用户在 Settings → Branches 手动添加；完成前 `test` 是 AGENTS.md 清单里的约定闸门
+- **发现 / 坑**：
+  1. 「等 5.4 缓存上线再复测」的前提是错的：缓存一直在，变的是门槛。几次原始请求（约 26 积分）比再跑三轮全量（约 600 积分）更能回答「为什么贵」
+  2. run JSON 的 `usage` 是逐例两段合计：repo 组每例 4.4k 看着过了门槛，实际每步只有 2.2k。判断缓存要看日志里的 `[tools] probe tokens` 行
+  3. 钥匙串 PAT 改不了 branch protection——能读（GET 200）、不能写（404）。它是 classic OAuth token，scope 含 `repo`，账号对仓库有 admin，具体原因未查明。此前记忆里「PAT 有 admin 权限可改保护配置」是没有实测过的推断
+  4. 本机 nvm 只装了 Node 24，D001 的 Node 22 基线此前没有任何验证；CI 首跑补上了
+  5. 纯裁定会话此前都不落 journal（STE80、swarm、CVE 三个裁定在 journal / decisions 里零记录）；CVE 裁定的重开条件这次写进了 D051 背景
+- **下一步**：
+  1. **等用户**：Settings → Branches → main 加 `test` 为 required check；完成后把 AGENTS.md 合并闸门里「配置尚未完成」一句去掉
+  2. 5.4 换不换等用户裁定；要补成本证据需要一次生产规模对照
+  3. Dependabot 首批 PR 出现后人工过目合并
+  4. #140 台账维持 29 行：本会话两个 PR，bot 意见只有 #176 的两条折叠 minor（无线程 id，不进台账，处置留痕在 PR 评论）
