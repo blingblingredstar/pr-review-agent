@@ -188,7 +188,7 @@ npm run resolve:threads -- owner/repo#N [--yes]   # 合并前意见闭环
 | [docs/plans/PLAN.md](./docs/plans/PLAN.md) | 项目定位、技术选型、执行计划（交接文档，历史存档） |
 | [docs/architecture.md](./docs/architecture.md) | 架构：组件、数据流、输出 schema、环境变量 |
 | [docs/deployment.md](./docs/deployment.md) | 部署指南：五步上线路径、安全模型、排障分层 |
-| [docs/decisions.md](./docs/decisions.md) | 技术决策记录（append-only，D001–D049） |
+| [docs/decisions.md](./docs/decisions.md) | 技术决策记录（append-only，D001–D051） |
 | [evals/report.md](./evals/report.md) | prompt 迭代对比报告（方法/数据/局限） |
 | [docs/journal.md](./docs/journal.md) | 开发日志（append-only） |
 | [docs/CHANGELOG.md](./docs/CHANGELOG.md) | 变更记录 |

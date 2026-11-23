@@ -1,0 +1,25 @@
+# 单测 + 类型检查进 PR 闸门（D051）。
+# 跑 Node 22：它是运行时基线（D001），但本机开发环境是 Node 24——22 只在这里验证。
+# test 与 pr-review / review-threads 并列为 branch protection 的 required check（AGENTS.md「合并闸门」）。
+# 测试失败直接让 workflow 失败（测试挂了就该发失败邮件，与 review-threads「红灯走 status」相反）。
+name: test
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test

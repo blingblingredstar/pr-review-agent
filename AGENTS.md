@@ -83,7 +83,8 @@ Harness 的核心纪律：**每一步都可回放**。文档只追加、少改�
 - `REQUEST_CHANGES` 已解除：bot 有意见时 review 为 REQUEST_CHANGES（合并按钮原生禁用）；处理完意见、bot 重审无意见后自动解除
 - `pr-review` status 绿：审查进行中为 pending（黄），终态才变绿
 - `review-threads` 绿：上面的三处意见全部闭环
-- 三者已配为 branch protection required check（硬闸门，管理员同样受限；仓库已转 public 是 branch protection 可用的前提）
+- `test` 绿：单测与类型检查（`npm run typecheck` + `npm test`）在 PR 上通过（D051）；红灯先修代码或测试，不要绕过
+- `pr-review` / `review-threads` / `test` 三者已配为 branch protection required check（硬闸门，管理员同样受限；仓库已转 public 是 branch protection 可用的前提）
 
 ## 提交规范
 

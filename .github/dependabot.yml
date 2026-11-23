@@ -1,0 +1,15 @@
+# Dependabot 依赖更新（D051）：每周查 npm 依赖与 GitHub Actions 的新版本，开 PR 交给 test workflow 验证后人工合并。
+# npm 的 minor / patch 合成一个 PR 控制数量；major 各自单独一个 PR，破坏性变更需要逐个看。
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
