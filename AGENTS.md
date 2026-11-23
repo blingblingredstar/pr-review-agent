@@ -84,7 +84,7 @@ Harness 的核心纪律：**每一步都可回放**。文档只追加、少改�
 - `pr-review` status 绿：审查进行中为 pending（黄），终态才变绿
 - `review-threads` 绿：上面的三处意见全部闭环
 - `test` 绿：单测与类型检查（`npm run typecheck` + `npm test`）在 PR 上通过（D051）；红灯先修代码或测试，不要绕过
-- `pr-review` / `review-threads` / `test` 三者已配为 branch protection required check（硬闸门，管理员同样受限；仓库已转 public 是 branch protection 可用的前提）
+- `pr-review` / `review-threads` 已配为 branch protection required check（硬闸门，管理员同样受限；仓库已转 public 是 branch protection 可用的前提）。`test` 进 required 的配置尚未完成——钥匙串 PAT 能读不能写分支保护，要在仓库 Settings → Branches 手动添加；完成前 `test` 是上面清单里的约定闸门
 
 ## 提交规范
 

@@ -629,7 +629,7 @@
 
 ## D051 — 单测与类型检查进 CI 并设为 required check，Dependabot 周更（2026-11-24，会话 67）
 
-- **状态**：已接受（2026-11-24，会话 67；用户「根据建议做一下」，「设成 required」是建议里的一项）。
+- **状态**：已接受（2026-11-24，会话 67；用户「根据建议做一下」，「设成 required」是建议里的一项）。第 1、3 项已落地；第 2 项的仓库配置待手动完成（见验证）。
 - **背景**：`.github/workflows/` 此前只有 `review-threads.yml`——316 个单测与 `tsc --noEmit` 只在本地跑，合并前跑没跑靠人记。本机开发环境是 Node 24（nvm 只装了 24），D001 定的运行时基线 Node 22 没有任何地方在验证。这个缺口是 2026-11-19 裁定「依赖漏洞 + 升级验证」审查维度不做（未单独立条；重开条件 = #76 多仓产品化时作为确定性扫描器挂进管线）时确认的：那个维度的缺陷信号不在 diff 内，违反 aspect 准入判据（D044 / D049 同款）；但「依赖有没有已知漏洞、升级后测试挂不挂」这个担忧是真的，该由仓库自己的 CI 和 Dependabot 来答。
 - **决策**：
   1. 新增 `.github/workflows/test.yml`：PR 上依次跑 `npm ci` → `npm run typecheck` → `npm test`；Node 22；`permissions: contents: read`；`timeout-minutes: 10`
@@ -640,4 +640,5 @@
   - Node 22 + 24 矩阵——24 是本机开发环境，推 PR 前本地已经在跑，CI 的增量在 22。先只跑 22；出现只在 24 上通过的差异再加矩阵
   - Dependabot 全部依赖合成一个 PR（含 major）——major 需要逐个看破坏性变更，混在小版本更新里会被顺手合并。否决
   - 审查 agent 内跑依赖审计或测试——2026-11-19 已否决：等于在 agent 里造第二套 CI，且把 webhook 的最坏后果从烧 token 升级为执行 PR 作者的代码
-- **后果**：合并闸门多一项硬约束（public 仓库 Actions 免费）。Dependabot 启用后开始为过期依赖开 PR，首批可能有几个，需要人工合并，同样要过 `test`。
+- **验证**：本 PR 首跑——Node v22.23.5 上 `test` check 29 秒通过，316 单测全绿、typecheck 无错，D001 的 Node 22 基线首次被真实验证。配置第 2 项时发现钥匙串 PAT 对分支保护只读（`PATCH` / `PUT` 均 404，原样写回也是 404；读正常），浏览器也没有 GitHub 登录态——required 的添加需要在仓库 Settings → Branches 手动完成。
+- **后果**：合并闸门多一项（public 仓库 Actions 免费）。required 配置完成前，`test` 靠 AGENTS.md 合并闸门清单约束（红灯不合并），不是 GitHub 硬闸门。Dependabot 启用后开始为过期依赖开 PR，首批可能有几个，需要人工合并，同样要过 `test`。
