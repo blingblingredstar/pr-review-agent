@@ -1,0 +1,160 @@
+{
+  "startedAt": "2026-11-23T08:10:29.875Z",
+  "model": "glm-5.4",
+  "llmBaseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+  "llmExtraBody": "{\"thinking\":{\"type\":\"enabled\"},\"reasoning_effort\":\"low\"}",
+  "promptHash": "4dae3bd5072b",
+  "evalOnly": [
+    "dogfood"
+  ],
+  "capabilityScope": "synthetic+real",
+  "schemaVersion": 1,
+  "planArm": null,
+  "contextArm": null,
+  "aspectArm": null,
+  "reflectArm": null,
+  "runs": [
+    {
+      "caseId": "dogfood-01-webhook-guard",
+      "kind": "bug",
+      "source": "dogfood",
+      "error": null,
+      "comments": [
+        {
+          "file": "src/webhook.ts",
+          "line": 84,
+          "severity": "major",
+          "body": "isTimeoutError 沿 cause 链匹配整个 runReview 的所有错误，但 try 块里 fetchPr（GitHub API）、postReview、hasReviewed 也会抛 AbortSignal/AbortError 类超时。任一环节超时都会被误判为「LLM 超时」并发降级通知，且跳过普通的失败日志路径，导致用户收到与实际失败原因不符的通知。建议把超时判定收窄到只包裹 reviewDiff 的调用（如单独 try/catch 或在 reviewDiff 内部打标记），而非对整段逻辑做名称匹配。",
+          "confidence": "medium"
+        },
+        {
+          "file": "src/webhook.ts",
+          "line": 70,
+          "severity": "minor",
+          "body": "runReview 中 hasReviewed / fetchPr / reviewDiff / postReview 任一失败只打日志即结束，幂等去重导致同一 SHA 的失败任务无法通过重发 webhook（opened/synchronize 会先查 hasReviewed 再决定）重试——不过 hasReviewed 只在审查成功落库后才为真，失败场景重发事件可重试，但 GitHub 不会自动重发已 200 的事件，失败即永久丢失该 SHA 的审查。若产品上可接受（仅丢一次自动审查）可不改，否则应考虑重试或落队列。",
+          "confidence": "low"
+        }
+      ],
+      "usage": {
+        "inputTokens": 2343,
+        "outputTokens": 590,
+        "totalTokens": 2933,
+        "cachedInputTokens": 0
+      },
+      "durationMs": 11798,
+      "score": {
+        "caseId": "dogfood-01-webhook-guard",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/webhook.ts",
+              "line": null,
+              "mustMention": [
+                "缺失",
+                "忽略",
+                "拒绝",
+                "兜底",
+                "畸形"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 2,
+        "truePositives": 0,
+        "precision": 0,
+        "echoViolations": 0,
+        "commentConfidences": [
+          "medium",
+          "low"
+        ],
+        "commentTps": [
+          false,
+          false
+        ],
+        "commentHitCounts": [
+          0,
+          0
+        ],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    },
+    {
+      "caseId": "dogfood-02-timeout-warn",
+      "kind": "bug",
+      "source": "dogfood",
+      "error": null,
+      "comments": [],
+      "usage": {
+        "inputTokens": 1769,
+        "outputTokens": 253,
+        "totalTokens": 2022,
+        "cachedInputTokens": 0
+      },
+      "durationMs": 6620,
+      "score": {
+        "caseId": "dogfood-02-timeout-warn",
+        "kind": "bug",
+        "verdicts": [
+          {
+            "expect": {
+              "file": "src/review.ts",
+              "line": null,
+              "mustMention": [
+                "非法",
+                "nan",
+                "静默",
+                "回退",
+                "警告",
+                "告警"
+              ]
+            },
+            "hit": false
+          }
+        ],
+        "hits": 0,
+        "recall": 0,
+        "agentComments": 0,
+        "truePositives": 0,
+        "precision": null,
+        "echoViolations": 0,
+        "commentConfidences": [],
+        "commentTps": [],
+        "commentHitCounts": [],
+        "contentComments": 0,
+        "locatedComments": 0
+      }
+    }
+  ],
+  "summary": {
+    "recall": 0,
+    "precision": null,
+    "totalExpect": 0,
+    "totalHits": 0,
+    "totalComments": 0,
+    "totalTp": 0,
+    "failed": 0,
+    "usage": {
+      "inputTokens": 4112,
+      "outputTokens": 843,
+      "totalTokens": 4955,
+      "cachedInputTokens": 0
+    },
+    "groups": {
+      "dogfood": {
+        "recall": 0,
+        "precision": 0,
+        "expectN": 2,
+        "hits": 0,
+        "comments": 2,
+        "tp": 0,
+        "runs": 2,
+        "failed": 0
+      }
+    }
+  }
+}
