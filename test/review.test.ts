@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
+import { createServer } from "node:http";
 import { strToU8 } from "fflate";
+import { APICallError, NoObjectGeneratedError } from "ai";
 import {
   buildReviewPrompt,
   buildToolBlock,
@@ -314,6 +316,156 @@ test("reviewDiff：fileReader 不注入 = 现状单调用（system/prompt 字节
     );
   } finally {
     await fake.close();
+  }
+});
+
+// 2026-11-24 端点事故：glm-5.3 对 json_schema 请求直接吐 comments 裸数组（同请求 glm-5.4 吐对象），
+// SDK 根形状校验让整审失败。归一只做在返回侧，请求与 prompt 不动。
+const BARE_ARRAY_JSON = JSON.stringify([{ file: "src/a.ts", line: 1, severity: "major", body: "b" }]);
+
+test("reviewDiff：端点返回顶层裸数组时归一为 { comments }（请求仍走 json_schema，usage 取自该次调用）", async () => {
+  const fake = await startFakeLLM(() => ({ content: BARE_ARRAY_JSON, usage: { prompt_tokens: 583, completion_tokens: 130, total_tokens: 713 } }));
+  try {
+    await withEnv(
+      { LLM_BASE_URL: fake.url, LLM_API_KEY: "test", LLM_MODEL: "fake", LLM_EXTRA_BODY: undefined, LLM_TIMEOUT_MS: undefined },
+      async () => {
+        const out = await reviewDiff("DIFF_TEXT", "CTX", { timeoutMs: 10_000 });
+        assert.equal((fake.calls[0]!.body.response_format as { type?: string }).type, "json_schema", "归一只动返回侧：请求照旧");
+        assert.deepEqual(out.comments, [{ file: "src/a.ts", line: 1, severity: "major", body: "b" }]);
+        assert.deepEqual(out.usage, { inputTokens: 583, outputTokens: 130, totalTokens: 713, cachedInputTokens: 0 });
+      },
+    );
+  } finally {
+    await fake.close();
+  }
+});
+
+test("reviewDiff：工具循环第二段返回顶层裸数组同样归一（usage 两段合计）", async () => {
+  const fake = await startFakeLLM((i) => {
+    if (i === 0) return { content: '{"readRequests":[{"path":"./src/a.ts"}]}' };
+    return { content: BARE_ARRAY_JSON, usage: { prompt_tokens: 200, completion_tokens: 30, total_tokens: 230 } };
+  });
+  try {
+    await withEnv(
+      { LLM_BASE_URL: fake.url, LLM_API_KEY: "test", LLM_MODEL: "fake", LLM_EXTRA_BODY: undefined, LLM_TIMEOUT_MS: undefined, FILE_TOOL_MAX_STEPS: "2" },
+      async () => {
+        const entries = new Map<string, Uint8Array>([["src/a.ts", strToU8("export const a = 1;\n")]]);
+        const out = await reviewDiff("DIFF_TEXT", undefined, { timeoutMs: 60_000, fileReader: fileReaderFromEntries(entries) });
+        assert.equal(fake.calls.length, 2, "两段协议不因归一改变");
+        assert.deepEqual(out.comments, [{ file: "src/a.ts", line: 1, severity: "major", body: "b" }]);
+        assert.deepEqual(out.usage, { inputTokens: 201, outputTokens: 31, totalTokens: 232, cachedInputTokens: 0 }, "usage 为两段合计");
+      },
+    );
+  } finally {
+    await fake.close();
+  }
+});
+
+test("reviewDiff：归一只救「顶层是数组」——坏项、缺 comments 的对象、非 JSON 照旧抛 NoObjectGeneratedError", async () => {
+  const cases = [
+    ["数组里有坏项（severity 不在枚举）", JSON.stringify([{ file: "src/a.ts", line: 1, severity: "huge", body: "b" }])],
+    ["顶层是别的对象", JSON.stringify({ result: [] })],
+    ["非 JSON", "不是 JSON"],
+  ] as const;
+  for (const [label, content] of cases) {
+    const fake = await startFakeLLM(() => ({ content }));
+    try {
+      await withEnv(
+        { LLM_BASE_URL: fake.url, LLM_API_KEY: "test", LLM_MODEL: "fake", LLM_EXTRA_BODY: undefined, LLM_TIMEOUT_MS: undefined },
+        async () => {
+          await assert.rejects(reviewDiff("DIFF_TEXT", "CTX", { timeoutMs: 10_000 }), (err: unknown) => NoObjectGeneratedError.isInstance(err), label);
+        },
+      );
+    } finally {
+      await fake.close();
+    }
+  }
+});
+
+const JSON_OUTPUT_PROMPT = readFileSync(new URL("../prompts/json-output.md", import.meta.url), "utf8");
+
+test("reviewDiff：形状不对且不是裸数组（工具循环第二段又输出工具请求协议）→ system 追加 json-output.md 重试一次，usage 两次合计", async () => {
+  const fake = await startFakeLLM((i) => {
+    if (i === 0) return { content: '{"readRequests":[{"path":"./src/a.ts"}]}' };
+    if (i === 1) return { content: '{"searchRequests":["MAX_QUEUE_DEPTH"]}', usage: { prompt_tokens: 200, completion_tokens: 30, total_tokens: 230 } };
+    return { content: REVIEW_JSON, usage: { prompt_tokens: 210, completion_tokens: 40, total_tokens: 250 } };
+  });
+  try {
+    await withEnv(
+      { LLM_BASE_URL: fake.url, LLM_API_KEY: "test", LLM_MODEL: "fake", LLM_EXTRA_BODY: undefined, LLM_TIMEOUT_MS: undefined, FILE_TOOL_MAX_STEPS: "2" },
+      async () => {
+        const entries = new Map<string, Uint8Array>([["src/a.ts", strToU8("export const a = 1;\n")]]);
+        const out = await reviewDiff("DIFF_TEXT", undefined, { timeoutMs: 60_000, fileReader: fileReaderFromEntries(entries) });
+        assert.equal(fake.calls.length, 3, "第一段 + 第二段 + 重试一次");
+        const sysOf = (i: number) => messagesOf(fake.calls[i]!.body).find((m) => m.role === "system")!.content;
+        assert.equal(sysOf(1), `${loadPrompt()}\n\n${TOOLS_PROMPT}`, "首次请求不带形状说明（promptHash 口径不变）");
+        assert.equal(sysOf(2), `${loadPrompt()}\n\n${TOOLS_PROMPT}\n\n${JSON_OUTPUT_PROMPT}`, "重试的 system = 原 system + json-output.md");
+        assert.deepEqual(out.comments, [{ file: "src/a.ts", line: 1, severity: "major", body: "b" }]);
+        assert.deepEqual(out.usage, { inputTokens: 411, outputTokens: 71, totalTokens: 482, cachedInputTokens: 0 }, "usage 含形状不对的那次调用");
+      },
+    );
+  } finally {
+    await fake.close();
+  }
+});
+
+test("reviewDiff：首次返回非 JSON → 同样重试一次；重试仍不对则抛出，不再重试", async () => {
+  const recovered = await startFakeLLM((i) =>
+    i === 0
+      ? { content: "不是 JSON", usage: { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 } }
+      : { content: BARE_ARRAY_JSON, usage: { prompt_tokens: 583, completion_tokens: 130, total_tokens: 713 } },
+  );
+  try {
+    await withEnv(
+      { LLM_BASE_URL: recovered.url, LLM_API_KEY: "test", LLM_MODEL: "fake", LLM_EXTRA_BODY: undefined, LLM_TIMEOUT_MS: undefined },
+      async () => {
+        const out = await reviewDiff("DIFF_TEXT", "CTX", { timeoutMs: 10_000 });
+        assert.equal(recovered.calls.length, 2, "重试一次");
+        const retrySys = messagesOf(recovered.calls[1]!.body).find((m) => m.role === "system")!;
+        assert.equal(retrySys.content, `${loadPrompt()}\n\n${JSON_OUTPUT_PROMPT}`);
+        assert.deepEqual(out.comments, [{ file: "src/a.ts", line: 1, severity: "major", body: "b" }], "重试结果照走裸数组归一");
+        assert.deepEqual(out.usage, { inputTokens: 683, outputTokens: 140, totalTokens: 823, cachedInputTokens: 0 }, "usage 含形状不对的那次调用");
+      },
+    );
+  } finally {
+    await recovered.close();
+  }
+
+  const hopeless = await startFakeLLM(() => ({ content: '{"searchRequests":[]}' }));
+  try {
+    await withEnv(
+      { LLM_BASE_URL: hopeless.url, LLM_API_KEY: "test", LLM_MODEL: "fake", LLM_EXTRA_BODY: undefined, LLM_TIMEOUT_MS: undefined },
+      async () => {
+        await assert.rejects(reviewDiff("DIFF_TEXT", "CTX", { timeoutMs: 10_000 }), (err: unknown) => NoObjectGeneratedError.isInstance(err));
+        assert.equal(hopeless.calls.length, 2, "只重试一次");
+      },
+    );
+  } finally {
+    await hopeless.close();
+  }
+});
+
+test("reviewDiff：非形状类错误（API 400）不重试", async () => {
+  let hits = 0;
+  const server = createServer((req, res) => {
+    req.resume();
+    hits++;
+    res.writeHead(400, { "content-type": "application/json" });
+    res.end(JSON.stringify({ error: { message: "bad request", type: "invalid_request_error" } }));
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const addr = server.address();
+  const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+  try {
+    await withEnv(
+      { LLM_BASE_URL: `http://127.0.0.1:${port}/v1`, LLM_API_KEY: "test", LLM_MODEL: "fake", LLM_EXTRA_BODY: undefined, LLM_TIMEOUT_MS: undefined },
+      async () => {
+        await assert.rejects(reviewDiff("DIFF_TEXT", "CTX", { timeoutMs: 10_000 }), (err: unknown) => APICallError.isInstance(err));
+        assert.equal(hits, 1, "API 错误直接抛出，不进形状重试");
+      },
+    );
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
 });
 

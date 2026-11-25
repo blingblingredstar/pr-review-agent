@@ -1220,3 +1220,21 @@
   2. 5.4 换不换等用户裁定；要补成本证据需要一次生产规模对照
   3. Dependabot 首批 PR 出现后人工过目合并
   4. #140 台账维持 29 行：本会话两个 PR，bot 意见只有 #176 的两条折叠 minor（无线程 id，不进台账，处置留痕在 PR 评论）
+
+## 2026-11-24/25 · 会话 67 补记：端点 `json_schema` 失约束事故 + 根形状容错（D052）+ `test` 进 required
+
+- **目标**：用户「test 已经加了，其他的能做也做下」。
+- **完成**：
+  - **`test` 进 required 已由用户手动完成**（API 回读：`review-threads` / `pr-review` / `test` 三项）
+  - **事故**：给 Dependabot #178（LLM SDK 依赖升级）做合并前预检时发现——真实端点 4 例冒烟全挂；对照 main 现有依赖同样全挂，与依赖无关。定因：glm-5.3 所在端点自 2026-11-24 起（02:31 之后、21:13 之前）不再按 `json_schema` 约束根形状，直接返回 comments 裸数组，SDK 校验抛 `AI_NoObjectGeneratedError`，生产 bot 同样审不了 PR。单变量对照 8 个变体：`json_object` / `strict:false` / 根对象加必需属性 / 去 `additionalProperties` 全是裸数组；user 末尾加一句形状指令 → 对象；同请求换 glm-5.4 → 对象
+  - **修复（D052）**：`generateReviewResult` 两步兜底——顶层裸数组归一（不重试）；其余形状不对追加 `prompts/json-output.md` 重试一次。第二类形态是排查中抓到的：工具循环第二段偶尔又输出工具请求协议（63 次里 4 次），加兜底后 90 次调用 0 失败、重试 3 次全部恢复。单测 316 → 322
+  - **过闸方式**：生产 bot 同病，修复 PR 的审查改由本地跑同一个阶段机（`runStage` + 进程内续链，代码为修复分支），PR 内披露
+- **发现 / 坑**：
+  1. 单测与 `test` CI 都 mock 掉端点，看不到这类问题；LLM SDK 升级或端点行为变化后，合并前跑真实端点冒烟（`EVAL_ONLY=agentsmd,dogfood npm run eval`，4 例十余秒）。这次是碰巧撞上，不是流程保证
+  2. SDK 的 `NoObjectGeneratedError` 自带模型原文 `text` 与 `usage`——归一与重试的 token 记账都靠它，不用另抓包
+  3. **Dependabot 的 PR 在本仓合不了**：#177 / #178 状态 blocked——bot 按触发白名单（D021）不审 dependabot[bot] 的 PR，required 的 `pr-review` 永远不会出现。启用 Dependabot 时没有预见（D051 后果里写的「人工合并」不成立）
+  4. 排障回路第一版自己有 bug（把 `reviewDiff` 返回值多包了一层）；修复后「红得不像原来的红」时，先查回路再查代码
+- **下一步**：
+  1. 修复 PR 合并后生产自动部署，用下一个 PR 验证生产 bot 恢复
+  2. 两个 Dependabot 更新改由普通 PR 承载；AGENTS / README 现状化（`required` 已完成、成本句数字）
+  3. 是否把 dependabot[bot] 加进 `REVIEW_TRIGGER_USERS`（否则每周的 Dependabot PR 都只能当通知用）——用户裁定
