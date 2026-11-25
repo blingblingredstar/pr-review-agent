@@ -1238,3 +1238,41 @@
   1. 修复 PR 合并后生产自动部署，用下一个 PR 验证生产 bot 恢复
   2. 两个 Dependabot 更新改由普通 PR 承载；AGENTS / README 现状化（`required` 已完成、成本句数字）
   3. 是否把 dependabot[bot] 加进 `REVIEW_TRIGGER_USERS`（否则每周的 Dependabot PR 都只能当通知用）——用户裁定
+
+## 2026-11-25 · 会话 67 补记二：`test` required 落定 + 文档现状化 + Dependabot 限制记档
+
+- **目标**：承接会话 67 补记的下一步。
+- **完成**：
+  - `test` 已由用户加进 required（API 回读三项）；AGENTS / architecture / CHANGELOG 里「待手动完成」的表述改为现状
+  - AGENTS.md 新增两条约定：LLM SDK / 端点变化后合并前跑真实端点冒烟；Dependabot 的 PR 过不了闸门（触发白名单），更新改由普通 PR 承载
+  - README 成本句换成现行读数：109 例、约 25 万输入 token、同一基线五轮缓存 56%–97%、小例典型 1.3k 入（原句是 11-14 的 107 例口径，token 基数按现在的 run 实算）
+- **发现 / 坑**：
+  1. 改保护配置只能人工操作：钥匙串 PAT 对分支保护只读，ego-browser 没有 GitHub 登录态
+  2. 推修复时本机到境外的网络全断——`github.com` 解析成代理的 fake-ip（198.18.x）但代理进程已不在，GitHub、Vercel、npm registry 全部不可达，国内站点正常。期间生产仍是故障状态（main 代码对真实端点 3 次全挂）；本地把能做的全部做完，等网络恢复再推
+  3. 「修复 + Dependabot #178 的依赖」在真实端点跑 35 例冒烟零失败（synthetic 18/22，在基线带内；形状重试 2 次都恢复）——依赖升级本身没有问题
+- **下一步**：
+  1. 两个 Dependabot 更新的普通 PR（npm minor/patch ×3、github-script v7 → v9），合并后 Dependabot 会自动关掉 #177 / #178
+  2. dependabot[bot] 是否加进 `REVIEW_TRIGGER_USERS`——用户裁定
+
+## 2026-11-25 · 会话 67 补记三：事故修复合并（#179）+ 裁定台账到 30 行的首张读数
+
+- **目标**：把 D052 的修复送进 main，恢复生产审查。
+- **完成**：
+  - **#179 合并**（a0426ec）。生产 bot 自身坏着，审查改由本地跑同一个阶段机（`runStage` + 进程内续链，修复分支代码），两轮：第一轮 1 条 major（`addUsage` 在 catch 路径里对运行时缺失的 usage 详情对象不容错——论据不成立、结论采纳，可选链加固 + 导出补单测，单测 316 → 323）；第二轮因上轮有 major 走全量重审（注入上一轮意见、仓库上下文约 10 万字符、组织规范块、路由计划，单次 6.4 万 tokens），0 条意见。PR 内有披露
+  - main 部署完成（23:06）。生产是否恢复以之后第一个由 webhook 触发的审查为准
+  - **台账到 30 行**（#179 的裁定即时落账）。按 `evals/prod-runs/README.md` 的闸门出首张读数：
+
+| severity | 裁定数 | fixed | wontfix | false-positive | FP 率 |
+|---|---|---|---|---|---|
+| major | 14 | 13 | 0 | 1 | 7.1% |
+| minor | 11 | 10 | 0 | 1 | 9.1% |
+| nit | 5 | 5 | 0 | 0 | 0% |
+| 合计 | 30 | 28 | 0 | 2 | 6.7% |
+
+- **发现 / 坑**：
+  1. 原定口径是 severity × confidence，这次只出了 severity 一维：台账的 confidence 全为 null（GitHub 评论不渲染），要从 RunRecord join，而 RunRecord 在私有 Blob 里，本地拿不到
+  2. 读数的口径注脚：30 行里 18 行是 #26 的历史回填，全部来自本仓自己的 PR，裁定人是作者本人；`wontfix` 为 0 不代表没有「回应不修」的意见被直接 resolve 掉（回填只看有回复的线程）。与 eval 侧对比：eval 能力组（synthetic + real）的非命中意见占 17.6%（5.3@low 五轮 precision 82.4% 的补数，其中含真实但未被期望标注的意见），生产裁定 FP 率 6.7% 没有显示出比 eval 更糟的迹象，n=30 只能当方向看
+  3. D043 给 reflect 留的重开条件之一是「#140 台账 FP 分布」。首张读数里 major 的 FP 率是 7%（1/14）：二次评分能过滤的误报空间很小，这个读数不支持重开 reflect
+- **下一步**：
+  1. confidence 一维：要么给台账 join 补一条读 Blob 的路径，要么把 README 里的口径改成 severity × verdict——用户裁定
+  2. 两个 Dependabot 更新的普通 PR
