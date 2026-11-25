@@ -29,6 +29,7 @@ Harness 的核心纪律：**每一步都可回放**。文档只追加、少改�
 - TypeScript strict；运行时 Node 22；部署目标 Vercel
 - 提示词只放 `prompts/*.md`，代码引用文件，不在代码里内联 prompt
 - eval 相关改动必须保持 `npm run eval` 可回归（`evals/` 目录自包含）
+- 单测与 `test` CI 都 mock 掉 LLM 端点：升级 `ai` / `@ai-sdk/*`、改请求参数，或端点行为有变化迹象时，合并前跑真实端点冒烟 `EVAL_ONLY=agentsmd,dogfood npm run eval`（4 例，十余秒）
 - 遵循 lazy senior dev 原则（本仓库装有 ponytail skill，见 `.agents/skills/`）：最小完整改动，不加没人要的抽象
 - 密钥只走环境变量，任何 key 不入库
 - LLM 接入按 OpenAI 兼容端点抽象（`LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`），代码与文档不绑定具体厂商
@@ -70,6 +71,7 @@ Harness 的核心纪律：**每一步都可回放**。文档只追加、少改�
   ```
 
 - `review-threads` 状态变绿后才合并（D013；红灯走 commit status 而非 workflow 失败，避免失败邮件轰炸）
+- Dependabot 开的 PR 过不了闸门：bot 不审触发白名单（D021）外的作者，required 的 `pr-review` 永远不会出现。把更新提交成一个普通 PR，合并后 Dependabot 会自动关掉自己的 PR
 - 拉自审意见必须同时看**三处**，不只看线程：
   1. 行内线程（`GET /pulls/N/comments`，可 resolve）
   2. review body 的「行号不在 diff 内」降级列表（模型意见行号对不上 diff 时逐条列在正文）
@@ -84,7 +86,7 @@ Harness 的核心纪律：**每一步都可回放**。文档只追加、少改�
 - `pr-review` status 绿：审查进行中为 pending（黄），终态才变绿
 - `review-threads` 绿：上面的三处意见全部闭环
 - `test` 绿：单测与类型检查（`npm run typecheck` + `npm test`）在 PR 上通过（D051）；红灯先修代码或测试，不要绕过
-- `pr-review` / `review-threads` 已配为 branch protection required check（硬闸门，管理员同样受限；仓库已转 public 是 branch protection 可用的前提）。`test` 进 required 的配置尚未完成——钥匙串 PAT 能读不能写分支保护，要在仓库 Settings → Branches 手动添加；完成前 `test` 是上面清单里的约定闸门
+- `pr-review` / `review-threads` / `test` 三者已配为 branch protection required check（硬闸门，管理员同样受限；仓库已转 public 是 branch protection 可用的前提）。改保护配置只能人工在 Settings → Branches 操作：钥匙串 PAT 对分支保护只读
 
 ## 提交规范
 
