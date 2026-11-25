@@ -60,6 +60,8 @@ schema 变更属于破坏性改动：必须同步改 `evals/run.ts` 的打分逻
 
 `reviewDiff` 的实际返回是 `ReviewOutcome = ReviewResult & { usage: TokenUsage }`：`usage` 为本次调用 token 用量（inputTokens / outputTokens / totalTokens，端点不返回时字段为 null），不属于 LLM 输出 schema 契约——生产落 console 日志，eval 聚合进 run 落盘。
 
+**根形状容错（D052）**：产出段（单段、工具循环第二段）统一经 `generateReviewResult`。端点不按 `json_schema` 约束根形状时，模型可能直接返回 comments 裸数组——包成 `{ comments }` 后用同一 schema 逐项复验；也可能在工具循环第二段又输出一遍工具请求协议——system 追加 `prompts/json-output.md` 重试一次。超时与 API 错误不重试；首次请求与 `prompts/review.md` 不变。
+
 ## 关键工程机制
 
 **审查 prompt 的组装顺序**——下文各机制往 prompt 里注入的块，相对位置固定：

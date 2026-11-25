@@ -642,3 +642,20 @@
   - 审查 agent 内跑依赖审计或测试——2026-11-19 已否决：等于在 agent 里造第二套 CI，且把 webhook 的最坏后果从烧 token 升级为执行 PR 作者的代码
 - **验证**：本 PR 首跑——Node v22.23.5 上 `test` check 29 秒通过，316 单测全绿、typecheck 无错，D001 的 Node 22 基线首次被真实验证。配置第 2 项时发现钥匙串 PAT 对分支保护只读（`PATCH` / `PUT` 均 404，原样写回也是 404；读正常），浏览器也没有 GitHub 登录态——required 的添加需要在仓库 Settings → Branches 手动完成。
 - **后果**：合并闸门多一项（public 仓库 Actions 免费）。required 配置完成前，`test` 靠 AGENTS.md 合并闸门清单约束（红灯不合并），不是 GitHub 硬闸门。Dependabot 启用后开始为过期依赖开 PR，首批可能有几个，需要人工合并，同样要过 `test`。
+
+## D052 — 结构化输出根形状容错：裸数组归一 + 形状重试一次（2026-11-24 端点事故，会话 67）
+
+- **状态**：已接受（2026-11-24，会话 67；生产事故修复）。
+- **背景**：2026-11-24 发现 glm-5.3（coding 端点）对 `response_format: json_schema` 的请求不再受根形状约束——返回的 comments 数组逐项符合 schema，但顶层是裸数组而不是 `{ comments }`，SDK 校验抛 `AI_NoObjectGeneratedError`（`expected object, received array`），审查整链路失败；生产 bot 同样中招（最后一次已知成功是 02:31 对 #176 的审查，21:13 发现全挂，期间没有真实调用）。单变量对照（其余与真实请求完全相同）：原样重发 / `json_object` / `strict:false` / 根对象加必需属性 / 去 `additionalProperties` 全是裸数组——端点没有在按 schema 约束；user 末尾加一句形状指令 → 对象；同一请求换 glm-5.4 → 对象。第二类形态在排查中抓到：工具循环第二段偶尔又输出一遍工具请求协议（`{"searchRequests": [...]}`），63 次里 4 次。
+- **决策**：`reviewDiff` 的两个产出段（单段、工具循环第二段）统一经 `generateReviewResult`，两步兜底，都只在返回侧：
+  1. `NoObjectGeneratedError` 且模型原文是 JSON 数组 → 包成 `{ comments }`，用 `reviewResultSchema` 逐项复验后接受，不重试
+  2. 其余形状不对（含坏项、别的对象、非 JSON）→ system 追加 `prompts/json-output.md`（输出形状说明）重试一次；仍不对照常抛出。超时与 API 错误不重试
+
+  首次请求仍走 `json_schema`，`prompts/review.md` 不动（promptHash 不变）；两次调用的 usage 相加如实记账。
+- **备选**：
+  - 提示词里加一句形状指令——对照实测有效，但改 `review.md` 即换代 promptHash 基线，要重跑回归与金丝雀基线；形状说明只在重试时追加，效果相同而不动基线
+  - 生产切 glm-5.4——对照下形状正确，但换模型是 D033 级别的裁定，不该由一次解析事故顺手决定
+  - 改用 `json_object` 或去掉 `response_format`——实测同样返回裸数组，后者还带 ```json 围栏
+  - 等端点修复——期间生产每条审查都失败，PR 闸门整体不可用
+- **验证**：回归测试 7 个（单测 316 → 323）：单段与第二段的裸数组归一、坏项 / 别的对象 / 非 JSON 照抛、工具请求回声触发重试且 usage 合计、只重试一次、API 400 不重试、`addUsage` 对运行时缺失的详情对象容错（补审 major：论据不成立——SDK 类型里详情对象非可选；结论采纳——catch 路径里的记账不该有机会抛 `TypeError`）。真实端点：单段全部由归一接住；工具循环 84 次调用 0 失败，重试触发 3 次全部恢复。
+- **后果**：`ReviewResult` 的根形状从「靠端点约束」变成「端点约束 + 解析侧兜底」，端点约束失效不再连垮审查。`router.ts`（ReviewPlan）与 `reflect.ts` 的 `Output.object` 调用没有同类兜底——根对象属性多，模型没有「裸数组」的自然写法，router 失败本就降级为无计划继续；出现同族失败再按同法补。单测与 `test` CI 都 mock 掉端点，看不到这类问题：LLM SDK 升级或端点行为变化后，合并前跑真实端点冒烟（`EVAL_ONLY=agentsmd,dogfood npm run eval`，4 例十余秒）。

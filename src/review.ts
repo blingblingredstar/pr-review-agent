@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { normalizeSnapshotPath } from "./paths.ts";
-import { generateText, Output } from "ai";
-import { createOpenAI } from "@ai-sdk/openai";
+import { generateText, NoObjectGeneratedError, Output, TypeValidationError, type LanguageModelUsage } from "ai";
+import { createOpenAI, type OpenAIProvider } from "@ai-sdk/openai";
 import { z } from "zod";
 import { truncateDiff } from "./diff.ts";
 import { buildPlanBlock, type ReviewPlan } from "./router.ts";
@@ -204,6 +204,83 @@ export function sumUsage(usages: TokenUsage[]): TokenUsage {
   };
 }
 
+// 产出 ReviewResult 的调用段（单段与工具循环第二段共用）。
+// 根形状容错（2026-11-24 端点事故，D052）：端点不按 json_schema 约束根形状时，模型输出形状只靠 prompt 引导——
+// 当日实测 glm-5.3 对 json_schema / json_object 都直接吐 comments 裸数组（同一请求 glm-5.4 吐对象），工具循环
+// 第二段偶尔又输出一遍工具请求协议。两步兜底，都只在返回侧：①顶层是数组 → 包成 { comments } 后用同一 schema
+// 逐项复验（内容逐项等价，不重试）；②其余形状不对 → system 追加 prompts/json-output.md（输出形状说明）重试一次。
+// 非形状类错误（超时、API 错误）与重试后仍不对的结果照常抛出。首次请求与 promptHash 均不变。
+async function generateReviewResult(
+  llm: OpenAIProvider,
+  modelId: string,
+  system: string,
+  prompt: string,
+  abortSignal: AbortSignal,
+): Promise<{ output: ReviewResult; usage: LanguageModelUsage | undefined; text: string | undefined; system: string }> {
+  // JSON 模式下 system 已带形状说明段（withJsonSuffix），重试原样再发
+  const systems = [system, jsonMode() ? system : `${system}\n\n${loadJsonOutputPrompt()}`];
+  let usage: LanguageModelUsage | undefined;
+  for (const [i, attemptSystem] of systems.entries()) {
+    try {
+      const run = await generateText({
+        maxOutputTokens: llmMaxOutputTokens(),
+        model: llm.chat(modelId),
+        output: Output.object({ schema: reviewResultSchema, name: "ReviewResult" }),
+        system: attemptSystem,
+        prompt,
+        abortSignal,
+      });
+      return { output: run.output, usage: addUsage(usage, run.usage), text: run.text, system: attemptSystem };
+    } catch (err) {
+      const wrapped = wrapBareArray(err);
+      if (wrapped) return { ...wrapped, usage: addUsage(usage, wrapped.usage), system: attemptSystem };
+      // 只有「形状不对」才重试，且只重试一次：超时 / API 错误照旧直接抛出
+      if (i === systems.length - 1 || !NoObjectGeneratedError.isInstance(err)) throw err;
+      usage = addUsage(usage, err.usage);
+      console.log("[reviewDiff] 输出形状不符合 schema，system 追加 json-output.md 重试一次");
+    }
+  }
+  throw new Error("unreachable");
+}
+
+// 顶层裸数组 → { comments }：数组逐项符合 schema 才算数（坏项返回 null，交给重试或原样抛出）
+function wrapBareArray(err: unknown): { output: ReviewResult; usage: LanguageModelUsage | undefined; text: string } | null {
+  if (!NoObjectGeneratedError.isInstance(err) || !TypeValidationError.isInstance(err.cause) || err.text === undefined) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(err.text);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(parsed)) return null;
+  try {
+    return { output: reviewResultSchema.parse({ comments: parsed }), usage: err.usage, text: err.text };
+  } catch {
+    return null;
+  }
+}
+
+// 两次调用的 usage 相加（形状重试时首次调用的 tokens 也是真实消耗）：逐字段相加，任一侧缺失保持 undefined。
+// 详情对象用可选链——这段代码跑在 catch 路径里，记账不能有机会把可恢复的重试变成 TypeError
+export function addUsage(a: LanguageModelUsage | undefined, b: LanguageModelUsage | undefined): LanguageModelUsage | undefined {
+  if (!a || !b) return a ?? b;
+  const add = (x: number | undefined, y: number | undefined) => (x === undefined ? y : y === undefined ? x : x + y);
+  return {
+    inputTokens: add(a.inputTokens, b.inputTokens),
+    outputTokens: add(a.outputTokens, b.outputTokens),
+    totalTokens: add(a.totalTokens, b.totalTokens),
+    inputTokenDetails: {
+      noCacheTokens: add(a.inputTokenDetails?.noCacheTokens, b.inputTokenDetails?.noCacheTokens),
+      cacheReadTokens: add(a.inputTokenDetails?.cacheReadTokens, b.inputTokenDetails?.cacheReadTokens),
+      cacheWriteTokens: add(a.inputTokenDetails?.cacheWriteTokens, b.inputTokenDetails?.cacheWriteTokens),
+    },
+    outputTokenDetails: {
+      textTokens: add(a.outputTokenDetails?.textTokens, b.outputTokenDetails?.textTokens),
+      reasoningTokens: add(a.outputTokenDetails?.reasoningTokens, b.outputTokenDetails?.reasoningTokens),
+    },
+  };
+}
+
 export async function reviewDiff(diff: string, context?: string, opts?: ReviewDiffOpts): Promise<ReviewOutcome> {
   const { LLM_API_KEY, LLM_BASE_URL, LLM_MODEL } = process.env;
   if (!LLM_API_KEY || !LLM_BASE_URL || !LLM_MODEL) {
@@ -245,16 +322,9 @@ export async function reviewDiff(diff: string, context?: string, opts?: ReviewDi
   // 超时预算见 docs/decisions.md D011（Vercel Hobby 函数上限 300s，留回帖余量）
   // promptSuffix（#127 eval-only）注入时 review.md 原文在后追加段——不传时字符串逐字节相同
   const system = withJsonSuffix(opts?.promptSuffix ? `${loadPrompt()}\n\n${opts.promptSuffix}` : loadPrompt());
-  const { output, usage, text } = await generateText({
-    maxOutputTokens: llmMaxOutputTokens(),
-    model: llm.chat(LLM_MODEL),
-    output: Output.object({ schema: reviewResultSchema, name: "ReviewResult" }),
-    system,
-    prompt,
-    // 超时可被调用方覆写（worker 阶段机 D026：review 阶段按「300s 墙钟 - 续链/落灯预留」封顶，
-    // 保证最坏路径「LLM 打满 + 续链失败 + 落灯」整体不超墙钟）；不传走 LLM_TIMEOUT_MS（D011）
-    abortSignal,
-  });
+  // 超时可被调用方覆写（worker 阶段机 D026：review 阶段按「300s 墙钟 - 续链/落灯预留」封顶，
+  // 保证最坏路径「LLM 打满 + 续链失败 + 落灯」整体不超墙钟）；不传走 LLM_TIMEOUT_MS（D011）
+  const { output, usage, text, system: usedSystem } = await generateReviewResult(llm, LLM_MODEL, system, prompt, abortSignal);
   const tokenUsage: TokenUsage = {
     inputTokens: usage?.inputTokens ?? null,
     outputTokens: usage?.outputTokens ?? null,
@@ -265,7 +335,7 @@ export async function reviewDiff(diff: string, context?: string, opts?: ReviewDi
     `[reviewDiff] tokens: in ${tokenUsage.inputTokens ?? "?"} / out ${tokenUsage.outputTokens ?? "?"}` +
       ` / total ${tokenUsage.totalTokens ?? "?"} / cached ${tokenUsage.cachedInputTokens ?? "?"}`,
   );
-  return reflectPass(llm, LLM_MODEL, { outcome: { ...output, usage: tokenUsage }, system, lastPrompt: prompt, lastText: text ?? "" }, abortSignal, opts?.reflect === true);
+  return reflectPass(llm, LLM_MODEL, { outcome: { ...output, usage: tokenUsage }, system: usedSystem, lastPrompt: prompt, lastText: text ?? "" }, abortSignal, opts?.reflect === true);
 }
 
 // reflect 编排收口（#73）：单段/工具两路径的产出统一在这里过滤。触发条件 = opts.reflect 开 &&
@@ -582,14 +652,7 @@ async function reviewDiffWithTools(
   // json 包裹只算一次（PR #145 bot minor：返回值与第二段调用的 system 必须严格同源——两处独立
   // 调 withJsonSuffix 虽然当前实现纯函数同参必相等，单源 hoist 让「字节级一致」由构造保证）
   const jsonSystem = withJsonSuffix(system);
-  const { output, usage, text } = await generateText({
-    maxOutputTokens: llmMaxOutputTokens(),
-    model: llm.chat(modelId),
-    output: Output.object({ schema: reviewResultSchema, name: "ReviewResult" }),
-    system: jsonSystem,
-    prompt: `${toolBlock}${prompt}`,
-    abortSignal,
-  });
+  const { output, usage, text, system: usedSystem } = await generateReviewResult(llm, modelId, jsonSystem, `${toolBlock}${prompt}`, abortSignal);
   const tokenUsage = sumUsage([
     {
       inputTokens: probe.usage?.inputTokens ?? null,
@@ -608,5 +671,5 @@ async function reviewDiffWithTools(
     `[reviewDiff] tokens（两段合计）: in ${tokenUsage.inputTokens ?? "?"} / out ${tokenUsage.outputTokens ?? "?"}` +
       ` / total ${tokenUsage.totalTokens ?? "?"} / cached ${tokenUsage.cachedInputTokens ?? "?"}`,
   );
-  return { outcome: { ...output, usage: tokenUsage }, system: jsonSystem, lastPrompt: `${toolBlock}${prompt}`, lastText: text ?? "" };
+  return { outcome: { ...output, usage: tokenUsage }, system: usedSystem, lastPrompt: `${toolBlock}${prompt}`, lastText: text ?? "" };
 }
