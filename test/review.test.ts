@@ -3,8 +3,9 @@ import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { strToU8 } from "fflate";
-import { APICallError, NoObjectGeneratedError } from "ai";
+import { APICallError, NoObjectGeneratedError, type LanguageModelUsage } from "ai";
 import {
+  addUsage,
   buildReviewPrompt,
   buildToolBlock,
   extractToolRequests,
@@ -67,6 +68,35 @@ test("sumUsage：字段独立求和，null 不拖累其他字段、不虚构 0",
     outputTokens: null,
     totalTokens: null,
     cachedInputTokens: null,
+  });
+});
+
+test("addUsage：逐字段相加；一侧整体缺失取另一侧；详情对象在运行时缺失也不抛（catch 路径里的记账不能变成崩溃）", () => {
+  const full: LanguageModelUsage = {
+    inputTokens: 100,
+    outputTokens: 10,
+    totalTokens: 110,
+    inputTokenDetails: { noCacheTokens: 60, cacheReadTokens: 40, cacheWriteTokens: 0 },
+    outputTokenDetails: { textTokens: 7, reasoningTokens: 3 },
+  };
+  assert.deepEqual(addUsage(full, undefined), full);
+  assert.deepEqual(addUsage(undefined, full), full);
+  assert.equal(addUsage(undefined, undefined), undefined);
+  const sum = addUsage(full, full)!;
+  assert.deepEqual(
+    [sum.inputTokens, sum.outputTokens, sum.totalTokens, sum.inputTokenDetails.cacheReadTokens, sum.outputTokenDetails.reasoningTokens],
+    [200, 20, 220, 80, 6],
+  );
+  // 类型上两个详情对象非可选，但这段代码跑在 catch 路径里：运行时真缺了也只能得到 undefined 字段
+  const bare = { inputTokens: 5, outputTokens: 1, totalTokens: 6 } as unknown as LanguageModelUsage;
+  const mixed = addUsage(bare, full)!;
+  assert.deepEqual([mixed.inputTokens, mixed.inputTokenDetails.cacheReadTokens, mixed.outputTokenDetails.reasoningTokens], [105, 40, 3]);
+  assert.deepEqual(addUsage(bare, bare), {
+    inputTokens: 10,
+    outputTokens: 2,
+    totalTokens: 12,
+    inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined },
+    outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined },
   });
 });
 

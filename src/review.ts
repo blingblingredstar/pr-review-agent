@@ -260,8 +260,9 @@ function wrapBareArray(err: unknown): { output: ReviewResult; usage: LanguageMod
   }
 }
 
-// 两次调用的 usage 相加（形状重试时首次调用的 tokens 也是真实消耗）：只加调用方读取的字段，其余保持 undefined
-function addUsage(a: LanguageModelUsage | undefined, b: LanguageModelUsage | undefined): LanguageModelUsage | undefined {
+// 两次调用的 usage 相加（形状重试时首次调用的 tokens 也是真实消耗）：逐字段相加，任一侧缺失保持 undefined。
+// 详情对象用可选链——这段代码跑在 catch 路径里，记账不能有机会把可恢复的重试变成 TypeError
+export function addUsage(a: LanguageModelUsage | undefined, b: LanguageModelUsage | undefined): LanguageModelUsage | undefined {
   if (!a || !b) return a ?? b;
   const add = (x: number | undefined, y: number | undefined) => (x === undefined ? y : y === undefined ? x : x + y);
   return {
@@ -269,13 +270,13 @@ function addUsage(a: LanguageModelUsage | undefined, b: LanguageModelUsage | und
     outputTokens: add(a.outputTokens, b.outputTokens),
     totalTokens: add(a.totalTokens, b.totalTokens),
     inputTokenDetails: {
-      noCacheTokens: add(a.inputTokenDetails.noCacheTokens, b.inputTokenDetails.noCacheTokens),
-      cacheReadTokens: add(a.inputTokenDetails.cacheReadTokens, b.inputTokenDetails.cacheReadTokens),
-      cacheWriteTokens: add(a.inputTokenDetails.cacheWriteTokens, b.inputTokenDetails.cacheWriteTokens),
+      noCacheTokens: add(a.inputTokenDetails?.noCacheTokens, b.inputTokenDetails?.noCacheTokens),
+      cacheReadTokens: add(a.inputTokenDetails?.cacheReadTokens, b.inputTokenDetails?.cacheReadTokens),
+      cacheWriteTokens: add(a.inputTokenDetails?.cacheWriteTokens, b.inputTokenDetails?.cacheWriteTokens),
     },
     outputTokenDetails: {
-      textTokens: add(a.outputTokenDetails.textTokens, b.outputTokenDetails.textTokens),
-      reasoningTokens: add(a.outputTokenDetails.reasoningTokens, b.outputTokenDetails.reasoningTokens),
+      textTokens: add(a.outputTokenDetails?.textTokens, b.outputTokenDetails?.textTokens),
+      reasoningTokens: add(a.outputTokenDetails?.reasoningTokens, b.outputTokenDetails?.reasoningTokens),
     },
   };
 }
